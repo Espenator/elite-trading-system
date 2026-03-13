@@ -5,7 +5,8 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { useApi } from "../hooks/useApi";
+import { useApi, fetchCouncilEvaluate, postAgentOverrideStatus } from "../hooks/useApi";
+import { useSettings } from "../hooks/useSettings";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import log from "@/utils/logger";
 import { createChart, CrosshairMode, LineStyle } from "lightweight-charts";
@@ -30,36 +31,16 @@ import {
   Wifi,
   Target,
   Upload,
+  Loader2,
 } from "lucide-react";
 import ws from "../services/websocket";
 import Slider from "../components/ui/Slider";
 
 // ============================================================================
-// CONSTANTS & INITIAL DATA (fallbacks when API is unavailable)
+// PARSERS (no mock data — skeleton when API null)
 // ============================================================================
 
-const FALLBACK_CORE_AGENTS = [
-  { id: "apex", name: "Apex Orchestrator", defaultWeight: 100, type: "Core" },
-  {
-    id: "rel_weak",
-    name: "Relative Weakness",
-    defaultWeight: 85,
-    type: "Core",
-  },
-  { id: "short_basket", name: "Short Basket", defaultWeight: 75, type: "Core" },
-  { id: "meta_arch", name: "Meta Architect", defaultWeight: 90, type: "Core" },
-  { id: "meta_alch", name: "Meta Alchemist", defaultWeight: 80, type: "Core" },
-  { id: "risk_gov", name: "Risk Governor", defaultWeight: 100, type: "Risk" },
-  {
-    id: "signal_eng",
-    name: "Signal Engine",
-    defaultWeight: 95,
-    type: "Engine",
-  },
-];
-const FALLBACK_EXTENDED_AGENTS = [];
-
-/** Parse API agents response into { core, extended, all } using fallbacks */
+/** Parse API agents response into { core, extended, all }; returns null when empty */
 function parseAgentsFromApi(apiData) {
   if (!apiData) return null;
   const list = Array.isArray(apiData)
@@ -84,22 +65,20 @@ function parseAgentsFromApi(apiData) {
   return { core, extended, all };
 }
 
-const SCANNERS = [
-  { id: "daily", name: "Daily Scanner", pct: 100 },
-  { id: "finviz", name: "Finviz Screener", pct: 70 },
-  { id: "amd", name: "AMD Detector", pct: 85 },
-  { id: "pullback", name: "Pullback Detector", pct: 90 },
-  { id: "rebound", name: "Rebound Detector", pct: 80 },
-  { id: "squeeze", name: "Short Squeeze", pct: 65 },
-  { id: "tech", name: "Technical Checker", pct: 75 },
-  { id: "earnings", name: "Earnings Calendar", pct: 50 },
-  { id: "fomc", name: "FOMC Expected", pct: 100 },
-  { id: "sector", name: "Sector Rotation", pct: 85 },
-  { id: "whale", name: "Whale Flow", pct: 95 },
-  { id: "uw", name: "UW Agents", pct: 90 },
-  { id: "tv_watch", name: "TV Watchlist", pct: 60 },
-  { id: "tv_refresh", name: "TV Session Refresh", pct: 40 },
-];
+/** Build scanner list from dataSources API; returns [] when null */
+function parseScannersFromApi(apiData) {
+  if (!apiData) return [];
+  const list = Array.isArray(apiData)
+    ? apiData
+    : apiData?.sources ?? apiData?.data ?? [];
+  if (!list || list.length === 0) return [];
+  return list.map((s) => ({
+    id: s.id || s.source_id || s.name?.toLowerCase().replace(/\s+/g, "_"),
+    name: s.name || s.label || s.id || "—",
+    pct: s.health_pct ?? s.pct ?? 100,
+    enabled: s.enabled !== false && s.status !== "down",
+  }));
+}
 
 const INTEL_MODULES = [
   { id: "intel_hmm", name: "HMM Regime", defaultWeight: 100 },
@@ -150,16 +129,6 @@ const ML_MODELS = [
     version: "v5.1.0",
     defaultStatus: "Ready",
   },
-];
-
-const DATA_SOURCES = [
-  { id: "ds_twitter", name: "Twitter/X API", connected: false },
-  { id: "ds_reddit", name: "Reddit API", connected: false },
-  { id: "ds_news", name: "NewsAPI", connected: false },
-  { id: "ds_benzinga", name: "Benzinga Pro", connected: false },
-  { id: "ds_rss", name: "RSS Aggregator", connected: false },
-  { id: "ds_discord", name: "Discord Listener", connected: true },
-  { id: "ds_youtube", name: "YouTube Agent", connected: false, weight: 1 },
 ];
 
 const API_ENDPOINTS = [
@@ -267,6 +236,7 @@ export default function SignalIntelligenceV3() {
   const { data: apiYoutube } = useApi('youtubeKnowledge', { pollIntervalMs: 60000 });
   const { data: apiTraining } = useApi('training', { pollIntervalMs: 30000 });
   const { data: apiMlBrain } = useApi('mlBrain', { pollIntervalMs: 30000 });
+  const { data: apiFlywheelModels, loading: flywheelModelsLoading } = useApi('flywheelModels', { pollIntervalMs: 30000 });
   const { data: apiPatterns } = useApi('patterns', { pollIntervalMs: 30000 });
   const { data: apiRisk } = useApi('risk', { pollIntervalMs: 15000 });
   const { data: apiAlerts } = useApi('alerts', { pollIntervalMs: 15000 });
@@ -275,37 +245,42 @@ export default function SignalIntelligenceV3() {
   const { data: apiMarket } = useApi('market', { pollIntervalMs: 15000 });
   const { data: apiPortfolio } = useApi('portfolio', { pollIntervalMs: 15000 });
   const { data: apiStrategy } = useApi('strategy', { pollIntervalMs: 30000 });
+  const { data: councilLatest } = useApi('councilLatest', { pollIntervalMs: 15000 });
+  const { settings, updateField, saveCategory } = useSettings();
 
-  // --- DERIVE AGENT LISTS FROM API (with hardcoded fallbacks) ---
+  // --- DERIVE AGENT LISTS FROM API (skeleton when null) ---
   const parsedAgents = useMemo(
     () => parseAgentsFromApi(apiAgents),
     [apiAgents],
   );
-  const CORE_AGENTS = useMemo(
-    () =>
-      parsedAgents?.core?.length ? parsedAgents.core : FALLBACK_CORE_AGENTS,
-    [parsedAgents],
-  );
-  const EXTENDED_AGENTS = useMemo(
-    () => parsedAgents?.extended ?? FALLBACK_EXTENDED_AGENTS,
-    [parsedAgents],
-  );
-  const ALL_AGENTS = useMemo(
-    () => (parsedAgents?.all?.length ? parsedAgents.all : FALLBACK_CORE_AGENTS),
-    [parsedAgents],
-  );
+  const CORE_AGENTS = useMemo(() => parsedAgents?.core ?? [], [parsedAgents]);
+  const EXTENDED_AGENTS = useMemo(() => parsedAgents?.extended ?? [], [parsedAgents]);
+  const ALL_AGENTS = useMemo(() => parsedAgents?.all ?? [], [parsedAgents]);
+  const SCANNERS = useMemo(() => parseScannersFromApi(apiDataSources), [apiDataSources]);
+  const DATA_SOURCES_LIST = useMemo(() => {
+    if (!apiDataSources) return [];
+    const list = Array.isArray(apiDataSources) ? apiDataSources : apiDataSources?.sources ?? apiDataSources?.data ?? [];
+    return list.map((s) => ({
+      id: s.id || s.source_id || s.name?.toLowerCase().replace(/\s+/g, "_"),
+      name: s.name || s.label || s.id || "—",
+      connected: s.connected === true || s.status === "ok" || s.status === "connected",
+      weight: s.weight ?? 100,
+    }));
+  }, [apiDataSources]);
+  const FLYWHEEL_MODELS = useMemo(() => {
+    if (!apiFlywheelModels) return [];
+    const list = Array.isArray(apiFlywheelModels) ? apiFlywheelModels : apiFlywheelModels?.models ?? apiFlywheelModels?.data ?? [];
+    return list.map((m) => ({
+      id: m.id || m.model_id || m.name?.toLowerCase().replace(/\s+/g, "_"),
+      name: m.name || m.label || m.id || "—",
+      version: m.version ?? m.model_version ?? "—",
+      defaultStatus: m.status ?? m.state ?? "Idle",
+    }));
+  }, [apiFlywheelModels]);
 
   // --- LOCAL STATE ---
   const [agentStates, setAgentStates] = useState({});
-  const [scannerStates, setScannerStates] = useState(() =>
-    SCANNERS.reduce(
-      (acc, scan) => ({
-        ...acc,
-        [scan.id]: { active: true, pct: scan.pct, status: "green", runs: 0 },
-      }),
-      {},
-    ),
-  );
+  const [scannerStates, setScannerStates] = useState({});
   const [intelStates, setIntelStates] = useState(() =>
     INTEL_MODULES.reduce(
       (acc, mod) => ({
@@ -344,19 +319,7 @@ export default function SignalIntelligenceV3() {
       {},
     ),
   );
-  const [dataSourceStates, setDataSourceStates] = useState(() =>
-    DATA_SOURCES.reduce(
-      (acc, ds) => ({
-        ...acc,
-        [ds.id]: {
-          active: true,
-          weight: ds.weight ?? 100,
-          connected: ds.connected,
-        },
-      }),
-      {},
-    ),
-  );
+  const [dataSourceStates, setDataSourceStates] = useState({});
   const [regimeLock, setRegimeLock] = useState(false);
   const [autoExecute, setAutoExecute] = useState(false);
   const [maxHeat, setMaxHeat] = useState(25);
@@ -364,10 +327,14 @@ export default function SignalIntelligenceV3() {
   const [wsLatency, setWsLatency] = useState(42);
   const [signals, setSignals] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState("NVDA");
-  const [chartTimeframe, setChartTimeframe] = useState("W1");
+  const [chartTimeframe, setChartTimeframe] = useState("1H");
+  const [chartBarsLoading, setChartBarsLoading] = useState(false);
+  const [selectedAgentForHistory, setSelectedAgentForHistory] = useState(null);
+  const [councilEvaluateLoading, setCouncilEvaluateLoading] = useState(null);
 
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
+  const scoringSaveTimeoutRef = useRef(null);
 
   // --- WEBSOCKET CONNECTION (uses services/websocket.js singleton) ---
   useEffect(() => {
@@ -463,9 +430,62 @@ export default function SignalIntelligenceV3() {
     });
   }, [apiMlBrain, apiTraining]);
 
+  // --- SYNC SCORING & AUTO-EXECUTE FROM SETTINGS ---
+  useEffect(() => {
+    if (settings?.scoring && typeof settings.scoring === "object") {
+      setScoringFormula((p) => ({
+        ...p,
+        ocTaBlend: settings.scoring.ocTaBlend ?? p.ocTaBlend,
+        tierSlamDunk: settings.scoring.tierSlamDunk ?? p.tierSlamDunk,
+        tierStrongGo: settings.scoring.tierStrongGo ?? p.tierStrongGo,
+        tierWatch: settings.scoring.tierWatch ?? p.tierWatch,
+        regimeMultiplier: settings.scoring.regimeMultiplier ?? p.regimeMultiplier,
+      }));
+    }
+  }, [settings?.scoring]);
+  useEffect(() => {
+    if (typeof settings?.trading?.auto_execute === "boolean")
+      setAutoExecute(settings.trading.auto_execute);
+  }, [settings?.trading?.auto_execute]);
+
+  // --- SYNC SCANNER STATE FROM API ---
+  useEffect(() => {
+    if (SCANNERS.length === 0) return;
+    setScannerStates((prev) => {
+      const next = { ...prev };
+      for (const scan of SCANNERS) {
+        next[scan.id] = {
+          active: prev[scan.id]?.active ?? scan.enabled ?? true,
+          pct: prev[scan.id]?.pct ?? scan.pct ?? 50,
+          status: "green",
+          runs: 0,
+        };
+      }
+      return next;
+    });
+  }, [SCANNERS]);
+
+  // --- SYNC ML MODELS FROM FLYWHEEL ---
+  useEffect(() => {
+    if (FLYWHEEL_MODELS.length === 0) return;
+    setMlStates((prev) => {
+      const next = { ...prev };
+      for (const m of FLYWHEEL_MODELS) {
+        next[m.id] = {
+          ...prev[m.id],
+          active: true,
+          confThreshold: prev[m.id]?.confThreshold ?? 75,
+          status: m.defaultStatus,
+        };
+      }
+      return next;
+    });
+  }, [FLYWHEEL_MODELS]);
+
   // --- LIGHTWEIGHT CHARTS SETUP ---
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
+    setChartBarsLoading(true);
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { color: "transparent" },
@@ -633,6 +653,8 @@ export default function SignalIntelligenceV3() {
           "Chart data fetch (expected if no quotes endpoint):",
           err.message,
         );
+      } finally {
+        setChartBarsLoading(false);
       }
     };
     fetchChart();
@@ -698,6 +720,42 @@ export default function SignalIntelligenceV3() {
       log.error(e);
     }
   }, []);
+
+  const handleScoringChange = useCallback((key, value) => {
+    setScoringFormula((p) => ({ ...p, [key]: value }));
+    updateField("scoring", key, value);
+    if (scoringSaveTimeoutRef.current) clearTimeout(scoringSaveTimeoutRef.current);
+    scoringSaveTimeoutRef.current = setTimeout(() => saveCategory("scoring"), 300);
+  }, [updateField, saveCategory]);
+
+  const handleAutoExecuteToggle = useCallback((value) => {
+    setAutoExecute(value);
+    updateField("trading", "auto_execute", value);
+    saveCategory("trading");
+  }, [updateField, saveCategory]);
+
+  const handleScannerToggle = useCallback(async (scanId, enabled) => {
+    setScannerStates((p) => ({ ...p, [scanId]: { ...p[scanId], active: enabled } }));
+    try {
+      await postAgentOverrideStatus(scanId, enabled ? "enable" : "disable");
+    } catch (err) {
+      log.error("Scanner toggle failed:", err);
+      setScannerStates((p) => ({ ...p, [scanId]: { ...p[scanId], active: !enabled } }));
+    }
+  }, []);
+
+  const handleSendToCouncil = useCallback(async (sig) => {
+    const symbol = sig?.symbol || sig?.ticker;
+    if (!symbol) return;
+    setCouncilEvaluateLoading(symbol);
+    try {
+      await fetchCouncilEvaluate(symbol, chartTimeframe || "15m", {});
+    } catch (err) {
+      log.error("Send to Council failed:", err);
+    } finally {
+      setCouncilEvaluateLoading(null);
+    }
+  }, [chartTimeframe]);
 
   // --- SAVE PROFILE (persist all weights/toggles to backend settings) ---
   const handleSaveProfile = useCallback(async () => {
@@ -940,9 +998,9 @@ export default function SignalIntelligenceV3() {
       </div>
 
       {/* ================================================================== */}
-      {/* MAIN 4-COLUMN GRID LAYOUT                                          */}
+      {/* MAIN 3-COLUMN GRID LAYOUT (20% / 50% / 30%) — Aurora theme          */}
       {/* ================================================================== */}
-      <div className="flex-1 grid grid-cols-[300px_1fr_300px_240px] gap-1 p-1 overflow-hidden min-h-0">
+      <div className="flex-1 grid grid-cols-[minmax(0,2fr)_minmax(0,5fr)_minmax(0,3fr)] gap-1 p-1 overflow-hidden min-h-0">
         {/* ============================================================== */}
         {/* COLUMN 1: Scanner Modules (Layer 1) + OpenClaw Score (Layer 4) */}
         {/* ============================================================== */}
@@ -959,28 +1017,25 @@ export default function SignalIntelligenceV3() {
             }
           >
             <div className="space-y-1">
-              {SCANNERS.map((scan) => {
-                const pct = scannerStates[scan.id]?.pct ?? scan.pct ?? 50;
-                return (
-                  <Slider
-                    key={scan.id}
-                    label={scan.name}
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={pct}
-                    onChange={(v) =>
-                      setScannerStates((p) => ({
-                        ...p,
-                        [scan.id]: { ...p[scan.id], pct: v },
-                      }))
-                    }
-                    suffix="%"
-                    className="py-0.5"
-                    valueClassName="text-[8px] min-w-[2.5rem]"
-                  />
-                );
-              })}
+              {dataSourcesLoading ? (
+                <div className="text-[8px] text-gray-500 animate-pulse">Loading scanners…</div>
+              ) : SCANNERS.length === 0 ? (
+                <div className="text-[8px] text-gray-500">No scanner sources</div>
+              ) : (
+                SCANNERS.map((scan) => {
+                  const active = scannerStates[scan.id]?.active ?? scan.enabled ?? true;
+                  return (
+                    <div key={scan.id} className="flex items-center justify-between gap-1 py-0.5">
+                      <span className="text-[8px] text-gray-300 truncate flex-1">{scan.name}</span>
+                      <Toggle
+                        checked={active}
+                        onChange={() => handleScannerToggle(scan.id, !active)}
+                        size="sm"
+                      />
+                    </div>
+                  );
+                })
+              )}
             </div>
           </Panel>
 
@@ -994,24 +1049,40 @@ export default function SignalIntelligenceV3() {
             }
           >
             <div className="space-y-1">
-              {CORE_AGENTS.slice(0, 7).map((agent) => (
-                <Slider
-                  key={agent.id}
-                  label={agent.name}
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={agentStates[agent.id]?.weight ?? agent.defaultWeight}
-                  onChange={(v) => handleUpdateWeight("agent", agent.id, v)}
-                  suffix="%"
-                  className="py-0.5"
-                  valueClassName="text-[8px] min-w-[2.5rem]"
-                />
-              ))}
+              {agentsLoading ? (
+                <div className="text-[8px] text-gray-500 animate-pulse">Loading agents…</div>
+              ) : CORE_AGENTS.length === 0 ? (
+                <div className="text-[8px] text-gray-500">No core agents</div>
+              ) : (
+                CORE_AGENTS.slice(0, 7).map((agent) => (
+                <div key={agent.id} className="flex items-center gap-1">
+                  <div className="flex-1 min-w-0">
+                    <Slider
+                      label={agent.name}
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={agentStates[agent.id]?.weight ?? agent.defaultWeight}
+                      onChange={(v) => handleUpdateWeight("agent", agent.id, v)}
+                      suffix="%"
+                      className="py-0.5"
+                      valueClassName="text-[8px] min-w-[2.5rem]"
+                    />
+                  </div>
+                  <button type="button" onClick={() => setSelectedAgentForHistory(selectedAgentForHistory === agent.id ? null : agent.id)} className="text-[7px] text-[#00D9FF] hover:underline shrink-0" title="Vote history">Vote</button>
+                </div>
+              )))}
             </div>
+            {selectedAgentForHistory && (
+              <div className="mt-1 pt-1 border-t border-[rgba(42,52,68,0.5)]">
+                <span className="text-[7px] text-gray-500 uppercase">Vote history — {CORE_AGENTS.find((a) => a.id === selectedAgentForHistory)?.name ?? selectedAgentForHistory}</span>
+                <div className="text-[8px] text-gray-400 mt-0.5">{councilLatest?.verdict ? `Last: ${councilLatest.verdict}` : councilLatest?.direction ? `Direction: ${councilLatest.direction}` : "No recent verdict"}</div>
+                <button type="button" onClick={() => setSelectedAgentForHistory(null)} className="text-[7px] text-gray-500 hover:text-[#00D9FF] mt-0.5">Close</button>
+              </div>
+            )}
             <div className="mt-2 pt-1 border-t border-[rgba(42,52,68,0.5)]">
               <span className="text-[8px] text-gray-500 uppercase tracking-wider">
-                EXTENDED SWARM ({EXTENDED_AGENTS.length || 93})
+                EXTENDED SWARM ({EXTENDED_AGENTS.length})
               </span>
             </div>
           </Panel>
@@ -1046,12 +1117,16 @@ export default function SignalIntelligenceV3() {
                   <button
                     key={t}
                     onClick={() => setChartTimeframe(t)}
-                    className={`text-[10px] uppercase tracking-wider font-bold rounded-md px-3 py-1 transition-all ${
+                    disabled={chartBarsLoading}
+                    className={`text-[10px] uppercase tracking-wider font-bold rounded-md px-3 py-1 transition-all flex items-center gap-1 ${
                       chartTimeframe === t
-                        ? "bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/30"
+                        ? "bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50"
                         : "bg-transparent text-gray-500 border border-gray-700"
                     }`}
                   >
+                    {chartTimeframe === t && chartBarsLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : null}
                     {t}
                   </button>
                 ))}
@@ -1183,6 +1258,16 @@ export default function SignalIntelligenceV3() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              handleSendToCouncil(sig);
+                            }}
+                            disabled={councilEvaluateLoading === (sig.symbol || sig.ticker)}
+                            className="px-1 py-0.5 text-[7px] font-medium text-[#00D9FF] border border-[#00D9FF]/50 rounded hover:bg-cyan-500/10 disabled:opacity-50"
+                          >
+                            {councilEvaluateLoading === (sig.symbol || sig.ticker) ? "…" : "Send to Council"}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleStageSignal(sig);
                             }}
                             className="px-1 py-0.5 text-[7px] font-medium text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/10"
@@ -1218,9 +1303,7 @@ export default function SignalIntelligenceV3() {
                 min={0}
                 max={100}
                 value={scoringFormula.ocTaBlend}
-                onChange={(v) =>
-                  setScoringFormula((p) => ({ ...p, ocTaBlend: v }))
-                }
+                onChange={(v) => handleScoringChange("ocTaBlend", v)}
                 suffix="%"
                 className="py-0.5"
                 valueClassName="text-[8px] min-w-[2.5rem]"
@@ -1231,9 +1314,7 @@ export default function SignalIntelligenceV3() {
                 max={3}
                 step={0.1}
                 value={scoringFormula.regimeMultiplier || 1.2}
-                onChange={(v) =>
-                  setScoringFormula((p) => ({ ...p, regimeMultiplier: v }))
-                }
+                onChange={(v) => handleScoringChange("regimeMultiplier", v)}
                 formatValue={(v) => v.toFixed(1)}
                 className="py-0.5"
                 valueClassName="text-[8px] min-w-[2rem]"
@@ -1243,9 +1324,7 @@ export default function SignalIntelligenceV3() {
                 min={0}
                 max={100}
                 value={scoringFormula.tierSlamDunk}
-                onChange={(v) =>
-                  setScoringFormula((p) => ({ ...p, tierSlamDunk: v }))
-                }
+                onChange={(v) => handleScoringChange("tierSlamDunk", v)}
                 suffix=""
                 className="py-0.5"
                 valueClassName="text-[8px] min-w-[2rem]"
@@ -1303,68 +1382,69 @@ export default function SignalIntelligenceV3() {
             className="flex-1 min-w-0"
           >
             <div className="space-y-1">
-              {ML_MODELS.map((model) => {
-                const status =
-                  mlStates[model.id]?.status ?? model.defaultStatus;
-                const statusColor =
-                  status === "Ready"
-                    ? "text-emerald-400"
-                    : status === "Training"
-                      ? "text-amber-400"
-                      : "text-gray-500";
-                const conf = mlStates[model.id]?.confThreshold ?? 75;
-                return (
-                  <div
-                    key={model.id}
-                    className="flex items-center gap-2 py-0.5 border-b border-[rgba(42,52,68,0.5)]/30 last:border-0"
-                  >
-                    <span className="text-[8px] text-gray-300 shrink-0 truncate w-24">
-                      {model.name}
-                    </span>
-                    <span className="text-[7px] text-gray-500 font-mono shrink-0">
-                      {model.version}
-                    </span>
-                    <span
-                      className={`text-[7px] font-mono ${statusColor} shrink-0`}
+              {flywheelModelsLoading ? (
+                <div className="text-[8px] text-gray-500 animate-pulse">Loading models…</div>
+              ) : FLYWHEEL_MODELS.length === 0 ? (
+                <div className="text-[8px] text-gray-500">No flywheel models</div>
+              ) : (
+                FLYWHEEL_MODELS.map((model) => {
+                  const status = mlStates[model.id]?.status ?? model.defaultStatus;
+                  const statusColor =
+                    status === "Ready"
+                      ? "text-emerald-400"
+                      : status === "Training"
+                        ? "text-amber-400"
+                        : "text-gray-500";
+                  const conf = mlStates[model.id]?.confThreshold ?? 75;
+                  return (
+                    <div
+                      key={model.id}
+                      className="flex items-center gap-2 py-0.5 border-b border-[rgba(42,52,68,0.5)]/30 last:border-0"
                     >
-                      {status}
-                    </span>
-                    <Slider
-                      label="Confidence"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={conf}
-                      onChange={(v) =>
-                        setMlStates((p) => ({
-                          ...p,
-                          [model.id]: { ...p[model.id], confThreshold: v },
-                        }))
-                      }
-                      suffix="%"
-                      className="flex-1 min-w-0 py-0"
-                      valueClassName="text-[8px] min-w-[2.5rem]"
-                    />
-                    <button
-                      onClick={() => triggerRetrain(model.id)}
-                      className="shrink-0 px-2 py-0.5 text-[7px] font-medium bg-gray-700 text-gray-300 border border-gray-600 rounded hover:bg-gray-600 transition-colors"
-                    >
-                      RETRAIN
-                    </button>
-                  </div>
-                );
-              })}
+                      <span className="text-[8px] text-gray-300 shrink-0 truncate w-24">
+                        {model.name}
+                      </span>
+                      <span className="text-[7px] text-gray-500 font-mono shrink-0">
+                        {model.version}
+                      </span>
+                      <span className={`text-[7px] font-mono ${statusColor} shrink-0`}>
+                        {status}
+                      </span>
+                      <Slider
+                        label="Confidence"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={conf}
+                        onChange={(v) =>
+                          setMlStates((p) => ({
+                            ...p,
+                            [model.id]: { ...p[model.id], confThreshold: v },
+                          }))
+                        }
+                        suffix="%"
+                        className="flex-1 min-w-0 py-0"
+                        valueClassName="text-[8px] min-w-[2.5rem]"
+                      />
+                      <button
+                        onClick={() => triggerRetrain(model.id)}
+                        className="shrink-0 px-2 py-0.5 text-[7px] font-medium bg-gray-700 text-gray-300 border border-gray-600 rounded hover:bg-gray-600 transition-colors"
+                      >
+                        RETRAIN
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </Panel>
-        </div>
 
-        {/* ============================================================== */}
-        {/* COLUMN 4: External Sensors + Execution + Telemetry             */}
-        {/* ============================================================== */}
-        <div className="flex flex-col gap-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">
           {/* External Sensors */}
           <Panel title="External Sensors" icon={Globe} className="shrink-0">
-            {DATA_SOURCES.map((ds) => (
+            {DATA_SOURCES_LIST.length === 0 && !dataSourcesLoading ? (
+              <div className="text-[8px] text-gray-500">No data sources</div>
+            ) : (
+            DATA_SOURCES_LIST.map((ds) => (
               <div key={ds.id} className="flex items-center gap-1.5 py-0.5">
                 <span className="text-[8px] text-gray-300 flex-1 truncate">
                   {ds.name}
@@ -1391,7 +1471,8 @@ export default function SignalIntelligenceV3() {
                   </span>
                 )}
               </div>
-            ))}
+            ))
+            )}
           </Panel>
 
           {/* Execution & Automation Engine */}
@@ -1407,7 +1488,7 @@ export default function SignalIntelligenceV3() {
                 </span>
                 <Toggle
                   checked={autoExecute}
-                  onChange={setAutoExecute}
+                  onChange={handleAutoExecuteToggle}
                   size="sm"
                   variant="orange"
                 />

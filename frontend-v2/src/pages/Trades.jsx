@@ -11,12 +11,17 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  XCircle,
   X,
   Edit3,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Download,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
+import useTradeExecution from "../hooks/useTradeExecution";
 import { getApiUrl, getAuthHeaders } from "../config/api";
+import tradeExecutionService from "../services/tradeExecutionService";
 
 // ── Formatters ──
 const fmtM = (n) => {
@@ -46,27 +51,40 @@ const fmtPnl = (n) => {
 };
 const clr = (n) => (n >= 0 ? "text-emerald-400" : "text-red-400");
 
-// ── Mini Sparkline SVG (bar chart style matching mockup) ──
+// Colorblind P/L direction icons (Aurora theme)
+function PnLIcon({ value }) {
+  if (value == null || isNaN(value)) return <span className="text-slate-500">─</span>;
+  if (value > 0) return <TrendingUp className="inline w-3 h-3 text-emerald-400" aria-hidden />;
+  if (value < 0) return <TrendingDown className="inline w-3 h-3 text-red-400" aria-hidden />;
+  return <Minus className="inline w-3 h-3 text-slate-500" aria-hidden />;
+}
+
+// ── Mini Sparkline: real data only; scale [min,max]; null/empty → flat gray line ──
 function MiniSparkline({ data, width = 56, height = 18, color }) {
-  // Generate data if not provided
   const pts = useMemo(() => {
-    if (data && data.length >= 2) return data;
-    return [];
+    if (Array.isArray(data) && data.length >= 1) return data.map((v) => Number(v)).filter((n) => !isNaN(n));
+    return null;
   }, [data]);
 
-  const baseColor = color || "#34d399";
-
-  if (pts.length === 0) {
-    return <svg width={width} height={height} className="inline-block align-middle" />;
+  if (pts == null || pts.length === 0) {
+    return (
+      <svg width={width} height={height} className="inline-block align-middle" aria-hidden>
+        <line x1={0} y1={height / 2} x2={width} y2={height / 2} stroke="#64748b" strokeWidth={1} />
+      </svg>
+    );
   }
 
+  const min = Math.min(...pts);
   const max = Math.max(...pts);
+  const range = max - min || 1;
   const barW = width / pts.length;
+  const baseColor = color || "#34d399";
 
   return (
-    <svg width={width} height={height} className="inline-block align-middle">
+    <svg width={width} height={height} className="inline-block align-middle" aria-hidden>
       {pts.map((v, i) => {
-        const barH = max > 0 ? (v / max) * (height - 1) : 0;
+        const norm = (v - min) / range;
+        const barH = Math.max(0, (height - 1) * norm);
         return (
           <rect
             key={i}
@@ -75,11 +93,45 @@ function MiniSparkline({ data, width = 56, height = 18, color }) {
             width={Math.max(barW - 0.5, 1)}
             height={barH}
             fill={baseColor}
-            opacity={0.5 + (max > 0 ? (v / max) * 0.5 : 0)}
+            opacity={0.5 + norm * 0.5}
           />
         );
       })}
     </svg>
+  );
+}
+
+// ── Adjust modal inner (stop-loss / take-profit) ──
+function AdjustModalContent({ initialStopLoss, initialTakeProfit, onSave, onCancel }) {
+  const [stopLoss, setStopLoss] = useState(initialStopLoss ?? "");
+  const [takeProfit, setTakeProfit] = useState(initialTakeProfit ?? "");
+  return (
+    <>
+      <div className="space-y-2 mb-3">
+        <label className="block text-[10px] text-slate-400 uppercase">Stop loss</label>
+        <input
+          type="number"
+          step="0.01"
+          value={stopLoss}
+          onChange={(e) => setStopLoss(e.target.value)}
+          className="w-full px-2 py-1 bg-[#0f1729] border border-slate-600 rounded text-xs text-white font-mono"
+          placeholder="e.g. 100.50"
+        />
+        <label className="block text-[10px] text-slate-400 uppercase">Take profit</label>
+        <input
+          type="number"
+          step="0.01"
+          value={takeProfit}
+          onChange={(e) => setTakeProfit(e.target.value)}
+          className="w-full px-2 py-1 bg-[#0f1729] border border-slate-600 rounded text-xs text-white font-mono"
+          placeholder="e.g. 105.00"
+        />
+      </div>
+      <div className="flex justify-end gap-2">
+        <button onClick={onCancel} className="px-3 py-1.5 rounded text-xs text-slate-300 hover:bg-slate-700/50">Cancel</button>
+        <button onClick={() => onSave(stopLoss, takeProfit)} className="px-3 py-1.5 rounded text-xs font-semibold bg-cyan-500/20 text-[#00D9FF] hover:bg-cyan-500/30">Save</button>
+      </div>
+    </>
   );
 }
 
@@ -129,15 +181,24 @@ function TypeBadge({ type }) {
   );
 }
 
+const TAB_POSITIONS = "positions";
+const TAB_ORDERS = "orders";
+const TAB_HISTORY = "history";
+
 export default function Trades() {
   // ── State ──
+  const [activeTab, setActiveTab] = useState(TAB_POSITIONS);
   const [posFilter, setPosFilter] = useState("");
   const [ordFilter, setOrdFilter] = useState("");
   const [posSortKey, setPosSortKey] = useState(null);
   const [posSortDir, setPosSortDir] = useState("asc");
-  const [ordSortKey, setOrdSortKey] = useState(null);
-  const [ordSortDir, setOrdSortDir] = useState("asc");
+  const [ordSortKey, setOrdSortKey] = useState("created_at");
+  const [ordSortDir, setOrdSortDir] = useState("desc");
   const [rebalanceTime, setRebalanceTime] = useState("25m");
+  const [expandedPositionKey, setExpandedPositionKey] = useState(null);
+  const [adjustModal, setAdjustModal] = useState(null);
+  const [flattenConfirmOpen, setFlattenConfirmOpen] = useState(false);
+  const [flattenLoading, setFlattenLoading] = useState(false);
 
   // ── Real API Hooks ──
   const {
@@ -159,6 +220,8 @@ export default function Trades() {
   const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 10000 });
 
   const { data: systemData } = useApi("system", { pollIntervalMs: 30000 });
+
+  const { closePosition: closePositionViaExecution, adjustPosition: adjustPositionViaExecution } = useTradeExecution();
 
   // ── Derived Data ──
   const positions = useMemo(() => {
@@ -238,6 +301,21 @@ export default function Trades() {
     return sortData(list, ordSortKey, ordSortDir);
   }, [orders, ordFilter, ordSortKey, ordSortDir]);
 
+  // History: filled/canceled orders (same API, filtered by symbol when ordFilter set)
+  const historyOrders = useMemo(() => {
+    const statuses = ["filled", "canceled", "cancelled", "expired", "replaced"];
+    let list = orders.filter((o) => statuses.includes((o.status || "").toLowerCase()));
+    if (ordFilter.trim()) {
+      const up = ordFilter.toUpperCase();
+      list = list.filter((o) => (o.symbol || "").toUpperCase().includes(up));
+    }
+    return list.sort((a, b) => {
+      const tA = new Date(a.filled_at || a.updated_at || a.created_at || 0).getTime();
+      const tB = new Date(b.filled_at || b.updated_at || b.created_at || 0).getTime();
+      return tB - tA;
+    });
+  }, [orders, ordFilter]);
+
   // ── Sort handler ──
   const handlePosSort = (key) => {
     if (posSortKey === key) {
@@ -273,18 +351,88 @@ export default function Trades() {
     refetchOrders();
   };
 
-  const handleClosePosition = async (symbol) => {
+  const handleClosePosition = async (symbol, side) => {
     try {
-      const res = await fetch(
-        getApiUrl("orders") + `/close?symbol=${encodeURIComponent(symbol)}`,
-        { method: "POST", headers: getAuthHeaders() }
-      );
-      if (!res.ok) throw new Error("Failed");
+      await closePositionViaExecution(symbol, side || "long");
       toast.success(`Closing ${symbol}`);
       refetchPositions();
     } catch (e) {
       log.error("Close position failed:", e);
-      toast.error(`Close ${symbol} failed: ${e.message}`);
+      toast.error(`Close ${symbol} failed: ${e?.message || "Unknown error"}`);
+    }
+  };
+
+  const handleFlattenAll = async () => {
+    setFlattenLoading(true);
+    try {
+      await tradeExecutionService.emergencyStop();
+      toast.success("Flatten all positions sent.");
+      refetchPositions();
+      refetchOrders();
+      setFlattenConfirmOpen(false);
+    } catch (e) {
+      log.error("Emergency stop failed:", e);
+      toast.error(`Flatten failed: ${e?.message || "Unknown error"}`);
+    } finally {
+      setFlattenLoading(false);
+    }
+  };
+
+  const handleDownloadCsv = () => {
+    const rows = [];
+    if (activeTab === TAB_POSITIONS) {
+      rows.push(["Symbol", "Side", "Qty", "Avg Price", "Current Price", "Unrealized P&L", "Day P&L $", "Day P&L %"]);
+      filteredPositions.forEach((p) => {
+        const qty = Math.abs(Number(p.qty || p.quantity || 0));
+        const avg = Number(p.avg_entry_price || p.entryPrice || 0);
+        const cur = Number(p.current_price || p.currentPrice || 0);
+        const upl = Number(p.unrealized_pl || p.unrealizedPnL || 0);
+        const dayPnl = Number(p.unrealized_intraday_pl || p.dayPnl || 0);
+        const dayPct = avg ? ((cur - avg) / avg) * 100 : 0;
+        rows.push([p.symbol || p.ticker, p.side || "long", qty, avg, cur, upl, dayPnl, dayPct.toFixed(2)]);
+      });
+    } else if (activeTab === TAB_ORDERS || activeTab === TAB_HISTORY) {
+      const list = activeTab === TAB_HISTORY ? historyOrders : filteredOrders;
+      rows.push(["Order ID", "Date", "Symbol", "Side", "Type", "Qty", "Status", "Limit", "Stop"]);
+      list.forEach((o) => {
+        const created = o.created_at || o.submitted_at || "";
+        rows.push([
+          o.id || o.order_id || "",
+          created ? new Date(created).toLocaleString() : "",
+          o.symbol || "",
+          o.side || "",
+          o.order_type || o.type || "",
+          o.qty || o.quantity || "",
+          o.status || "",
+          o.limit_price ?? "",
+          o.stop_price ?? "",
+        ]);
+      });
+    }
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `trades-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV downloaded.");
+  };
+
+  const handleAdjustSubmit = async (stopLoss, takeProfit) => {
+    if (!adjustModal) return;
+    try {
+      await adjustPositionViaExecution(adjustModal.symbol, adjustModal.side, {
+        stop_loss: stopLoss,
+        take_profit: takeProfit,
+      });
+      toast.success(`Adjust sent for ${adjustModal.symbol}`);
+      setAdjustModal(null);
+      refetchPositions();
+    } catch (e) {
+      log.error("Adjust failed:", e);
+      toast.error(`Adjust failed: ${e?.message || "Unknown error"}`);
     }
   };
 
@@ -445,13 +593,15 @@ export default function Trades() {
 
         <span className="text-slate-600">|</span>
 
-        {/* WS LATENCY */}
+        {/* WS LATENCY — no fallback; show — when null */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             WS_LATENCY:
           </span>
           <span className="text-[13px] font-bold text-[#00D9FF] font-mono">
-            {systemData?.ws_latency_ms ?? systemData?.latency ?? "35"}ms
+            {systemData?.ws_latency_ms != null || systemData?.latency != null
+              ? `${systemData?.ws_latency_ms ?? systemData?.latency}ms`
+              : "—"}
           </span>
         </div>
 
@@ -484,24 +634,65 @@ export default function Trades() {
       </div>
 
       {/* ═══════════════════════════════════════════════════
-          MAIN CONTENT: Positions + Orders tables
+          MAIN CONTENT: Tabs (Positions | Orders | History) + tables
           ═══════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* ── POSITIONS TABLE ── */}
-        <div className="flex-[3] flex flex-col min-h-0 overflow-hidden">
-          {/* Section header */}
-          <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
-            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
-              Positions
-            </span>
-            <input
-              type="text"
-              placeholder="Filter symbol..."
-              value={posFilter}
-              onChange={(e) => setPosFilter(e.target.value)}
-              className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
-            />
+        {/* Tab bar + Flatten All + Download CSV */}
+        <div className="flex items-center justify-between px-3 py-1.5 bg-[#111827] border-b border-cyan-900/30 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="flex rounded border border-slate-600/50 overflow-hidden">
+              {[TAB_POSITIONS, TAB_ORDERS, TAB_HISTORY].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+                    activeTab === tab
+                      ? "bg-cyan-500/20 text-[#00D9FF] border-b border-[#00D9FF]"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/30"
+                  }`}
+                >
+                  {tab === TAB_POSITIONS ? "Positions" : tab === TAB_ORDERS ? "Orders" : "History"}
+                </button>
+              ))}
+            </div>
+            {activeTab === TAB_POSITIONS && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Filter symbol..."
+                  value={posFilter}
+                  onChange={(e) => setPosFilter(e.target.value)}
+                  className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
+                />
+                <button
+                  onClick={() => setFlattenConfirmOpen(true)}
+                  className="px-2 py-1 bg-red-500/20 border border-red-500/40 rounded text-[10px] font-semibold text-red-400 hover:bg-red-500/30 transition-colors"
+                >
+                  Flatten All Positions
+                </button>
+              </>
+            )}
+            {(activeTab === TAB_ORDERS || activeTab === TAB_HISTORY) && (
+              <input
+                type="text"
+                placeholder="Filter symbol..."
+                value={ordFilter}
+                onChange={(e) => setOrdFilter(e.target.value)}
+                className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
+              />
+            )}
           </div>
+          <button
+            onClick={handleDownloadCsv}
+            className="flex items-center gap-1 px-2 py-1 bg-[#131A2B] border border-cyan-900/50 rounded text-[10px] text-[#00D9FF] hover:bg-cyan-500/10 transition-colors"
+          >
+            <Download className="w-3 h-3" />
+            Download CSV
+          </button>
+        </div>
+
+        {/* ── POSITIONS TABLE ── */}
+        <div className={`flex flex-col min-h-0 overflow-hidden ${activeTab !== TAB_POSITIONS ? "hidden" : "flex-[3]"}`}>
 
           {/* Table */}
           <div className="flex-1 overflow-auto">
@@ -516,7 +707,7 @@ export default function Trades() {
                         col.key !== "actions" &&
                         handlePosSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
+                      className={`sticky top-0 bg-[#0f1729] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-cyan-900/30 z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
                         col.align === "left"
                           ? "text-left"
                           : col.align === "center"
@@ -601,13 +792,16 @@ export default function Trades() {
                   const beta = p.beta ?? "--";
                   const dailyRangeVol = p.daily_range_vol || p.dailyRangeVol || "--";
 
-                  // Sparkline data
+                  // Sparkline data — real API only; null → flat line in MiniSparkline
                   const sparkData = p.sparkline || p.price_history || null;
+                  const rowKey = `${sym}-${side}-${i}`;
+                  const isExpanded = expandedPositionKey === rowKey;
 
                   return (
+                    <React.Fragment key={rowKey}>
                     <tr
-                      key={sym + "-" + i}
-                      className="hover:bg-[#1E293B]/50 transition-colors border-b border-[rgba(42,52,68,0.5)]/30"
+                      onClick={() => setExpandedPositionKey((k) => (k === rowKey ? null : rowKey))}
+                      className="hover:bg-[#1E293B]/50 transition-colors border-b border-[rgba(42,52,68,0.5)]/30 cursor-pointer"
                     >
                       {/* Symbol */}
                       <td className="px-1.5 py-[3px] text-left">
@@ -641,15 +835,24 @@ export default function Trades() {
                       </td>
                       {/* Day P&L (%) */}
                       <td className={`px-1.5 py-[3px] text-right font-mono font-semibold ${clr(dayPnlPctVal)}`}>
-                        {dayPnlPctVal !== 0 ? fmtPct(dayPnlPctVal) : "--"}
+                        <span className="inline-flex items-center gap-0.5">
+                          <PnLIcon value={dayPnlPctVal} />
+                          {dayPnlPctVal !== 0 ? fmtPct(dayPnlPctVal) : "—"}
+                        </span>
                       </td>
                       {/* Day P&L ($) */}
                       <td className={`px-1.5 py-[3px] text-right font-mono font-semibold ${clr(dayPnlDollar)}`}>
-                        {dayPnlDollar !== 0 ? fmtPnl(dayPnlDollar) : "--"}
+                        <span className="inline-flex items-center gap-0.5">
+                          <PnLIcon value={dayPnlDollar} />
+                          {dayPnlDollar !== 0 ? fmtPnl(dayPnlDollar) : "—"}
+                        </span>
                       </td>
                       {/* Unrealized P&L */}
                       <td className={`px-1.5 py-[3px] text-right font-mono font-bold ${clr(unrealPnl)}`}>
-                        {fmtPnl(unrealPnl)}
+                        <span className="inline-flex items-center gap-0.5">
+                          <PnLIcon value={unrealPnl} />
+                          {fmtPnl(unrealPnl)}
+                        </span>
                       </td>
                       {/* Realized P&L (%) */}
                       <td className={`px-1.5 py-[3px] text-right font-mono ${clr(realPnl)}`}>
@@ -701,18 +904,19 @@ export default function Trades() {
                         />
                       </td>
                       {/* Actions */}
-                      <td className="px-1.5 py-[3px] text-center">
+                      <td className="px-1.5 py-[3px] text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex items-center gap-0.5">
                           <button
-                            onClick={() => handleClosePosition(sym)}
+                            onClick={() => handleClosePosition(sym, side)}
                             className="p-0.5 text-slate-500 hover:text-red-400 transition-colors"
                             title="Close position"
                           >
                             <X className="w-3 h-3" />
                           </button>
                           <button
+                            onClick={() => setAdjustModal({ symbol: sym, side, stopLoss: p.stop_loss ?? "", takeProfit: p.take_profit ?? "" })}
                             className="p-0.5 text-slate-500 hover:text-[#00D9FF] transition-colors"
-                            title="Modify position"
+                            title="Adjust stop-loss / take-profit"
                           >
                             <Edit3 className="w-3 h-3" />
                           </button>
@@ -725,6 +929,29 @@ export default function Trades() {
                         </div>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr className="bg-[#0f1729]/80 border-b border-cyan-900/20">
+                        <td colSpan={posColumns.length} className="px-3 py-2 text-[10px]">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-slate-300">
+                            <span>Entry: {fmtM(avgPrice)}</span>
+                            <span>Current: {fmtM(mktPrice)}</span>
+                            <span>Stop: {p.stop_loss != null ? fmtM(p.stop_loss) : "—"}</span>
+                            <span>Take-profit: {p.take_profit != null ? fmtM(p.take_profit) : "—"}</span>
+                            <span className="col-span-2">Council decision: {p.council_decision_id || "—"}</span>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <span className="text-slate-500">P&L since entry:</span>
+                            <MiniSparkline
+                              data={sparkData}
+                              width={120}
+                              height={24}
+                              color={unrealPnl >= 0 ? "#34d399" : "#f87171"}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
                 {filteredPositions.length === 0 && !posLoading && !posError && (
@@ -742,21 +969,10 @@ export default function Trades() {
           </div>
         </div>
 
-        {/* ── ORDERS TABLE ── */}
-        <div className="flex-[2] flex flex-col min-h-0 overflow-hidden border-t border-[rgba(42,52,68,0.5)]">
-          {/* Section header */}
-          <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
-            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
-              Orders
-            </span>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Filter..."
-                value={ordFilter}
-                onChange={(e) => setOrdFilter(e.target.value)}
-                className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
-              />
+        {/* ── ORDERS / HISTORY TABLE ── */}
+        <div className={`flex flex-col min-h-0 overflow-hidden border-t border-cyan-900/30 ${activeTab !== TAB_ORDERS && activeTab !== TAB_HISTORY ? "hidden" : "flex-[2]"}`}>
+          {activeTab === TAB_ORDERS && (
+            <div className="flex items-center justify-end gap-2 px-3 py-1 bg-[#111827] border-b border-cyan-900/30 flex-shrink-0">
               <button
                 onClick={handleCancelAll}
                 className="px-2 py-0.5 bg-[#131A2B] border border-red-500/30 rounded text-[9px] text-red-400 hover:bg-red-500/10 transition-colors"
@@ -764,7 +980,7 @@ export default function Trades() {
                 Cancel All
               </button>
             </div>
-          </div>
+          )}
 
           {/* Table */}
           <div className="flex-1 overflow-auto">
@@ -777,7 +993,7 @@ export default function Trades() {
                       onClick={() =>
                         col.key !== "actions" && handleOrdSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
+                      className={`sticky top-0 bg-[#0f1729] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-cyan-900/30 z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
                         col.align === "left"
                           ? "text-left"
                           : col.align === "center"
@@ -810,7 +1026,7 @@ export default function Trades() {
                     </td>
                   </tr>
                 )}
-                {filteredOrders.map((o, i) => {
+                {(activeTab === TAB_HISTORY ? historyOrders : filteredOrders).map((o, i) => {
                   const orderId = o.id || o.order_id || "--";
                   const orderIdShort =
                     orderId.length > 12
@@ -1025,13 +1241,13 @@ export default function Trades() {
                     </React.Fragment>
                   );
                 })}
-                {filteredOrders.length === 0 && !ordLoading && (
+                {((activeTab === TAB_HISTORY ? historyOrders : filteredOrders).length === 0) && !ordLoading && (
                   <tr>
                     <td
                       colSpan={ordColumns.length}
                       className="px-4 py-6 text-center text-slate-500 text-xs"
                     >
-                      No active orders.
+                      {activeTab === TAB_HISTORY ? "No history yet." : "No active orders."}
                     </td>
                   </tr>
                 )}
@@ -1040,6 +1256,46 @@ export default function Trades() {
           </div>
         </div>
       </div>
+
+      {/* Adjust (stop-loss / take-profit) modal */}
+      {adjustModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setAdjustModal(null)}>
+          <div className="bg-[#111827] border border-cyan-900/50 rounded-lg p-4 w-[320px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-white mb-3">Adjust: {adjustModal.symbol}</h3>
+            <AdjustModalContent
+              initialStopLoss={adjustModal.stopLoss}
+              initialTakeProfit={adjustModal.takeProfit}
+              onSave={(stopLoss, takeProfit) => handleAdjustSubmit(stopLoss, takeProfit)}
+              onCancel={() => setAdjustModal(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Flatten All confirmation */}
+      {flattenConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => !flattenLoading && setFlattenConfirmOpen(false)}>
+          <div className="bg-[#111827] border border-red-500/40 rounded-lg p-4 w-[340px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-red-400 mb-2">Flatten All Positions</h3>
+            <p className="text-xs text-slate-400 mb-4">This will submit an emergency stop and close all open positions. Continue?</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => !flattenLoading && setFlattenConfirmOpen(false)}
+                className="px-3 py-1.5 rounded text-xs text-slate-300 hover:bg-slate-700/50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFlattenAll}
+                disabled={flattenLoading}
+                className="px-3 py-1.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+              >
+                {flattenLoading ? "Sending…" : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════
           FOOTER

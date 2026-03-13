@@ -3,8 +3,10 @@
 // Route: /risk | Section: Execution | Page 10
 // Rebuilt to match mockup 13-risk-intelligence.png
 // =============================================================================
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useApi } from "../hooks/useApi";
+import { useRiskScore, useDrawdownCheck, useKellyRanked } from "../hooks/useApi";
+import { useSettings } from "../hooks/useSettings";
 import { getApiUrl, getAuthHeaders, WS_CHANNELS } from "../config/api";
 import ws from "../services/websocket";
 import log from "@/utils/logger";
@@ -12,10 +14,9 @@ import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import {
   Shield, RefreshCw, Target, Grid3X3, Gauge, Brain, DollarSign,
-  Clock, Octagon, ChevronDown, Radio
+  Clock, Octagon, ChevronDown, Radio, X
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { CorrelationMatrixHeatmap, ParameterSweepsPanel } from '../components/dashboard/RiskWidgets';
+import { ParameterSweepsPanel } from '../components/dashboard/RiskWidgets';
 
 // ─── COLOR PALETTE (dark theme) ─────────────────────────────────────────────
 const C = {
@@ -50,6 +51,16 @@ function statusColor(status) {
   return C.red;
 }
 
+// ─── SKELETON (no mock numbers) ──────────────────────────────────────────────
+function Skeleton({ className = '', style = {} }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-[rgba(42,52,68,0.6)] ${className}`}
+      style={{ minHeight: 16, ...style }}
+    />
+  );
+}
+
 // ─── CORRELATION COLOR ──────────────────────────────────────────────────────
 function corrCellBg(val) {
   const v = Math.abs(val ?? 0);
@@ -73,13 +84,21 @@ function SafetyCheck({ label, status }) {
   );
 }
 
-// ─── CORRELATION HEATMAP ────────────────────────────────────────────────────
-function CorrelationHeatmap({ data }) {
+// ─── CORRELATION HEATMAP (API data only; click → drill-down) ─────────────────
+function CorrelationHeatmap({ data, loading, onCellClick }) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-8 space-y-2">
+        <Skeleton className="w-32 h-4" />
+        <Skeleton className="w-48 h-24" />
+      </div>
+    );
+  }
   if (!data || !data.symbols || !data.matrix || data.symbols.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
         <Grid3X3 className="w-6 h-6 mb-2 opacity-40" />
-        <div className="text-xs font-mono">Awaiting correlation data</div>
+        <div className="text-xs font-mono">No correlation data</div>
       </div>
     );
   }
@@ -115,7 +134,9 @@ function CorrelationHeatmap({ data }) {
                 return (
                   <td
                     key={ci}
-                    className="text-center font-bold transition-all"
+                    role={onCellClick && !isDiag ? 'button' : undefined}
+                    onClick={onCellClick && !isDiag ? () => onCellClick(rowSym, symbols[ci], safeVal) : undefined}
+                    className={`text-center font-bold transition-all ${onCellClick && !isDiag ? 'cursor-pointer hover:ring-1 hover:ring-cyan-500/50' : ''}`}
                     style={{
                       color: isDiag ? C.dimText : '#fff',
                       backgroundColor: isDiag ? 'rgba(0,217,255,0.08)' : corrCellBg(safeVal),
@@ -125,7 +146,7 @@ function CorrelationHeatmap({ data }) {
                       minWidth: cellSize,
                       height: cellSize,
                     }}
-                    title={`${rowSym} vs ${symbols[ci]}: ${safeVal.toFixed(4)}`}
+                    title={onCellClick && !isDiag ? `Click: ${rowSym} vs ${symbols[ci]} drill-down` : `${rowSym} vs ${symbols[ci]}: ${safeVal.toFixed(4)}`}
                   >
                     {isDiag ? '1.00' : safeVal.toFixed(2)}
                   </td>
@@ -139,24 +160,37 @@ function CorrelationHeatmap({ data }) {
   );
 }
 
-// ─── POSITION SIZER VERTICAL BARS ───────────────────────────────────────────
-function PositionSizer({ kelly, portfolioValue }) {
-  const fullKellyPct = ((kelly?.full_kelly ?? 0) * 100);
+// ─── POSITION SIZER (API data only; no fake numbers) ─────────────────────────
+function PositionSizer({ kelly, portfolioValue, loading }) {
+  if (loading || !kelly) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="w-full h-20" />
+        <div className="flex justify-between gap-1.5">
+          {['Full', 'Half', '1/4', 'Rec', 'Max', 'Min'].map((l) => (
+            <Skeleton key={l} className="flex-1 h-3" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const fullKellyPct = (typeof kelly.full_kelly === 'number' ? kelly.full_kelly : 0) * 100;
+  const recPct = typeof kelly.recommended_pct === 'number' ? kelly.recommended_pct : (fullKellyPct * 0.25);
   const sizingBars = [
-    { label: 'Full', pct: fullKellyPct || 8.2, color: C.red },
-    { label: 'Half', pct: (fullKellyPct * 0.5) || 4.1, color: C.amber },
-    { label: '1/4', pct: (fullKellyPct * 0.25) || 2.0, color: C.green },
-    { label: 'Rec', pct: kelly?.recommended_pct ?? ((fullKellyPct * 0.25) || 2.5), color: C.cyan },
-    { label: 'Max', pct: fullKellyPct * 0.75 || 6.1, color: C.purple },
-    { label: 'Min', pct: fullKellyPct * 0.1 || 0.8, color: C.teal },
-  ];
-  const maxPct = Math.max(...sizingBars.map(b => b.pct), 1);
+    { label: 'Full', pct: fullKellyPct, color: C.red },
+    { label: 'Half', pct: fullKellyPct * 0.5, color: C.amber },
+    { label: '1/4', pct: fullKellyPct * 0.25, color: C.green },
+    { label: 'Rec', pct: recPct, color: C.cyan },
+    { label: 'Max', pct: fullKellyPct * 0.75, color: C.purple },
+    { label: 'Min', pct: fullKellyPct * 0.1, color: C.teal },
+  ].map((b) => ({ ...b, pct: Math.max(0, b.pct) }));
+  const maxPct = Math.max(...sizingBars.map((b) => b.pct), 0.01);
 
   return (
     <div>
       <div className="flex items-end justify-between gap-1.5" style={{ height: 100 }}>
         {sizingBars.map((bar, i) => {
-          const h = Math.max((bar.pct / maxPct) * 100, 5);
+          const h = Math.max((bar.pct / maxPct) * 100, 2);
           return (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
               <span className="text-[8px] font-mono font-bold" style={{ color: bar.color }}>
@@ -191,17 +225,32 @@ export default function RiskIntelligence() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [riskModel, setRiskModel] = useState('Adaptive Multi-Factor');
   const [strategy, setStrategy] = useState('Enhanced MetaResolved TrenchRunner');
+  const [emergencyCountdown, setEmergencyCountdown] = useState(null);
+  const [sweepModalOpen, setSweepModalOpen] = useState(false);
+  const [sweepParams, setSweepParams] = useState(null);
+  const [correlationDrill, setCorrelationDrill] = useState(null);
+  const [historyDayDetail, setHistoryDayDetail] = useState(null);
+  const [stressResult, setStressResult] = useState(null);
+  const [stressLoading, setStressLoading] = useState(false);
+  const emergencyTimerRef = useRef(null);
+
+  // ─── RISK HOOKS (spec: useRiskScore, useDrawdownCheck, useKellyRanked) ──────
+  const { data: riskScoreData, loading: riskScoreLoading } = useRiskScore(30000);
+  const { data: drawdownData, loading: drawdownLoading } = useDrawdownCheck(15000);
+  const { data: kellyRankedData } = useKellyRanked(true);
+  const { settings, updateField, saveCategory, loading: settingsLoading } = useSettings();
 
   // ─── API HOOKS ────────────────────────────────────────────────────────────
   const { data: riskData, refetch: refetchRisk } = useApi('risk');
-  const { data: riskScoreData } = useApi('riskScore');
   const { data: shieldData, refetch: refetchShield } = useApi('riskShield');
   const { data: gaugesData, refetch: refetchGauges } = useApi('risk', { endpoint: '/risk/risk-gauges' });
-  const { data: kellyData } = useApi('kellySizer');
+  const { data: kellyData, loading: kellyLoading } = useApi('kellySizer');
   const { data: monteData } = useApi('risk', { endpoint: '/risk/monte-carlo' });
   const { data: historyData } = useApi('risk', { endpoint: '/risk/history' });
   const { data: portfolioData } = useApi('portfolio');
-  const { data: correlationData } = useApi('risk', { endpoint: '/risk/correlation-matrix' });
+  const { data: correlationData, loading: correlationLoading } = useApi('risk', { endpoint: '/risk/correlation-matrix' });
+  const { data: sweepStatusData } = useApi('swarmSweepStatus');
+
   const handleRefresh = useCallback(() => {
     setLastRefresh(new Date());
     refetchRisk(); refetchShield(); refetchGauges();
@@ -213,80 +262,58 @@ export default function RiskIntelligence() {
     return unsub;
   }, [handleRefresh]);
 
-  // ─── DERIVED VALUES ───────────────────────────────────────────────────────
-  const rawScore = riskScoreData?.score ?? riskData?.risk_score ?? 0;
-  const riskScore = (typeof rawScore === 'number' && !Number.isNaN(rawScore)) ? rawScore : Number(rawScore) || 0;
-  const grade = gradeFromScore(riskScore);
-  const systemStatus = riskData?.system_status ?? 'UNKNOWN';
+  // ─── DERIVED VALUES (API only; no fake numbers; null → skeleton) ───────────
+  const rawScore = riskScoreData?.score ?? riskData?.risk_score;
+  const riskScore = (typeof rawScore === 'number' && !Number.isNaN(rawScore)) ? rawScore : null;
+  const grade = riskScore != null ? gradeFromScore(riskScore) : null;
+  const systemStatus = riskData?.system_status ?? null;
 
-  // Safety checks from shield
-  const safetyChecks = shieldData?.checks ?? [
-    { label: 'Max Position Size', status: 'PASS' },
-    { label: 'Portfolio Concentration', status: 'PASS' },
-    { label: 'Daily Loss Limit', status: 'PASS' },
-    { label: 'Drawdown Threshold', status: 'PASS' },
-    { label: 'Correlation Check', status: 'PASS' },
-    { label: 'Volatility Regime', status: 'PASS' },
-    { label: 'Liquidity Check', status: 'PASS' },
-    { label: 'Sector Exposure', status: 'PASS' },
-    { label: 'Risk Budget', status: 'PASS' },
-  ];
+  const shieldLoading = !shieldData && riskData === undefined;
+  const safetyChecks = shieldData?.checks ?? [];
 
-  // Risk gauges (raw 0-1 scale for horizontal bars)
-  const rawGauges = gaugesData?.gauges ?? [
-    { label: 'VaR 95%', value: 15 },
-    { label: 'Beta', value: 43 },
-    { label: 'CVaR', value: 15 },
-    { label: 'Skew Risk', value: 15 },
-    { label: 'Correlation', value: 45 },
-    { label: 'Volatility', value: 32 },
-    { label: 'Tail Risk', value: 18 },
-    { label: 'Concentration', value: 22 },
-  ];
+  const gaugesLoading = !gaugesData;
+  const rawGauges = gaugesData?.gauges ?? [];
 
-  // Kelly sizing
-  const kelly = kellyData ?? {
-    full_kelly: 0, half_kelly: 0, quarter_kelly: 0,
-    current_sizing: 'quarter', win_rate: 0, avg_win: 0, avg_loss: 0,
-    edge: 0, recommended_pct: 0,
-  };
+  const kelly = kellyData ?? null;
+  const monte = monteData ?? null;
 
-  // Monte Carlo
-  const monte = monteData ?? {
-    simulations: 10000, median_return: 0, p5_return: 0, p95_return: 0,
-    prob_profit: 0, max_dd_median: 0, max_dd_p95: 0, ruin_probability: 0,
-  };
+  const configItems = useMemo(() => {
+    if (!riskData) return [];
+    return [
+      { label: 'Signal Confidence Sentinel', value: riskData.signal_confidence, color: C.green },
+      { label: 'Capital Exposure Watchdog', value: riskData.capital_exposure, color: C.amber },
+      { label: 'Regime Sentinels', value: riskData.regime_sentinel, color: C.cyan },
+      { label: 'Volatility Monitor', value: riskData.vol_monitor, color: C.cyan },
+      { label: 'Drawdown Protection', value: riskData.dd_protection, color: C.green },
+      { label: 'Multi-Agent Consensus', value: riskData.consensus, color: C.cyan },
+      { label: 'Performance Analytics', value: riskData.perf_analytics, color: C.green },
+      { label: 'Risk Budgets', value: riskData.risk_budgets, color: C.cyan },
+    ].filter((i) => i.value != null);
+  }, [riskData]);
 
-  // Risk configuration items
-  const configItems = [
-    { label: 'Signal Confidence Sentinel', value: riskData?.signal_confidence ?? 'HIGH', color: C.green },
-    { label: 'Capital Exposure Watchdog', value: riskData?.capital_exposure ?? 'MODERATE', color: C.amber },
-    { label: 'Regime Sentinels', value: riskData?.regime_sentinel ?? 'ACTIVE', color: C.cyan },
-    { label: 'Volatility Monitor', value: riskData?.vol_monitor ?? 'ACTIVE', color: C.cyan },
-    { label: 'Drawdown Protection', value: riskData?.dd_protection ?? 'ARMED', color: C.green },
-    { label: 'Multi-Agent Consensus', value: riskData?.consensus ?? 'ENABLED', color: C.cyan },
-    { label: 'Performance Analytics', value: riskData?.perf_analytics ?? 'ONLINE', color: C.green },
-    { label: 'Risk Budgets', value: riskData?.risk_budgets ?? 'ACTIVE', color: C.cyan },
-  ];
+  const volRegimeItems = useMemo(() => {
+    if (!riskData) return [];
+    const items = [
+      { label: 'VIX Level', value: riskData.vix_current, max: 80, color: C.amber },
+      { label: 'Hist Vol (20d)', value: riskData.hist_vol_20d, max: 60, color: C.cyan },
+      { label: 'Impl Vol Skew', value: riskData.iv_skew, max: 20, color: C.purple },
+      { label: 'Vol Regime', value: riskData.vol_regime_score, max: 100, color: C.green },
+    ];
+    return items.filter((i) => typeof i.value === 'number');
+  }, [riskData]);
 
-  // Volatility regime data
-  const volRegimeItems = [
-    { label: 'VIX Level', value: riskData?.vix_current ?? 18.5, max: 80, color: C.amber },
-    { label: 'Hist Vol (20d)', value: riskData?.hist_vol_20d ?? 14.2, max: 60, color: C.cyan },
-    { label: 'Impl Vol Skew', value: riskData?.iv_skew ?? 3.8, max: 20, color: C.purple },
-    { label: 'Vol Regime', value: riskData?.vol_regime_score ?? 35, max: 100, color: C.green },
-  ];
-
-  // AI Agent risk monitors (guard against NaN from API)
-  const safeNum = (v, fallback = 0) => (typeof v === 'number' && !Number.isNaN(v) ? v : fallback);
-  const agentMonitors = [
-    { label: 'Monte Carlo P(profit)', value: safeNum(monte.prob_profit, 0), color: C.green },
-    { label: 'MC Median Return', value: Math.max(0, safeNum(monte.median_return, 0) + 50), color: C.cyan },
-    { label: 'Ruin Probability', value: Math.min(safeNum(monte.ruin_probability, 0) * 10, 100), color: C.red },
-    { label: 'Max DD (P95)', value: Math.min(Math.abs(safeNum(monte.max_dd_p95, 0)) * 3, 100), color: C.amber },
-    { label: 'Kelly Edge', value: Math.min(safeNum(kelly.edge, 0) * 1000, 100), color: C.purple },
-    { label: 'Win Rate', value: safeNum(kelly.win_rate, 0) * 100, color: C.green },
-  ];
+  const safeNum = (v) => (typeof v === 'number' && !Number.isNaN(v) ? v : null);
+  const agentMonitors = useMemo(() => {
+    if (!monte && !kelly) return [];
+    return [
+      { label: 'Monte Carlo P(profit)', value: safeNum(monte?.prob_profit) != null ? Math.min(safeNum(monte.prob_profit) * 100, 100) : null, color: C.green },
+      { label: 'MC Median Return', value: safeNum(monte?.median_return) != null ? Math.max(0, safeNum(monte.median_return) * 100 + 50) : null, color: C.cyan },
+      { label: 'Ruin Probability', value: safeNum(monte?.ruin_probability) != null ? Math.min(safeNum(monte.ruin_probability) * 1000, 100) : null, color: C.red },
+      { label: 'Max DD (P95)', value: safeNum(monte?.max_dd_p95) != null ? Math.min(Math.abs(safeNum(monte.max_dd_p95)) * 300, 100) : null, color: C.amber },
+      { label: 'Kelly Edge', value: safeNum(kelly?.edge) != null ? Math.min(safeNum(kelly.edge) * 100, 100) : null, color: C.purple },
+      { label: 'Win Rate', value: safeNum(kelly?.win_rate) != null ? safeNum(kelly.win_rate) * 100 : null, color: C.green },
+    ].filter((i) => i.value != null);
+  }, [monte, kelly]);
 
   // 90-day risk history — show only real API data, no fabricated fallback
   const history = historyData?.history ?? [];
@@ -299,11 +326,49 @@ export default function RiskIntelligence() {
   // Portfolio value for sizer
   const portfolioValue = portfolioData?.total_value ?? portfolioData?.portfolio_value ?? riskData?.portfolio_value ?? 0;
 
-  // ─── EMERGENCY ACTIONS ────────────────────────────────────────────────────
-  const handleEmergency = async (action) => {
-    if (action === 'KILL' && !window.confirm(
-      'KILL SWITCH: This will CLOSE ALL POSITIONS and HALT TRADING.\n\nAre you absolutely sure?'
-    )) return;
+  // ─── EMERGENCY STOP: 3s countdown then POST /orders/emergency-stop ─────────
+  useEffect(() => {
+    return () => {
+      if (emergencyTimerRef.current) clearInterval(emergencyTimerRef.current);
+    };
+  }, []);
+
+  const handleEmergencyStopClick = useCallback(() => {
+    setEmergencyCountdown(3);
+  }, []);
+
+  useEffect(() => {
+    if (emergencyCountdown == null) return;
+    if (emergencyCountdown <= 0) {
+      (async () => {
+        try {
+          await fetch(getApiUrl('orders/emergency-stop'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          });
+          handleRefresh();
+        } catch (err) {
+          log.error('Emergency stop failed:', err);
+        } finally {
+          setEmergencyCountdown(null);
+        }
+      })();
+      return;
+    }
+    const t = setInterval(() => setEmergencyCountdown((c) => c - 1), 1000);
+    emergencyTimerRef.current = t;
+    return () => clearInterval(t);
+  }, [emergencyCountdown]);
+
+  const cancelEmergencyCountdown = useCallback(() => {
+    if (emergencyTimerRef.current) {
+      clearInterval(emergencyTimerRef.current);
+      emergencyTimerRef.current = null;
+    }
+    setEmergencyCountdown(null);
+  }, []);
+
+  const handleOtherEmergency = async (action) => {
     try {
       await fetch(getApiUrl('risk') + `/emergency/${action.toLowerCase()}`, {
         method: 'POST',
@@ -314,6 +379,46 @@ export default function RiskIntelligence() {
       log.error(`Emergency ${action} failed:`, err);
     }
   };
+
+  const handleRunSweepClick = useCallback((values) => {
+    setSweepParams(values);
+    setSweepModalOpen(true);
+  }, []);
+
+  const handleRunSweepConfirm = useCallback(async () => {
+    setSweepModalOpen(false);
+    const values = sweepParams;
+    setSweepParams(null);
+    try {
+      await fetch(getApiUrl('swarmSweepStatus'), { headers: getAuthHeaders() });
+      handleRefresh();
+    } catch (err) {
+      log.error('Sweep status fetch failed:', err);
+    }
+  }, [sweepParams]);
+
+  const runStressTest = useCallback(async () => {
+    setStressLoading(true);
+    setStressResult(null);
+    try {
+      const res = await fetch(getApiUrl('risk/stress-test'), { headers: getAuthHeaders() });
+      const data = await res.json();
+      setStressResult(data);
+    } catch (err) {
+      log.error('Stress test failed:', err);
+      setStressResult({ error: String(err?.message ?? err) });
+    } finally {
+      setStressLoading(false);
+    }
+  }, []);
+
+  const riskParams = settings?.risk ?? null;
+  const handleRiskParamChange = useCallback((paramKey, value) => {
+    updateField('risk', paramKey, value);
+  }, [updateField]);
+  const handleSaveRiskSettings = useCallback(async () => {
+    await saveCategory('risk');
+  }, [saveCategory]);
 
   // =========================================================================
   // RENDER
@@ -327,8 +432,8 @@ export default function RiskIntelligence() {
       <header className="px-5 py-3 flex items-center justify-between border-b border-[rgba(42,52,68,0.5)] shrink-0 bg-[#111827]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center"
-               style={{ backgroundColor: grade.color + '20' }}>
-            <Shield className="w-5 h-5" style={{ color: grade.color }} />
+               style={{ backgroundColor: (grade?.color ?? C.muted) + '20' }}>
+            <Shield className="w-5 h-5" style={{ color: grade?.color ?? C.muted }} />
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
@@ -341,25 +446,37 @@ export default function RiskIntelligence() {
           </div>
         </div>
 
-        {/* Center: Grade + Score + Status */}
+        {/* Center: Grade + Score + Status (skeleton when loading) */}
         <div className="flex items-center gap-6">
-          <div className="text-center">
+          <div className="text-center min-w-[4rem]">
             <div className="text-[10px] uppercase tracking-wider text-gray-500">Grade</div>
-            <div className="text-3xl font-black font-mono leading-none" style={{ color: grade.color }}>
-              {grade.letter}
-            </div>
+            {riskScoreLoading || grade == null ? (
+              <Skeleton className="h-9 w-12 mx-auto mt-0.5" />
+            ) : (
+              <div className="text-3xl font-black font-mono leading-none" style={{ color: grade.color }}>
+                {grade.letter}
+              </div>
+            )}
           </div>
-          <div className="text-center">
+          <div className="text-center min-w-[4rem]">
             <div className="text-[10px] uppercase tracking-wider text-gray-500">Risk Score</div>
-            <div className="text-2xl font-bold font-mono leading-none" style={{ color: grade.color }}>
-              {riskScore}
-            </div>
+            {riskScoreLoading || riskScore == null ? (
+              <Skeleton className="h-8 w-10 mx-auto mt-0.5" />
+            ) : (
+              <div className="text-2xl font-bold font-mono leading-none" style={{ color: grade?.color }}>
+                {riskScore}
+              </div>
+            )}
           </div>
-          <div className="text-center">
+          <div className="text-center min-w-[4rem]">
             <div className="text-[10px] uppercase tracking-wider text-gray-500">Status</div>
-            <div className="text-sm font-bold font-mono" style={{ color: statusColor(systemStatus) }}>
-              {systemStatus}
-            </div>
+            {!riskData && !shieldData ? (
+              <Skeleton className="h-4 w-16 mx-auto mt-0.5" />
+            ) : (
+              <div className="text-sm font-bold font-mono" style={{ color: systemStatus != null ? statusColor(systemStatus) : C.muted }}>
+                {systemStatus ?? '—'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -392,6 +509,28 @@ export default function RiskIntelligence() {
           </span>
         </div>
       </header>
+
+      {/* ─── Emergency stop countdown modal ──────────────────────────────────── */}
+      {emergencyCountdown != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#111827] border border-red-500/50 rounded-xl p-6 max-w-sm shadow-xl text-center">
+            <div className="text-red-400 font-bold text-lg mb-2">Flattening all positions</div>
+            <div className="text-4xl font-mono font-black text-white mb-4">
+              {emergencyCountdown > 0 ? emergencyCountdown : '…'}
+            </div>
+            <p className="text-xs text-gray-400 mb-4">
+              {emergencyCountdown > 0 ? 'POST /orders/emergency-stop in ' + emergencyCountdown + 's' : 'Executing…'}
+            </p>
+            <button
+              onClick={cancelEmergencyCountdown}
+              disabled={emergencyCountdown <= 0}
+              className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm font-mono disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════════
           MAIN CONTENT
@@ -442,8 +581,46 @@ export default function RiskIntelligence() {
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
               </div>
             </div>
-            {/* Config toggles */}
+            {/* Risk params from useSettings (persist via updateField + saveCategory) */}
+            {riskParams && (
+              <div className="space-y-2 pt-2 border-t border-[rgba(42,52,68,0.5)]">
+                {[
+                  { key: 'maxDrawdownLimit', label: 'Max drawdown %', min: 0.02, max: 0.25, step: 0.01, fmt: (v) => `${(v * 100).toFixed(0)}%` },
+                  { key: 'positionSizePct', label: 'Position size %', min: 0.5, max: 10, step: 0.5, fmt: (v) => `${v}%` },
+                  { key: 'maxDailyLossPct', label: 'Max daily loss %', min: 1, max: 10, step: 0.5, fmt: (v) => `${v}%` },
+                ].map(({ key, label, min, max, step, fmt }) => {
+                  const val = riskParams[key];
+                  if (val == null) return null;
+                  const num = Number(val);
+                  return (
+                    <div key={key} className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-gray-400 truncate">{label}</span>
+                      <input
+                        type="range"
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={num}
+                        onChange={(e) => handleRiskParamChange(key, Number(e.target.value))}
+                        className="flex-1 h-1.5 rounded bg-[#0B0E14] accent-cyan-500"
+                      />
+                      <span className="text-[10px] font-mono text-[#00D9FF] w-10 text-right">{fmt(num)}</span>
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={handleSaveRiskSettings}
+                  className="w-full py-1.5 rounded text-[10px] font-bold uppercase bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30"
+                >
+                  Save risk settings
+                </button>
+              </div>
+            )}
+            {settingsLoading && !riskParams && <Skeleton className="h-20 w-full" />}
+            {/* Config toggles (API only) */}
             <div className="space-y-1 pt-1">
+              {configItems.length === 0 && riskData && <div className="text-[10px] text-gray-500">No config items</div>}
+              {configItems.length === 0 && !riskData && <Skeleton className="h-16 w-full" />}
               {configItems.map((item, i) => (
                 <div key={i} className="flex items-center justify-between py-1 border-b border-[rgba(42,52,68,0.5)]/60 last:border-0">
                   <span className="text-xs text-gray-400">{item.label}</span>
@@ -458,79 +635,82 @@ export default function RiskIntelligence() {
         <Card title="Parameter Sweeps" className="col-span-5"
               action={<span className="text-[10px] text-gray-500 font-mono">{timeframe}</span>}>
           <ParameterSweepsPanel
-            onRun={(values) => console.log('Sweep started:', values)}
-            onStop={() => console.log('Sweep stopped')}
+            onRun={handleRunSweepClick}
+            onStop={() => {}}
           />
-          {/* Sweep parameter grid - numerical columns */}
-          <div className="overflow-auto custom-scrollbar">
-            <table className="w-full text-[10px] font-mono border-collapse">
-              <thead>
-                <tr className="text-[9px] text-gray-500 uppercase tracking-wider">
-                  <th className="py-1 px-1.5 text-left text-gray-500">Param</th>
-                  {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((v) => (
-                    <th key={v} className="py-1 px-1 text-center text-[#00D9FF]/70">{v.toFixed(1)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  { param: 'SL Mult', vals: [0.82, 0.79, 0.85, 0.91, 0.88, 0.76, 0.72, 0.68] },
-                  { param: 'TP Ratio', vals: [1.21, 1.35, 1.48, 1.52, 1.61, 1.44, 1.38, 1.29] },
-                  { param: 'Trail %', vals: [0.45, 0.52, 0.61, 0.58, 0.55, 0.49, 0.43, 0.38] },
-                  { param: 'Conf Thr', vals: [0.65, 0.71, 0.78, 0.82, 0.85, 0.79, 0.74, 0.69] },
-                  { param: 'Vol Adj', vals: [0.33, 0.41, 0.48, 0.55, 0.52, 0.46, 0.39, 0.35] },
-                  { param: 'Size Fac', vals: [0.18, 0.24, 0.31, 0.28, 0.35, 0.29, 0.22, 0.19] },
-                ].map((row, ri) => (
-                  <tr key={ri} className="border-t border-[rgba(42,52,68,0.5)]/40 hover:bg-[rgba(0,217,255,0.03)]">
-                    <td className="py-1 px-1.5 text-gray-400 whitespace-nowrap">{row.param}</td>
-                    {row.vals.map((v, ci) => {
-                      const intensity = v;
-                      const cellColor = intensity > 0.7 ? C.green : intensity > 0.4 ? C.cyan : C.muted;
-                      return (
-                        <td key={ci} className="py-1 px-1 text-center font-bold"
-                            style={{ color: cellColor }}>
-                          {v.toFixed(2)}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {sweepModalOpen && sweepParams && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+              <div className="bg-[#111827] border border-cyan-500/40 rounded-xl p-4 max-w-sm w-full mx-2">
+                <div className="text-cyan-400 font-bold text-sm mb-2">Run parameter sweep</div>
+                <pre className="text-[10px] font-mono text-gray-400 mb-4 overflow-auto max-h-32">
+                  {JSON.stringify(sweepParams, null, 2)}
+                </pre>
+                <div className="flex gap-2">
+                  <button onClick={() => { setSweepModalOpen(false); setSweepParams(null); }} className="flex-1 py-2 rounded bg-slate-600 text-white text-xs font-mono">Cancel</button>
+                  <button onClick={handleRunSweepConfirm} className="flex-1 py-2 rounded bg-cyan-600 text-white text-xs font-mono">Run sweep</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Sweep results from API or empty state */}
+          <div className="overflow-auto custom-scrollbar mt-2">
+            {sweepStatusData ? (
+              <div className="text-[10px] font-mono text-gray-400 py-2">
+                {sweepStatusData.running ? 'Sweep running…' : 'Sweep idle. Run above to start.'}
+              </div>
+            ) : (
+              <div className="text-[10px] font-mono text-gray-500 py-2">No sweep data</div>
+            )}
           </div>
         </Card>
 
         {/* --- RealTime Risk Vitals (right, 3 cols) --- */}
         <Card title="RealTime Risk Vitals" className="col-span-3"
-              action={<Badge variant={systemStatus === 'SAFE' ? 'success' : 'warning'} size="sm">{systemStatus}</Badge>}>
+              action={<Badge variant={systemStatus === 'SAFE' ? 'success' : 'warning'} size="sm">{systemStatus ?? '—'}</Badge>}>
           <div className="space-y-2.5">
-            {[
-              { label: 'Portfolio VaR (95%)', value: rawGauges.find(g => g.label === 'VaR 95%')?.value ?? 0, color: C.amber },
-              { label: 'Tail Risk (CVaR)', value: rawGauges.find(g => g.label === 'CVaR')?.value ?? 0, color: C.red },
-              { label: 'Volatility Level', value: rawGauges.find(g => g.label === 'Volatility')?.value ?? 0, color: C.purple },
-              { label: 'Beta Exposure', value: rawGauges.find(g => g.label === 'Beta')?.value ?? 0, color: C.cyan },
-              { label: 'Concentration', value: rawGauges.find(g => g.label === 'Concentration')?.value ?? 0, color: C.amber },
-              { label: 'Liquidity Score', value: rawGauges.find(g => g.label === 'Liquidity')?.value ?? 0, color: C.green },
-              { label: 'Skew Risk', value: rawGauges.find(g => g.label === 'Skew Risk')?.value ?? 0, color: C.red },
-              { label: 'Regime Risk', value: rawGauges.find(g => g.label === 'Regime Risk')?.value ?? 0, color: C.amber },
-            ].map((item, i) => (
-              <div key={i} className="space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400">{item.label}</span>
-                  <span className="text-[10px] font-mono font-bold" style={{ color: item.color }}>
-                    {Math.round(item.value)}%
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-[#0B0E14] rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500"
-                       style={{
-                         width: `${Math.min(item.value, 100)}%`,
-                         backgroundColor: item.color,
-                         boxShadow: `0 0 6px ${item.color}40`,
-                       }} />
-                </div>
-              </div>
-            ))}
+            {gaugesLoading ? (
+              <>
+                <Skeleton className="w-full h-6" />
+                <Skeleton className="w-full h-6" />
+                <Skeleton className="w-full h-6" />
+              </>
+            ) : rawGauges.length === 0 ? (
+              <div className="text-[10px] text-gray-500 py-2">No gauge data</div>
+            ) : (
+              [
+                { label: 'Portfolio VaR (95%)', key: 'VaR 95%', color: C.amber },
+                { label: 'Tail Risk (CVaR)', key: 'CVaR', color: C.red },
+                { label: 'Volatility Level', key: 'Volatility', color: C.purple },
+                { label: 'Beta Exposure', key: 'Beta', color: C.cyan },
+                { label: 'Concentration', key: 'Concentration', color: C.amber },
+                { label: 'Skew Risk', key: 'Skew Risk', color: C.red },
+              ].map((item, i) => {
+                const val = rawGauges.find((g) => g.label === item.key)?.value;
+                const num = typeof val === 'number' ? val : null;
+                return (
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">{item.label}</span>
+                      <span className="text-[10px] font-mono font-bold" style={{ color: item.color }}>
+                        {num != null ? Math.round(num) + '%' : '—'}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-[#0B0E14] rounded-full overflow-hidden">
+                      {num != null && (
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.min(num, 100)}%`,
+                            backgroundColor: item.color,
+                            boxShadow: `0 0 6px ${item.color}40`,
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
       </div>
@@ -543,31 +723,46 @@ export default function RiskIntelligence() {
         {/* --- Stop-Loss Command (2 cols) --- */}
         <Card title="Stop-Loss Command" className="col-span-2"
               action={
-                <span className="text-[10px] font-mono" style={{ color: safetyChecks.every(c => c.status === 'PASS') ? C.green : C.amber }}>
-                  {safetyChecks.filter(c => c.status === 'PASS').length}/{safetyChecks.length} PASS
-                </span>
+                safetyChecks.length > 0 ? (
+                  <span className="text-[10px] font-mono" style={{ color: safetyChecks.every(c => c.status === 'PASS') ? C.green : C.amber }}>
+                    {safetyChecks.filter(c => c.status === 'PASS').length}/{safetyChecks.length} PASS
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono text-gray-500">—</span>
+                )
               }>
           <div className="space-y-0.5 mb-3">
-            {safetyChecks.map((check, i) => (
-              <SafetyCheck key={i} label={check.label} status={check.status} />
-            ))}
+            {shieldLoading ? (
+              <>
+                <Skeleton className="w-full h-5" />
+                <Skeleton className="w-full h-5" />
+                <Skeleton className="w-full h-5" />
+              </>
+            ) : safetyChecks.length === 0 ? (
+              <div className="text-[10px] text-gray-500">No safety checks data</div>
+            ) : (
+              safetyChecks.map((check, i) => (
+                <SafetyCheck key={i} label={check.label} status={check.status} />
+              ))
+            )}
           </div>
 
-          {/* Emergency Actions */}
+          {/* Emergency Actions: 3s countdown then POST /orders/emergency-stop */}
           <div className="border-t border-[rgba(42,52,68,0.5)] pt-3 space-y-2">
             <button
-              onClick={() => handleEmergency('KILL')}
+              onClick={handleEmergencyStopClick}
+              disabled={emergencyCountdown != null}
               className="w-full py-2.5 rounded-lg text-xs font-bold uppercase
                          bg-red-600 hover:bg-red-500 text-white
                          border-2 border-red-400 shadow-lg shadow-red-500/20
-                         transition-all active:scale-95 flex items-center justify-center gap-2"
+                         transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70"
             >
               <Octagon className="w-4 h-4" />
               EMERGENCY STOP ALL
             </button>
             <div className="grid grid-cols-3 gap-1.5">
               <button
-                onClick={() => handleEmergency('HEDGE')}
+                onClick={() => handleOtherEmergency('HEDGE')}
                 className="py-1.5 rounded-lg text-[10px] font-bold uppercase
                            bg-purple-600/30 hover:bg-purple-600/50 text-purple-300
                            border border-purple-500/30 transition-all"
@@ -575,7 +770,7 @@ export default function RiskIntelligence() {
                 Hedge
               </button>
               <button
-                onClick={() => handleEmergency('REDUCE')}
+                onClick={() => handleOtherEmergency('REDUCE')}
                 className="py-1.5 rounded-lg text-[10px] font-bold uppercase
                            bg-amber-600/30 hover:bg-amber-600/50 text-amber-300
                            border border-amber-500/30 transition-all"
@@ -583,7 +778,7 @@ export default function RiskIntelligence() {
                 Reduce
               </button>
               <button
-                onClick={() => handleEmergency('FREEZE')}
+                onClick={() => handleOtherEmergency('FREEZE')}
                 className="py-1.5 rounded-lg text-[10px] font-bold uppercase
                            bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300
                            border border-[#00D9FF]/50 transition-all"
@@ -594,17 +789,35 @@ export default function RiskIntelligence() {
           </div>
         </Card>
 
-        {/* --- Correlation Matrix (3 cols) --- */}
+        {/* --- Correlation Matrix (API only; cell click → drill-down) --- */}
         <Card title="Correlation Matrix" className="col-span-3"
               action={<Grid3X3 className="w-4 h-4 text-[#00D9FF]" />}>
-          <CorrelationHeatmap data={correlationData} />
-          <CorrelationMatrixHeatmap />
+          <CorrelationHeatmap
+            data={correlationData}
+            loading={correlationLoading}
+            onCellClick={(sym1, sym2, value) => setCorrelationDrill({ sym1, sym2, value })}
+          />
+          {correlationDrill && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setCorrelationDrill(null)}>
+              <div className="bg-[#111827] border border-cyan-500/40 rounded-xl p-4 max-w-xs w-full mx-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-cyan-400 font-mono text-sm font-bold">Correlation drill-down</span>
+                  <button onClick={() => setCorrelationDrill(null)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="text-[10px] font-mono text-gray-300 space-y-1">
+                  <div>{correlationDrill.sym1} vs {correlationDrill.sym2}</div>
+                  <div style={{ color: C.cyan }}>Correlation: {Number(correlationDrill.value).toFixed(3)}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
-        {/* --- Volatility Regime Monitor (2 cols) --- */}
+        {/* --- Volatility Regime Monitor (API only) --- */}
         <Card title="Volatility Regime Monitor" className="col-span-2"
               action={<Gauge className="w-4 h-4 text-[#00D9FF]" />}>
           <div className="space-y-2.5">
+            {volRegimeItems.length === 0 && !riskData && <Skeleton className="w-full h-16" />}
             {volRegimeItems.map((item, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between text-[10px] mb-0.5">
@@ -622,28 +835,28 @@ export default function RiskIntelligence() {
                 </div>
               </div>
             ))}
-            {/* Regime indicator */}
             <div className="mt-2 p-2 bg-[#0B0E14] border border-[rgba(42,52,68,0.5)]/50 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-gray-500">Current Regime</span>
                 <span className="text-[10px] font-mono font-bold" style={{ color: C.green }}>
-                  {riskData?.volatility_regime ?? 'LOW VOL'}
+                  {riskData?.volatility_regime ?? '—'}
                 </span>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-[10px] text-gray-500">Regime Confidence</span>
                 <span className="text-[10px] font-mono font-bold" style={{ color: C.cyan }}>
-                  {riskData?.regime_confidence ?? '82%'}
+                  {riskData?.regime_confidence != null ? String(riskData.regime_confidence) : '—'}
                 </span>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* --- AI Agent Risk Monitors (3 cols) --- */}
+        {/* --- AI Agent Risk Monitors (API only) --- */}
         <Card title="AI Agent Risk Monitors" className="col-span-3"
               action={<Brain className="w-4 h-4 text-[#00D9FF]" />}>
           <div className="space-y-2">
+            {agentMonitors.length === 0 && !monte && !kelly && <Skeleton className="w-full h-20" />}
             {agentMonitors.map((item, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between text-[10px] mb-0.5">
@@ -664,10 +877,10 @@ export default function RiskIntelligence() {
           </div>
         </Card>
 
-        {/* --- Position Sizing (2 cols) --- */}
+        {/* --- Position Sizing (API only) --- */}
         <Card title="Position Sizing" className="col-span-2"
               action={<DollarSign className="w-4 h-4 text-[#00D9FF]" />}>
-          <PositionSizer kelly={kelly} portfolioValue={portfolioValue} />
+          <PositionSizer kelly={kelly} portfolioValue={portfolioValue} loading={kellyLoading} />
         </Card>
       </div>
 
@@ -675,62 +888,10 @@ export default function RiskIntelligence() {
           ROW 3: Risk Interdependencies
           ════════════════════════════════════════════════════════════════════════ */}
       <Card title="Risk Interdependencies"
-            subtitle="Cross-factor dependency analysis"
+            subtitle="Cross-factor dependency analysis (API-driven)"
             action={<Target className="w-4 h-4 text-[#00D9FF]" />}>
-        <div className="overflow-auto custom-scrollbar">
-          <table className="w-full text-[10px] font-mono border-collapse">
-            <thead>
-              <tr className="text-[9px] text-gray-500 uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)]">
-                <th className="py-1.5 px-2 text-left">Risk Factor</th>
-                <th className="py-1.5 px-2 text-center">Volatility</th>
-                <th className="py-1.5 px-2 text-center">Correlation</th>
-                <th className="py-1.5 px-2 text-center">Liquidity</th>
-                <th className="py-1.5 px-2 text-center">Drawdown</th>
-                <th className="py-1.5 px-2 text-center">Concentration</th>
-                <th className="py-1.5 px-2 text-center">Tail Risk</th>
-                <th className="py-1.5 px-2 text-center">Regime</th>
-                <th className="py-1.5 px-2 text-right">Impact</th>
-                <th className="py-1.5 px-2 text-left" style={{ width: '18%' }}>Dependency</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { factor: 'Market Beta', scores: [0.72, 0.85, 0.41, 0.68, 0.55, 0.33, 0.78], impact: 'HIGH' },
-                { factor: 'Sector Tilt', scores: [0.45, 0.62, 0.38, 0.51, 0.71, 0.28, 0.42], impact: 'MED' },
-                { factor: 'FX Exposure', scores: [0.58, 0.31, 0.67, 0.44, 0.29, 0.52, 0.61], impact: 'MED' },
-                { factor: 'Rate Sens.', scores: [0.81, 0.55, 0.49, 0.73, 0.38, 0.65, 0.82], impact: 'HIGH' },
-                { factor: 'Momentum', scores: [0.39, 0.48, 0.55, 0.35, 0.62, 0.41, 0.37], impact: 'LOW' },
-                { factor: 'Leverage', scores: [0.65, 0.72, 0.58, 0.82, 0.69, 0.75, 0.71], impact: 'HIGH' },
-                { factor: 'Liquidity', scores: [0.42, 0.35, 0.88, 0.55, 0.31, 0.48, 0.52], impact: 'MED' },
-              ].map((row, ri) => {
-                const impColor = row.impact === 'HIGH' ? C.red : row.impact === 'MED' ? C.amber : C.green;
-                const avgScore = row.scores.reduce((a, b) => a + b, 0) / row.scores.length;
-                return (
-                  <tr key={ri} className="border-b border-[rgba(42,52,68,0.3)] hover:bg-[rgba(42,52,68,0.15)] transition-colors">
-                    <td className="py-1.5 px-2 font-bold text-[#00D9FF] whitespace-nowrap">{row.factor}</td>
-                    {row.scores.map((s, ci) => (
-                      <td key={ci} className="py-1.5 px-2 text-center font-bold"
-                          style={{ color: s > 0.7 ? C.red : s > 0.4 ? C.amber : C.green }}>
-                        {s.toFixed(2)}
-                      </td>
-                    ))}
-                    <td className="py-1.5 px-2 text-right">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold"
-                            style={{ backgroundColor: impColor + '20', color: impColor }}>
-                        {row.impact}
-                      </span>
-                    </td>
-                    <td className="py-1.5 px-2">
-                      <div className="w-full h-2.5 bg-[#0B0E14] rounded overflow-hidden">
-                        <div className="h-full rounded transition-all"
-                             style={{ width: `${avgScore * 100}%`, backgroundColor: impColor + 'A0' }} />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="overflow-auto custom-scrollbar py-4 text-center text-[10px] font-mono text-gray-500">
+          No interdependency data — use risk API for cross-factor analysis.
         </div>
       </Card>
 
@@ -740,60 +901,8 @@ export default function RiskIntelligence() {
       <Card title="Risk Event Timeline"
             subtitle="Horizontal risk exposure over time"
             action={<Clock className="w-4 h-4 text-[#00D9FF]" />}>
-        <div className="overflow-auto custom-scrollbar">
-          {(() => {
-            const timelineDays = Array.from({ length: 20 }, (_, i) => {
-              const d = new Date();
-              d.setDate(d.getDate() - (19 - i));
-              return format(d, 'MM/dd');
-            });
-            const timelineRows = [
-              { label: 'Market Risk', color: C.red, segments: [1,1,2,2,1,0,0,1,2,2,3,3,2,1,1,0,1,2,2,1] },
-              { label: 'Credit Risk', color: C.amber, segments: [0,1,1,1,2,2,1,1,0,0,1,1,2,2,1,1,0,0,1,1] },
-              { label: 'Liquidity', color: C.cyan, segments: [1,0,0,1,1,1,2,2,1,0,0,0,1,1,2,2,1,1,0,0] },
-              { label: 'Volatility', color: C.purple, segments: [2,2,1,1,0,1,1,2,3,3,2,2,1,0,0,1,1,2,2,1] },
-              { label: 'Concentration', color: C.teal, segments: [0,0,1,1,1,1,0,0,1,1,2,1,1,0,0,0,1,1,1,0] },
-              { label: 'Tail Risk', color: C.red, segments: [0,0,0,1,1,2,2,1,0,0,0,1,1,2,3,2,1,1,0,0] },
-            ];
-            return (
-              <div>
-                {/* Date header */}
-                <div className="flex items-center mb-1">
-                  <div className="w-24 shrink-0" />
-                  <div className="flex-1 flex">
-                    {timelineDays.map((d, i) => (
-                      <div key={i} className="flex-1 text-center text-[7px] text-gray-500 font-mono">{i % 3 === 0 ? d : ''}</div>
-                    ))}
-                  </div>
-                </div>
-                {/* Timeline rows */}
-                {timelineRows.map((row, ri) => (
-                  <div key={ri} className="flex items-center mb-0.5">
-                    <div className="w-24 shrink-0 text-[9px] text-gray-400 font-mono truncate pr-2 text-right">{row.label}</div>
-                    <div className="flex-1 flex gap-px h-4">
-                      {row.segments.map((level, si) => {
-                        const opacity = level === 0 ? 0.08 : level === 1 ? 0.3 : level === 2 ? 0.6 : 0.9;
-                        return (
-                          <div key={si} className="flex-1 rounded-sm transition-all"
-                               style={{ backgroundColor: row.color, opacity }}
-                               title={`${row.label} ${timelineDays[si]}: Level ${level}`} />
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-                {/* Legend */}
-                <div className="flex items-center gap-4 mt-2 justify-end">
-                  {['None', 'Low', 'Medium', 'High'].map((lbl, i) => (
-                    <div key={i} className="flex items-center gap-1">
-                      <div className="w-3 h-2.5 rounded-sm" style={{ backgroundColor: C.cyan, opacity: i === 0 ? 0.08 : i === 1 ? 0.3 : i === 2 ? 0.6 : 0.9 }} />
-                      <span className="text-[8px] text-gray-500">{lbl}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
+        <div className="py-4 text-center text-[10px] font-mono text-gray-500">
+          No timeline data — wire to risk history API for event exposure.
         </div>
       </Card>
 
@@ -840,7 +949,13 @@ export default function RiskIntelligence() {
                 const st = row.status ?? (score <= 35 ? 'SAFE' : score <= 65 ? 'CAUTION' : 'DANGER');
                 const stColor = st === 'SAFE' ? C.green : st === 'CAUTION' ? C.amber : C.red;
                 return (
-                  <tr key={ri} className="border-b border-[rgba(42,52,68,0.25)] hover:bg-[rgba(42,52,68,0.12)] transition-colors">
+                  <tr
+                    key={ri}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setHistoryDayDetail(row)}
+                    className="border-b border-[rgba(42,52,68,0.25)] hover:bg-[rgba(42,52,68,0.12)] transition-colors cursor-pointer"
+                  >
                     <td className="py-1 px-2 text-gray-400">{row.date}</td>
                     <td className="py-1 px-2 text-right font-bold" style={{ color: scoreColor }}>{score}</td>
                     <td className="py-1 px-2 text-right text-slate-300">{row.var95 ?? '--'}</td>
@@ -869,6 +984,51 @@ export default function RiskIntelligence() {
               })}
             </tbody>
           </table>
+        </div>
+        {historyDayDetail && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setHistoryDayDetail(null)}>
+            <div className="bg-[#111827] border border-cyan-500/40 rounded-xl p-4 max-w-sm w-full mx-2" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-cyan-400 font-mono text-sm font-bold">Day risk breakdown</span>
+                <button onClick={() => setHistoryDayDetail(null)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="text-[10px] font-mono text-gray-300 space-y-1">
+                <div>Date: {historyDayDetail.date}</div>
+                <div>Score: {historyDayDetail.score ?? '—'}</div>
+                <div>VaR 95%: {historyDayDetail.var95 ?? '—'}</div>
+                <div>Drawdown: {historyDayDetail.drawdown ?? historyDayDetail.dd ?? '—'}%</div>
+                <div>Vol: {historyDayDetail.vol ?? '—'}</div>
+                <div>Regime: {historyDayDetail.regime ?? '—'}</div>
+                <div>Status: {historyDayDetail.status ?? '—'}</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* VaR & Stress Testing — custom scenarios, run via API */}
+      <Card title="VaR & Stress Testing" subtitle="Run Monte Carlo stress test" action={<Gauge className="w-4 h-4 text-[#00D9FF]" />}>
+        <div className="space-y-3">
+          <button
+            onClick={runStressTest}
+            disabled={stressLoading}
+            className="px-4 py-2 rounded-lg bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold uppercase disabled:opacity-50"
+          >
+            {stressLoading ? 'Running…' : 'Run stress test'}
+          </button>
+          {stressResult && (
+            <div className="text-[10px] font-mono text-gray-300 space-y-1 p-2 bg-[#0B0E14] rounded-lg">
+              {stressResult.error ? (
+                <div className="text-red-400">{stressResult.error}</div>
+              ) : (
+                <>
+                  <div>VaR 95%: {stressResult.var_95 != null ? stressResult.var_95 : '—'}</div>
+                  <div>CVaR 95%: {stressResult.cvar_95 != null ? stressResult.cvar_95 : '—'}</div>
+                  <div>Worst case: {stressResult.worst_case != null ? stressResult.worst_case : '—'}</div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </Card>
 

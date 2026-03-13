@@ -1,5 +1,8 @@
 # Elite Trading System / Embodier Trader - Root
 
+# ── Launcher state (chosen ports when preferred was busy) ──
+.embodier-ports.json
+
 # ── Environment (AUDIT FIX Task 16: catch ALL .env variants) ──
 .env*
 !.env.example

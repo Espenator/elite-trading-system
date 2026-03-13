@@ -273,7 +273,7 @@ class CouncilGate:
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
     ) -> None:
-        """Run the full 13-agent council for the symbol."""
+        """Run the full 33-agent council for the symbol."""
         try:
             from app.core.logging_config import trace_id, generate_trace_id
             trace_id.set(generate_trace_id())

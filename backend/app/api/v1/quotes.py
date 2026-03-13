@@ -189,11 +189,13 @@ async def get_order_book(
 ) -> Dict[str, Any]:
     """
     Order book stub for Dashboard. Returns empty bids/asks when no live book is available.
+    Always includes spread (0 when no book) so the UI can display a value.
     """
     return {
-        "symbol": ticker,
+        "symbol": ticker.upper() if ticker else "?",
         "bids": [],
         "asks": [],
+        "spread": 0.0,
         "timestamp": None,
     }
 

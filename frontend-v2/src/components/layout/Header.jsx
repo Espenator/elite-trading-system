@@ -8,7 +8,8 @@
 //
 // All accent colour references use #00D9FF (primary) — NOT #06b6d4.
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Bell,
@@ -106,6 +107,7 @@ function RegimeBadge({ regime = "GREEN", pct }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function Header() {
+  const navigate = useNavigate();
   const {
     mode,
     positionScale,
@@ -124,8 +126,30 @@ export default function Header() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu]           = useState(false);
   const [searchFocused, setSearchFocused]         = useState(false);
+  const [searchValue, setSearchValue]             = useState("");
 
   const modeStyle = MODE_COLORS[mode] ?? MODE_COLORS.NORMAL;
+
+  const searchInputRef = useRef(null);
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select?.();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const handleSearchSubmit = useCallback(() => {
+    const sym = searchValue.trim().toUpperCase();
+    if (!sym) return;
+    setSearchValue("");
+    setSearchFocused(false);
+    navigate(`/dashboard?symbol=${encodeURIComponent(sym)}`);
+  }, [searchValue, navigate]);
 
   return (
     <header
@@ -150,11 +174,20 @@ export default function Header() {
             style={{ color: searchFocused ? "#00D9FF" : "#6B7280" }}
           />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search tickers, signals…"
-            className="w-full pl-9 pr-12 py-2 bg-transparent text-sm text-white placeholder-[#6B7280] outline-none"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSearchSubmit();
+              }
+            }}
+            className="w-full pl-9 pr-12 py-2 bg-transparent text-sm text-white placeholder-[#6B7280] outline-none"
           />
           <kbd
             className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-medium rounded"

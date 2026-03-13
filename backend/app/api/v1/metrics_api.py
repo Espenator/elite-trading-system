@@ -18,6 +18,7 @@ Aggregates metrics from:
 
 import logging
 import os
+import secrets
 import time
 from datetime import datetime, timezone
 
@@ -263,9 +264,12 @@ async def trigger_emergency_flatten(
     E2: Closes all open positions with retry + Slack alert.
     Requires Bearer token auth via Authorization header.
     """
-    # E2a: Verify Bearer token
-    expected_token = f"Bearer {os.getenv('TRADING_AUTH_TOKEN', '')}"
-    if not authorization or authorization != expected_token:
+    # E2a: Verify Bearer token (use same token as require_auth — API_AUTH_TOKEN)
+    from app.core.config import settings
+    expected_token = (settings.API_AUTH_TOKEN or "").strip()
+    if not expected_token:
+        raise HTTPException(status_code=403, detail="API_AUTH_TOKEN not configured")
+    if not authorization or not secrets.compare_digest((authorization or "").strip(), f"Bearer {expected_token}"):
         raise HTTPException(status_code=403, detail="Unauthorized")
 
     try:

@@ -86,15 +86,28 @@ export default function TradeExecution() {
 
   const doSubmitOrder = useCallback(async () => {
     if (!confirmPayload) return;
+    const { symbol, side, orderType, quantity, limitPrice, stopPrice, timeInForce } = confirmPayload;
     try {
-      await submitOrder({ symbol: confirmPayload.symbol, side: confirmPayload.side, orderType: confirmPayload.orderType, quantity: confirmPayload.quantity, limit_price: confirmPayload.limitPrice, stop_price: confirmPayload.stopPrice, timeInForce: confirmPayload.timeInForce });
+      if (orderType === 'market' && side === 'buy') {
+        await executeMarketBuy();
+      } else if (orderType === 'market' && side === 'sell') {
+        await executeMarketSell();
+      } else if (orderType === 'limit' && side === 'buy') {
+        await executeLimitBuy();
+      } else if (orderType === 'limit' && side === 'sell') {
+        await executeLimitSell();
+      } else if (orderType === 'stop' || (stopPrice != null && stopPrice !== '')) {
+        await executeStopLoss();
+      } else {
+        await submitOrder({ symbol, side, orderType, quantity, limit_price: limitPrice, stop_price: stopPrice, timeInForce });
+      }
       setConfirmModalOpen(false);
       setConfirmPayload(null);
       refreshTradeData();
     } catch (e) {
-      // toast handled by hook
+      toast.error(e?.message || 'Order failed', { theme: 'dark' });
     }
-  }, [confirmPayload, submitOrder, refreshTradeData]);
+  }, [confirmPayload, submitOrder, executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, refreshTradeData]);
 
   const handleKillSwitch = useCallback(async () => {
     if (killSwitchStep === 1) { setKillSwitchStep(2); return; }
@@ -145,17 +158,17 @@ export default function TradeExecution() {
   const displayCallStrikes = callStrikes.length > 0 ? callStrikes : FALLBACK_CALL;
   const displayPutStrikes  = putStrikes.length  > 0 ? putStrikes  : FALLBACK_PUT;
 
-  // Candle data for price chart
-  const { data: candleData } = useApi('quotes', {
-    endpoint: `/quotes/${orderForm?.symbol || 'SPY'}/candles?timeframe=1h`,
+  const chartRef = useRef(null);
+  const chartInstanceRef = useRef(null);
+  const [chartTimeframe, setChartTimeframe] = useState('1H');
+  const [builderTab, setBuilderTab] = useState('Advanced');
+
+  const timeframeParam = chartTimeframe === '1M' ? '1Min' : chartTimeframe === '5M' ? '5Min' : chartTimeframe === '15M' ? '15Min' : chartTimeframe === '1H' ? '1Hour' : '1Day';
+  const { data: candleData, loading: candlesLoading } = useApi('quotes', {
+    endpoint: `/quotes/${orderForm?.symbol || 'SPY'}/candles?timeframe=${timeframeParam}`,
     pollIntervalMs: 30000,
     enabled: !!orderForm?.symbol,
   });
-
-  const chartRef = useRef(null);
-  const chartInstanceRef = useRef(null);
-  const [chartTimeframe, setChartTimeframe] = useState('1M');
-  const [builderTab, setBuilderTab] = useState('Advanced');
 
   /* -- Chart init -- */
   useEffect(() => {
@@ -238,11 +251,18 @@ export default function TradeExecution() {
   const maxBidSz = displayLadder.length ? Math.max(...displayLadder.map(r => r.side === 'bid' ? (r.bidSize || r.size || 0) : 0), 1) : 1;
   const maxAskSz = displayLadder.length ? Math.max(...displayLadder.map(r => r.side === 'ask' ? (r.askSize || r.size || 0) : 0), 1) : 1;
 
-  /* ── Order Book: real data only ── */
-  const bookBids = orderBook?.bids || [];
-  const bookAsks = orderBook?.asks || [];
-  const displayBookBids = bookBids.slice(0, 10);
-  const displayBookAsks = bookAsks.slice(0, 10);
+  /* ── Order Book: real data only (service may return array or { bids, asks }) ── */
+  const bookBids = Array.isArray(orderBook)
+    ? (orderBook.filter(r => r.side === 'bid').slice(0, 10))
+    : (orderBook?.bids || []).slice(0, 10);
+  const bookAsks = Array.isArray(orderBook)
+    ? (orderBook.filter(r => r.side === 'ask').slice(0, 10))
+    : (orderBook?.asks || []).slice(0, 10);
+  const displayBookBids = bookBids;
+  const displayBookAsks = bookAsks;
+  const orderBookMid = (displayBookBids.length && displayBookAsks.length)
+    ? (parseFloat(displayBookBids[0]?.price ?? displayBookBids[0]?.bid ?? 0) + parseFloat(displayBookAsks[0]?.price ?? displayBookAsks[0]?.ask ?? 0)) / 2
+    : 0;
 
   /* ── News, Status, Positions: real data only (no mock) ── */
   const displayNews = newsArr;
@@ -337,6 +357,9 @@ export default function TradeExecution() {
         <span className="font-mono text-[9px] text-gray-500 uppercase tracking-[1px] mr-2">Quick</span>
         <button onClick={() => { updateOrderForm({ side: 'buy', orderType: 'market' }); openConfirmModal(); }} disabled={loading || !orderForm.symbol || orderForm.quantity < 1} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00e676] text-black hover:brightness-[1.2] disabled:opacity-50">Market Buy</button>
         <button onClick={() => { updateOrderForm({ side: 'sell', orderType: 'market' }); openConfirmModal(); }} disabled={loading || !orderForm.symbol || orderForm.quantity < 1} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#ff3860] text-white hover:brightness-[1.2] disabled:opacity-50">Market Sell</button>
+        <button onClick={() => { updateOrderForm({ side: 'buy', orderType: 'limit' }); openConfirmModal(); }} disabled={loading || !orderForm.symbol || orderForm.quantity < 1} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00e676]/80 text-[#00e676] border border-[#00e676]/50 hover:bg-[#00e676]/30 disabled:opacity-50">Limit Buy</button>
+        <button onClick={() => { updateOrderForm({ side: 'sell', orderType: 'limit' }); openConfirmModal(); }} disabled={loading || !orderForm.symbol || orderForm.quantity < 1} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#ff3860]/80 text-[#ff3860] border border-[#ff3860]/50 hover:bg-[#ff3860]/30 disabled:opacity-50">Limit Sell</button>
+        <button onClick={() => { updateOrderForm({ orderType: 'bracket' }); openConfirmModal(); }} disabled={loading || !orderForm.symbol || orderForm.quantity < 1} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/50 hover:bg-[#00D9FF]/30 disabled:opacity-50">Bracket</button>
         <button onClick={openConfirmModal} disabled={loading} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/50 hover:bg-[#00D9FF]/30 disabled:opacity-50">Submit order</button>
       </div>
 
@@ -376,7 +399,11 @@ export default function TradeExecution() {
               return (
                 <div
                   key={i}
-                  onClick={() => setSelectedRow(row.row || i + 1)}
+                  onClick={() => {
+                    setSelectedRow(row.row || i + 1);
+                    const p = parseFloat(row.price);
+                    if (!Number.isNaN(p)) updateOrderForm({ limitPrice: p });
+                  }}
                   className={clsx(
                     'grid h-5 items-center border-b border-[rgba(26,39,68,0.3)] font-mono text-[9px] cursor-pointer transition-colors',
                     isCurrent && 'bg-[rgba(0,212,232,0.06)]',
@@ -497,11 +524,11 @@ export default function TradeExecution() {
         {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ flex: '1 1 0%', minWidth: 180 }}>
           <VisualPriceLadder
-            entry={0}
-            stop={0}
-            target={0}
-            currentPrice={0}
-            symbol=""
+            entry={Number(orderForm.limitPrice) || 0}
+            stop={Number(orderForm.stopPrice) || 0}
+            target={Number(orderForm.limitPrice) || 0}
+            currentPrice={orderBookMid || 0}
+            symbol={orderForm.symbol || ''}
           />
         </div>
         </div>{/* /col2-flex-row */}
@@ -510,6 +537,10 @@ export default function TradeExecution() {
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>Live Order Book</PanelHead>
           <div className="flex-1 overflow-y-auto">
+            {displayBookBids.length === 0 && displayBookAsks.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[80px] text-[10px] text-gray-500 font-mono">No order book data</div>
+            ) : (
+            <>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -547,6 +578,8 @@ export default function TradeExecution() {
                 ))}
               </tbody>
             </table>
+            </>
+            )}
           </div>
         </div>
 
@@ -559,20 +592,27 @@ export default function TradeExecution() {
               <span className="text-white font-semibold">{orderForm.symbol || 'SPY'}</span>
               <span>-</span>
               <span>S&P 500 Index</span>
-              <div className="ml-auto flex gap-1">
-                {['1M', '5M', '15M', '1H'].map(tf => (
+              <div className="ml-auto flex gap-1 items-center">
+                {['1M', '5M', '15M', '1H', '1D'].map(tf => (
                   <button
                     key={tf}
+                    type="button"
                     onClick={() => setChartTimeframe(tf)}
+                    disabled={candlesLoading && chartTimeframe === tf}
                     className={clsx(
-                      'px-1.5 py-0.5 rounded-sm text-[7px] font-mono font-semibold transition-colors',
+                      'px-1.5 py-0.5 rounded-sm text-[7px] font-mono font-semibold transition-colors disabled:opacity-70',
                       chartTimeframe === tf ? 'bg-[#00D9FF]/20 text-[#00D9FF]' : 'text-gray-500 hover:text-[#c8d6e5]',
                     )}
-                  >{tf}</button>
+                  >{candlesLoading && chartTimeframe === tf ? '…' : tf}</button>
                 ))}
               </div>
             </div>
             <div className="flex-1 relative p-1.5 min-h-0">
+              {candlesLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0e1a]/80 z-10">
+                  <div className="w-6 h-6 border-2 border-[#00D9FF] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
               <div ref={chartRef} className="w-full h-full" />
             </div>
           </div>
@@ -582,7 +622,9 @@ export default function TradeExecution() {
           <div className="flex-1 bg-[#111827]/80 flex flex-col overflow-hidden min-h-0">
             <PanelHead>News Feed</PanelHead>
             <div className="flex-1 overflow-y-auto">
-              {displayNews.map((item, i) => {
+              {displayNews.length === 0 ? (
+                <div className="flex items-center justify-center h-full min-h-[60px] text-[10px] text-gray-500 font-mono">No news</div>
+              ) : displayNews.map((item, i) => {
                 const dotColor =
                   item.type === 'negative' || item.type === 'error' ? 'bg-[#ff3860]' :
                   item.type === 'warning' ? 'bg-[#ffab00]' :
@@ -630,8 +672,8 @@ export default function TradeExecution() {
                       <td className={clsx('px-2 py-1 font-mono text-[9px] font-semibold border-b border-[rgba(26,39,68,0.3)]', pnlClr)}>{(pnl >= 0 ? '+' : '') + fmtUsd(pnl)}</td>
                       <td className="px-2 py-1 border-b border-[rgba(26,39,68,0.3)]">
                         <div className="flex gap-1">
-                          <button onClick={() => closePosition?.(pos.symbol, pos.side)} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:border-red-500/30 transition-colors">Close</button>
-                          <button onClick={() => adjustPosition?.(pos.symbol, pos.side)} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors">Adjust</button>
+                          <button type="button" onClick={() => { const s = (pos.side || (pos.quantity > 0 ? 'long' : 'short')).toString().toLowerCase(); closePosition(pos.symbol, s); }} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:border-red-500/30 transition-colors">Close</button>
+                          <button type="button" onClick={() => { const s = (pos.side || (pos.quantity > 0 ? 'long' : 'short')).toString().toLowerCase(); adjustPosition(pos.symbol, s); }} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors">Adjust</button>
                         </div>
                       </td>
                     </tr>
@@ -646,7 +688,9 @@ export default function TradeExecution() {
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>System Status Log</PanelHead>
           <div className="flex-1 overflow-y-auto px-2.5 py-1.5 font-mono text-[8px]">
-            {displayStatus.map((item, i) => {
+            {displayStatus.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[60px] text-[10px] text-gray-500 font-mono">No status messages</div>
+            ) : displayStatus.map((item, i) => {
               const dotColor =
                 item.type === 'success' ? 'bg-[#00e676]' :
                 item.type === 'warning' ? 'bg-[#ffab00]' :

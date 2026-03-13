@@ -424,7 +424,7 @@ async def _start_event_driven_pipeline():
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
         await _council_gate.start()
-        log.info("\u2705 CouncilGate started (13-agent council controls trading)")
+        log.info("\u2705 CouncilGate started (33-agent council controls trading)")
     else:
         log.info("\u26a0 CouncilGate DISABLED -- routing signals directly to OrderExecutor")
         # BUG FIX: When council is off, route signals directly as verdicts.

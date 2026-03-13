@@ -10,18 +10,18 @@ import {
   Users, Trophy, Radio, Server, Clock, TrendingUp, TrendingDown,
   ChevronUp, ChevronDown, Check, X, Minus,
 } from "lucide-react";
-import Card from "../../components/ui/Card";
 import { useApi, useEloLeaderboard, useHitlBuffer } from "../../hooks/useApi";
 import ws from "../../services/websocket";
 import { toast } from "react-toastify";
 import { getApiUrl, getAuthHeaders } from "../../config/api";
 
+// Design system: green/amber/red/gray
 const HEALTH_COLORS = {
-  healthy: "bg-emerald-500 shadow-emerald-500/50",
-  degraded: "bg-amber-500 shadow-amber-500/50",
-  error: "bg-red-500 shadow-red-500/50",
-  stopped: "bg-gray-600",
-  unknown: "bg-gray-700",
+  healthy: "#10b981",
+  degraded: "#f59e0b",
+  error: "#ef4444",
+  stopped: "#4b5563",
+  unknown: "#64748b",
 };
 
 const AGENT_CATEGORIES = [
@@ -255,7 +255,7 @@ function SwarmTopologyDAG({ agents = [] }) {
 
 // ─── AGENT HEALTH MATRIX ──────────────────────────────────────────────────────
 
-function AgentHealthMatrix({ agents }) {
+function AgentHealthMatrix({ agents, onAgentClick }) {
   const active = agents.filter(a => a.status === "running").length;
   const warning = agents.filter(a => a.health === "degraded").length;
   const error = agents.filter(a => a.health === "error" || a.status === "error").length;
@@ -265,17 +265,32 @@ function AgentHealthMatrix({ agents }) {
     const map = {};
     agents.forEach(a => {
       const key = (a.name || a.agent_name || "").toLowerCase();
-      map[key] = a.health || (a.status === "running" ? "healthy" : a.status === "stopped" ? "stopped" : "unknown");
+      map[key] = { health: a.health || (a.status === "running" ? "healthy" : a.status === "stopped" ? "stopped" : "unknown"), agent: a };
     });
     return map;
   }, [agents]);
 
   const resolveHealth = (catName) => {
     const label = catName.toLowerCase();
-    for (const [key, health] of Object.entries(agentHealthMap)) {
-      if (key.includes(label) || label.includes(key)) return health;
+    for (const [key, entry] of Object.entries(agentHealthMap)) {
+      if (key.includes(label) || label.includes(key)) return entry.health;
     }
     return "unknown";
+  };
+
+  const getAgentForCategory = (catName) => {
+    const label = catName.toLowerCase();
+    for (const [key, entry] of Object.entries(agentHealthMap)) {
+      if (key.includes(label) || label.includes(key)) return entry.agent;
+    }
+    return null;
+  };
+
+  const tooltipText = (cat) => {
+    const a = getAgentForCategory(cat.name);
+    const h = resolveHealth(cat.name);
+    if (a) return `${cat.name}: ${h} | ${a.status ?? "—"} | ${a.last_heartbeat ?? "—"}`;
+    return `${cat.name}: ${resolveHealth(cat.name)}`;
   };
 
   // Groups for 3-column display matching mockup
@@ -299,11 +314,19 @@ function AgentHealthMatrix({ agents }) {
             <div className="flex flex-wrap gap-1">
               {AGENT_CATEGORIES.filter(c => c.group === g).map(cat => {
                 const h = resolveHealth(cat.name);
-                const dotClass = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const dotColor = HEALTH_COLORS[h] || HEALTH_COLORS.unknown;
                 return (
-                  <div key={cat.name} className="flex items-center gap-1 cursor-pointer">
-                    <div className={`w-3 h-3 rounded-full ${dotClass} shadow-[0_0_4px_currentColor]`} />
-                    <span className="text-[8px] text-gray-500">{cat.name}</span>
+                  <div
+                    key={cat.name}
+                    className="flex items-center gap-1 cursor-pointer hover:opacity-90 focus:outline-none focus:ring-1 focus:ring-[#06b6d4] rounded"
+                    role="button"
+                    tabIndex={0}
+                    title={tooltipText(cat)}
+                    onClick={() => onAgentClick?.(cat.name)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAgentClick?.(cat.name); } }}
+                  >
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+                    <span className="text-[8px] text-[#64748b]">{cat.name}</span>
                   </div>
                 );
               })}
@@ -319,21 +342,29 @@ function AgentHealthMatrix({ agents }) {
             <div className="flex flex-wrap gap-1">
               {AGENT_CATEGORIES.filter(c => c.group === g).map(cat => {
                 const h = resolveHealth(cat.name);
-                const dotClass = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const dotColor = HEALTH_COLORS[h] || HEALTH_COLORS.unknown;
                 return (
-                  <div key={cat.name} className="w-2.5 h-2.5 rounded-full cursor-pointer" title={cat.name}
-                    style={{ background: dotClass.includes("emerald") ? "#34d399" : dotClass.includes("amber") ? "#fbbf24" : dotClass.includes("red") ? "#ef4444" : "#4b5563" }} />
+                  <div
+                    key={cat.name}
+                    className="w-2.5 h-2.5 rounded-full cursor-pointer shrink-0 focus:outline-none focus:ring-1 focus:ring-[#06b6d4]"
+                    role="button"
+                    tabIndex={0}
+                    title={tooltipText(cat)}
+                    style={{ backgroundColor: dotColor }}
+                    onClick={() => onAgentClick?.(cat.name)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAgentClick?.(cat.name); } }}
+                  />
                 );
               })}
             </div>
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-3 text-[9px] text-gray-500 pt-2 border-t border-cyan-500/10">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"/>{active} Active</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"/>{warning} Warning</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"/>{error} Error</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-600"/>{stopped} Stopped</span>
+      <div className="flex items-center gap-3 text-[9px] text-[#64748b] pt-2 border-t border-[#1e293b]">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#10b981" }} />{active} Active</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#f59e0b" }} />{warning} Warning</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#ef4444" }} />{error} Error</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#4b5563" }} />{stopped} Stopped</span>
       </div>
     </div>
   );
@@ -368,11 +399,10 @@ function QuickActions({ onRefetch }) {
     }
   };
   const actions = [
-    { label: "Restart All",   color: "bg-[#3b82f6] text-white border-[#3b82f6]", fn: () => quickActionApi("/batch/restart") },
-    { label: "Stop All",     color: "bg-[#ef4444] text-white border-[#ef4444]", fn: () => quickActionApi("/batch/stop") },
-    { label: "Spawn Team",   color: "bg-[#10b981] text-white border-[#10b981]", fn: () => quickActionApi("/batch/start") },
-    { label: "Run Conference", color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", fn: () => { toast.info("Conference triggered via council; no dedicated endpoint."); } },
-    { label: "Emergency Kill", color: "bg-[#ef4444] text-white border-[#ef4444]", fn: emergencyStopApi },
+    { label: "Restart All",      color: "bg-[#06b6d4] text-white border-[#06b6d4]", fn: () => quickActionApi("/batch/restart") },
+    { label: "Pause Swarm",      color: "bg-[#f59e0b] text-white border-[#f59e0b]", fn: () => quickActionApi("/batch/stop") },
+    { label: "Run Conference",   color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", fn: () => { toast.info("Conference triggered via council."); } },
+    { label: "Trigger Flywheel", color: "bg-[#10b981] text-white border-[#10b981]", fn: () => quickActionApi("/batch/start") },
   ];
   return (
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
@@ -397,11 +427,11 @@ function QuickActions({ onRefetch }) {
 
 function SystemAlertsPanel({ alerts = [] }) {
   const levelConfig = {
-    RED:   { color: "text-red-400", dotColor: "bg-red-500", bgColor: "bg-red-500/5 border-red-500/20" },
-    AMBER: { color: "text-amber-400", dotColor: "bg-amber-500", bgColor: "bg-amber-500/5 border-amber-500/20" },
-    INFO:  { color: "text-[#00D9FF]", dotColor: "bg-[#00D9FF]", bgColor: "bg-[#00D9FF]/5 border-[#00D9FF]/20" },
-    WARN:  { color: "text-amber-400", dotColor: "bg-amber-500", bgColor: "bg-amber-500/5 border-amber-500/20" },
-    ERROR: { color: "text-red-400", dotColor: "bg-red-500", bgColor: "bg-red-500/5 border-red-500/20" },
+    RED:   { color: "text-[#ef4444]", dotColor: "#ef4444", bgColor: "bg-[#ef4444]/10 border-[#ef4444]/30" },
+    AMBER: { color: "text-[#f59e0b]", dotColor: "#f59e0b", bgColor: "bg-[#f59e0b]/10 border-[#f59e0b]/30" },
+    INFO:  { color: "text-[#06b6d4]", dotColor: "#06b6d4", bgColor: "bg-[#06b6d4]/10 border-[#06b6d4]/30" },
+    WARN:  { color: "text-[#f59e0b]", dotColor: "#f59e0b", bgColor: "bg-[#f59e0b]/10 border-[#f59e0b]/30" },
+    ERROR: { color: "text-[#ef4444]", dotColor: "#ef4444", bgColor: "bg-[#ef4444]/10 border-[#ef4444]/30" },
   };
 
   const displayAlerts = alerts;
@@ -411,14 +441,14 @@ function SystemAlertsPanel({ alerts = [] }) {
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">SYSTEM ALERTS</h3>
       <div className="space-y-1.5">
         {displayAlerts.length === 0 ? (
-          <div className="text-[10px] text-gray-500 font-mono py-2 text-center">Awaiting system alerts...</div>
+          <div className="text-[10px] text-[#64748b] font-mono py-2 text-center">No system alerts</div>
         ) : displayAlerts.map((a, i) => {
           const cfg = levelConfig[a.level] || levelConfig["INFO"];
           return (
             <div key={i} className={`flex items-center gap-2 text-[10px] rounded px-2 py-1.5 border ${cfg.bgColor}`}>
-              <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotColor}`} />
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cfg.dotColor }} />
               <span className={`font-bold ${cfg.color} shrink-0 w-10`}>{a.level}</span>
-              <span className="text-gray-300">{a.msg || a.message || ""}</span>
+              <span className="text-[#94a3b8]">{a.msg || a.message || ""}</span>
             </div>
           );
         })}
@@ -437,15 +467,15 @@ function TeamStatus({ teams = [] }) {
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">TEAM STATUS</h3>
       <div className="grid grid-cols-2 gap-2">
         {displayTeams.length === 0 ? (
-          <div className="text-[10px] text-gray-500 font-mono py-2 col-span-2 text-center">Awaiting team data...</div>
+          <div className="text-[10px] text-[#64748b] font-mono py-2 col-span-2 text-center">No team data</div>
         ) : displayTeams.map(t => (
-          <div key={t.name} className={`rounded p-2 border ${t.status === "ACTIVE" ? "bg-emerald-500/5 border-emerald-500/20" : "bg-amber-500/5 border-amber-500/20"}`}>
-            <div className="text-[10px] font-bold text-white font-mono truncate">{t.name}</div>
+          <div key={t.name} className={`rounded p-2 border cursor-pointer hover:bg-[#1e293b]/50 ${t.status === "ACTIVE" ? "bg-[#10b981]/10 border-[#10b981]/30" : "bg-[#f59e0b]/10 border-[#f59e0b]/30"}`}>
+            <div className="text-[10px] font-bold text-[#f8fafc] font-mono truncate">{t.name}</div>
             <div className="flex items-center justify-between mt-1 text-[9px]">
-              <span className="text-gray-500">{t.agents} agents</span>
-              <span className={`font-bold ${t.status === "ACTIVE" ? "text-emerald-400" : "text-amber-400"}`}>{t.status}</span>
-              <span className="text-white font-mono">{t.health}%</span>
-              <div className={`w-1.5 h-1.5 rounded-full ${t.status === "ACTIVE" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+              <span className="text-[#64748b]">{t.agents} agents</span>
+              <span className={`font-bold font-mono ${t.status === "ACTIVE" ? "text-[#10b981]" : "text-[#f59e0b]"}`}>{t.status}</span>
+              <span className="text-[#f8fafc] font-mono">{t.health}%</span>
+              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: t.status === "ACTIVE" ? "#10b981" : "#f59e0b" }} />
             </div>
           </div>
         ))}
@@ -482,14 +512,14 @@ function LiveActivityFeed({ agents }) {
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">LIVE AGENT ACTIVITY FEED</h3>
       <div className="flex-1 space-y-0.5 overflow-y-auto scrollbar-thin font-mono min-h-0">
         {items.length === 0 ? (
-          <div className="text-[10px] text-gray-500 text-center py-6">Waiting for agent activity...</div>
+          <div className="text-[10px] text-[#64748b] font-mono text-center py-6">No agent activity yet</div>
         ) : (
           items.map(it => (
-            <div key={it.id} className="flex gap-2 text-[10px] hover:bg-[#00D9FF]/5 px-1 py-0.5 rounded cursor-pointer">
-              <span className="text-gray-600 shrink-0 font-mono">[{it.time}]</span>
+            <div key={it.id} className="flex gap-2 text-[10px] hover:bg-[#1e293b] px-1 py-0.5 rounded cursor-pointer">
+              <span className="text-[#64748b] shrink-0 font-mono">[{it.time}]</span>
               <span className={`${it.color} font-bold shrink-0`}>{it.agent}</span>
-              <span className="text-gray-500">—</span>
-              <span className="text-gray-300 truncate">{it.action}</span>
+              <span className="text-[#64748b]">—</span>
+              <span className="text-[#94a3b8] truncate">{it.action}</span>
             </div>
           ))
         )}
@@ -503,9 +533,9 @@ function LiveActivityFeed({ agents }) {
 function ResourceMonitor({ agents = [] }) {
   const rows = agents.length > 0 ? agents.map(a => ({
     name: a.name || a.agent_name || "Agent",
-    cpu: a.cpu ?? a.cpu_usage ?? 0,
-    mem: a.memory_mb != null ? `${a.memory_mb}MB` : (a.mem != null ? `${a.mem}MB` : "0MB"),
-    tokens: a.tokens_per_hour ?? a.tokens ?? 0,
+    cpu: a.cpu ?? a.cpu_usage ?? null,
+    mem: a.memory_mb != null ? `${a.memory_mb}MB` : (a.mem != null ? `${a.mem}MB` : null),
+    tokens: a.tokens_per_hour ?? a.tokens ?? null,
     status: a.status || a.health || "unknown",
   })) : [];
 
@@ -523,28 +553,34 @@ function ResourceMonitor({ agents = [] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
+          {rows.length === 0 ? (
+            <tr><td colSpan={5} className="py-4 text-center text-[10px] text-[#64748b] font-mono">No agent resource data</td></tr>
+          ) : rows.map(r => (
             <tr className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
-              <td className="py-1 text-[#00D9FF] font-mono">{r.name}</td>
+              <td className="py-1 text-[#06b6d4] font-mono">{r.name}</td>
               <td className="font-mono">
-                <div className="flex items-center gap-1">
-                  <span className={r.cpu > 80 ? "text-red-400" : r.cpu > 50 ? "text-amber-400" : "text-white"}>{r.cpu}%</span>
-                  <div className="w-10 h-1 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-[#00D9FF]/60" style={{ width: `${r.cpu}%` }} />
+                {r.cpu != null ? (
+                  <div className="flex items-center gap-1">
+                    <span className={r.cpu > 80 ? "text-[#ef4444]" : r.cpu > 60 ? "text-[#f59e0b]" : "text-[#f8fafc]"}>{r.cpu}%</span>
+                    <div className="w-10 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "#1e293b" }}>
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, r.cpu)}%`, backgroundColor: r.cpu > 80 ? "#ef4444" : r.cpu > 60 ? "#f59e0b" : "#06b6d4" }} />
+                    </div>
                   </div>
-                </div>
+                ) : <span className="text-[#64748b]">—</span>}
               </td>
-              <td className="text-white font-mono">
-                <div className="flex items-center gap-1">
-                  <span>{r.mem}</span>
-                  <div className="w-8 h-1 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-blue-400/60" style={{ width: `${Math.min(100, parseInt(r.mem) / 15)}%` }} />
+              <td className="text-[#f8fafc] font-mono">
+                {r.mem != null ? (
+                  <div className="flex items-center gap-1">
+                    <span>{r.mem}</span>
+                    <div className="w-8 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "#1e293b" }}>
+                      <div className="h-full rounded-full bg-[#06b6d4]/70" style={{ width: Math.min(100, (Number(String(r.mem).replace(/[^0-9]/g, "")) || 0) / 20) + "%" }} />
+                    </div>
                   </div>
-                </div>
+                ) : <span className="text-[#64748b]">—</span>}
               </td>
-              <td className="text-right text-gray-300 font-mono">{r.tokens?.toLocaleString()}</td>
+              <td className="text-right text-[#94a3b8] font-mono">{r.tokens != null ? Number(r.tokens).toLocaleString() : "—"}</td>
               <td className="text-right">
-                <div className={`w-2 h-2 rounded-full inline-block ${r.status === "healthy" || r.status === "running" ? "bg-emerald-400" : r.status === "warn" || r.status === "degraded" ? "bg-amber-400" : "bg-gray-600"}`} />
+                <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: r.status === "healthy" || r.status === "running" ? "#10b981" : r.status === "warn" || r.status === "degraded" ? "#f59e0b" : "#4b5563" }} />
               </td>
             </tr>
           ))}
@@ -574,7 +610,7 @@ function EloLeaderboard() {
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">AGENT ELO LEADERBOARD</h3>
       <table className="w-full text-[10px] font-mono">
         <thead>
-          <tr className="text-[#64748b] border-b border-[#1e293b]">
+          <tr className="text-[#94a3b8] border-b border-[#1e293b]">
             <th className="text-left py-1 font-medium w-4 text-[10px] uppercase">Rank</th>
             <th className="text-left font-medium text-[10px] uppercase">Agent</th>
             <th className="text-right font-medium text-[10px] uppercase">ELO</th>
@@ -582,12 +618,21 @@ function EloLeaderboard() {
           </tr>
         </thead>
         <tbody>
-          {leaders.slice(0, 5).map(l => (
-            <tr key={l.rank} className="border-b border-[#1e293b]/30 hover:bg-[#164e63]/10">
-              <td className="py-1 text-gray-500 font-mono">{l.rank}</td>
-              <td className="text-[#00D9FF] font-mono">{l.name}</td>
-              <td className="text-right text-white font-mono">{l.elo}</td>
-              <td className="text-right text-gray-300 font-mono">{typeof l.winRate === 'number' ? l.winRate.toFixed(0) : l.winRate}%</td>
+          {leaders.length === 0 ? (
+            <tr><td colSpan={4} className="py-4 text-center text-[#64748b]">No ELO data</td></tr>
+          ) : leaders.slice(0, 5).map(l => (
+            <tr key={l.rank} className="border-b border-[#1e293b]/30 hover:bg-[#1e293b] cursor-pointer">
+              <td className="py-1 text-[#64748b] font-mono">{l.rank}</td>
+              <td className="text-[#06b6d4] font-mono">{l.name}</td>
+              <td className="text-right font-mono">
+                <div className="flex items-center justify-end gap-1.5">
+                  <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#1e293b" }}>
+                    <div className="h-full rounded-full bg-[#06b6d4]" style={{ width: `${Math.min(100, (l.elo / 2000) * 100)}%` }} />
+                  </div>
+                  <span className="text-[#f8fafc] w-8 text-right">{l.elo}</span>
+                </div>
+              </td>
+              <td className="text-right text-[#94a3b8] font-mono">{typeof l.winRate === "number" ? l.winRate.toFixed(0) : l.winRate}%</td>
             </tr>
           ))}
         </tbody>
@@ -644,48 +689,48 @@ function HITLQueue() {
   return (
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">HITL APPROVAL QUEUE</h3>
+        <h3 className="text-xs font-bold text-[#94a3b8] uppercase tracking-wider font-mono">HITL RING BUFFER</h3>
         {pending.length > 0 && (
-          <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded text-[9px] font-bold text-amber-400 animate-pulse">
+          <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase text-[#f59e0b] border border-[#f59e0b]/40 bg-[#f59e0b]/10">
             {pending.length} PENDING
           </span>
         )}
       </div>
       {!loading && pending.length === 0 ? (
-        <div className="text-[10px] text-gray-500 text-center py-3">No pending approvals</div>
+        <div className="text-[10px] text-[#64748b] font-mono text-center py-3">No pending approvals</div>
       ) : (
         <table className="w-full text-[10px]">
           <thead>
-            <tr className="text-gray-500 border-b border-gray-800">
-              <th className="text-left py-1 font-medium">Time</th>
-              <th className="text-left font-medium">Symbol</th>
-              <th className="text-left font-medium">Dir</th>
-              <th className="text-right font-medium">Conf</th>
-              <th className="text-right font-medium">Action</th>
+            <tr className="text-[#64748b] border-b border-[#1e293b]">
+              <th className="text-left py-1 font-medium text-[10px] uppercase">Time</th>
+              <th className="text-left font-medium text-[10px] uppercase">Symbol</th>
+              <th className="text-left font-medium text-[10px] uppercase">Dir</th>
+              <th className="text-right font-medium text-[10px] uppercase">Conf</th>
+              <th className="text-right font-medium text-[10px] uppercase">Action</th>
             </tr>
           </thead>
           <tbody>
             {items.map(item => {
               const decided = decisions[item.id];
               return (
-                <tr key={item.id} className={`border-b border-gray-800/20 ${decided ? "opacity-40" : "hover:bg-amber-500/5"}`}>
-                  <td className="py-1 text-gray-500 font-mono">{item.time}</td>
-                  <td className="text-white font-bold font-mono">{item.symbol}</td>
-                  <td className={`font-bold ${item.direction === "BUY" ? "text-emerald-400" : item.direction === "SELL" ? "text-red-400" : "text-gray-400"}`}>
+                <tr key={item.id} className={`border-b border-[#1e293b]/50 ${decided ? "opacity-50" : "hover:bg-[#1e293b]"} cursor-pointer`}>
+                  <td className="py-1 text-[#64748b] font-mono">{item.time}</td>
+                  <td className="text-[#f8fafc] font-bold font-mono">{item.symbol}</td>
+                  <td className={`font-bold font-mono ${item.direction === "BUY" ? "text-[#10b981]" : item.direction === "SELL" ? "text-[#ef4444]" : "text-[#94a3b8]"}`}>
                     {item.direction}
                   </td>
-                  <td className="text-right text-[#00D9FF] font-mono">{item.confidence}%</td>
+                  <td className="text-right text-[#06b6d4] font-mono">{item.confidence}%</td>
                   <td className="text-right">
                     {decided ? (
-                      <span className={`text-[9px] font-bold ${decided === "approve" ? "text-emerald-400" : "text-red-400"}`}>
+                      <span className={`text-[9px] font-bold ${decided === "approve" ? "text-[#10b981]" : "text-[#ef4444]"}`}>
                         {decided.toUpperCase()}D
                       </span>
                     ) : (
                       <span className="inline-flex gap-1">
-                        <button onClick={() => handleDecision(item.id, "approve")}
-                          className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 rounded text-[9px] font-bold hover:bg-emerald-500/30">✓</button>
-                        <button onClick={() => handleDecision(item.id, "reject")}
-                          className="px-1.5 py-0.5 bg-red-500/20 border border-red-500/40 text-red-400 rounded text-[9px] font-bold hover:bg-red-500/30">✗</button>
+                        <button type="button" onClick={() => handleDecision(item.id, "approve")}
+                          className="px-1.5 py-0.5 bg-[#10b981]/20 border border-[#10b981]/40 text-[#10b981] rounded text-[9px] font-bold hover:bg-[#10b981]/30 cursor-pointer">✓</button>
+                        <button type="button" onClick={() => handleDecision(item.id, "reject")}
+                          className="px-1.5 py-0.5 bg-[#ef4444]/20 border border-[#ef4444]/40 text-[#ef4444] rounded text-[9px] font-bold hover:bg-[#ef4444]/30 cursor-pointer">✗</button>
                       </span>
                     )}
                   </td>
@@ -701,27 +746,32 @@ function HITLQueue() {
 
 // ─── CONFERENCE PIPELINE ──────────────────────────────────────────────────────
 
-function ConferencePipelineViz() {
-  const stages = [
-    { name: "Researcher", done: true },
-    { name: "RiskOfficer", done: true },
-    { name: "Adversary", done: true },
-    { name: "Arbitrator", done: true },
+function ConferencePipelineViz({ conferenceData }) {
+  const stages = conferenceData?.stages ?? [
+    { name: "Researcher", done: false },
+    { name: "RiskOfficer", done: false },
+    { name: "Adversary", done: false },
+    { name: "Arbitrator", done: false },
   ];
+  const hasData = conferenceData && (conferenceData.verdict || conferenceData.symbol);
   return (
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
       <h3 className="text-xs font-bold uppercase tracking-wider mb-3 font-mono text-[#94a3b8]">CONFERENCE PIPELINE</h3>
-      <div className="flex items-center gap-1 justify-center flex-wrap">
-        {stages.map((s, i) => (
-          <React.Fragment key={s.name}>
-            <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-[10px] font-bold ${s.done ? "bg-[#00D9FF]/10 border-[#00D9FF]/40 text-[#00D9FF]" : "bg-gray-800 border-gray-700 text-gray-500"}`}>
-              {s.name}
-              {s.done && <div className="w-3 h-3 rounded-full bg-emerald-500 flex items-center justify-center"><Check className="w-2 h-2 text-white" /></div>}
-            </div>
-            {i < stages.length - 1 && <span className="text-[#00D9FF]/40 text-sm font-bold">→</span>}
-          </React.Fragment>
-        ))}
-      </div>
+      {!hasData ? (
+        <div className="text-[10px] text-[#64748b] font-mono py-3 text-center">Awaiting conference data</div>
+      ) : (
+        <div className="flex items-center gap-1 justify-center flex-wrap">
+          {stages.map((s, i) => (
+            <React.Fragment key={s.name ?? i}>
+              <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-[10px] font-bold ${s.done ? "bg-[#06b6d4]/10 border-[#06b6d4]/40 text-[#06b6d4]" : "bg-[#0f1219] border-[#374151] text-[#64748b]"}`}>
+                {s.name}
+                {s.done && <div className="w-3 h-3 rounded-full flex items-center justify-center" style={{ backgroundColor: "#10b981" }}><Check className="w-2 h-2 text-white" /></div>}
+              </div>
+              {i < stages.length - 1 && <span className="text-[#06b6d4]/40 text-sm font-bold">→</span>}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -732,9 +782,9 @@ function LastConference({ conferenceData = null }) {
   const cd = conferenceData;
   if (!cd) {
     return (
-      <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">LAST CONFERENCE</h3>
-        <div className="text-[10px] text-gray-500 font-mono py-4 text-center">Awaiting conference data...</div>
+      <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+        <h3 className="text-xs font-bold text-[#94a3b8] uppercase tracking-wider mb-2 font-mono">LAST CONFERENCE</h3>
+        <div className="text-[10px] text-[#64748b] font-mono py-4 text-center">No conference data</div>
       </div>
     );
   }
@@ -750,32 +800,32 @@ function LastConference({ conferenceData = null }) {
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">LAST CONFERENCE</h3>
       <div className="flex items-center gap-3 mb-3">
         <div>
-          <div className="text-[11px] text-gray-400 font-mono">{symbol}{conferenceId ? ` #${conferenceId}` : ""}</div>
-          <div className={`text-[11px] font-bold ${verdict === "BUY" ? "text-emerald-400" : verdict === "SELL" ? "text-red-400" : "text-gray-400"}`}>
+          <div className="text-[11px] text-[#94a3b8] font-mono">{symbol}{conferenceId ? ` #${conferenceId}` : ""}</div>
+          <div className={`text-[11px] font-bold font-mono ${verdict === "BUY" ? "text-[#10b981]" : verdict === "SELL" ? "text-[#ef4444]" : "text-[#94a3b8]"}`}>
             VERDICT: {verdict}
           </div>
         </div>
         <div className="relative w-12 h-12 shrink-0">
           <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90">
-            <circle cx="18" cy="18" r="16" fill="none" stroke="#1f2937" strokeWidth="3" />
-            <circle cx="18" cy="18" r="16" fill="none" stroke="#00D9FF" strokeWidth="3"
+            <circle cx="18" cy="18" r="16" fill="none" stroke="#1e293b" strokeWidth="3" />
+            <circle cx="18" cy="18" r="16" fill="none" stroke="#06b6d4" strokeWidth="3"
               strokeDasharray={`${confidence} ${100 - confidence}`} strokeLinecap="round" />
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-[#00D9FF] font-bold font-mono">{confidence}%</span>
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-[#06b6d4] font-bold font-mono">{confidence}%</span>
         </div>
         <div className="flex-1 space-y-1">
           {votes.map(v => (
             <div key={v.agent} className="flex items-center gap-2 text-[10px]">
-              <span className="w-20 text-gray-400 shrink-0">{v.agent}</span>
-              <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${v.vote > 70 ? "bg-[#00D9FF]" : v.vote > 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${v.vote}%` }} />
+              <span className="w-20 text-[#94a3b8] shrink-0 font-mono">{v.agent}</span>
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#1e293b" }}>
+                <div className="h-full rounded-full" style={{ width: `${v.vote}%`, backgroundColor: v.vote > 70 ? "#06b6d4" : v.vote > 50 ? "#f59e0b" : "#ef4444" }} />
               </div>
-              <span className="text-white w-7 text-right font-mono">{v.vote}%</span>
+              <span className="text-[#f8fafc] w-7 text-right font-mono">{v.vote}%</span>
             </div>
           ))}
         </div>
       </div>
-      <div className="text-[9px] text-gray-500 font-mono">Duration: {duration}s</div>
+      <div className="text-[9px] text-[#64748b] font-mono">Duration: {duration}s</div>
     </div>
   );
 }
@@ -783,16 +833,7 @@ function LastConference({ conferenceData = null }) {
 // ─── DRIFT MONITOR ────────────────────────────────────────────────────────────
 
 function DriftMonitorPanel({ driftData = [] }) {
-  const defaultData = [
-    { name: "volume_sma_ratio", val: 0.24, status: "high" },
-    { name: "atr_normalized", val: 0.22, status: "high" },
-    { name: "macd_histogram", val: 0.15, status: "mid" },
-    { name: "vwap_distance", val: 0.11, status: "mid" },
-    { name: "rsi_14", val: 0.08, status: "low" },
-    { name: "Mean PSI:", label: "0.119", val: null, status: "info" },
-  ];
-
-  const displayData = driftData.length > 0 ? driftData : defaultData;
+  const displayData = Array.isArray(driftData) ? driftData : [];
 
   const barColor = (m) => {
     if (m.val == null) return "#06b6d4";
@@ -805,7 +846,9 @@ function DriftMonitorPanel({ driftData = [] }) {
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">DRIFT MONITOR</h3>
       <div className="space-y-1">
-        {displayData.map((m, i) => (
+        {displayData.length === 0 ? (
+          <div className="text-[10px] text-[#64748b] font-mono py-4 text-center">No drift data</div>
+        ) : displayData.map((m, i) => (
           <div key={i} className="flex items-center justify-between text-[10px] font-mono">
             <span className="text-[#94a3b8]">{m.name}</span>
             {m.val != null ? (
@@ -816,7 +859,7 @@ function DriftMonitorPanel({ driftData = [] }) {
                 </div>
               </div>
             ) : (
-              <span className={`text-[#94a3b8] ${m.status === "info" ? "text-[#06b6d4]" : ""}`}>{m.label ?? ""}</span>
+              <span className={m.status === "info" ? "text-[#06b6d4]" : "text-[#94a3b8]"}>{m.label ?? ""}</span>
             )}
           </div>
         ))}
@@ -844,13 +887,17 @@ function BlackboardFeed({ topics = [] }) {
           </tr>
         </thead>
         <tbody>
-          {displayTopics.map(t => (
-            <tr key={t.topic} className="border-b border-[#1e293b]/30 hover:bg-[#164e63]/10">
-              <td className="py-1 text-[#00D9FF] font-mono font-bold">{t.topic}</td>
-              <td className="text-right text-white font-mono">{t.subs ?? 0}</td>
-              <td className="text-right text-gray-400 font-mono">{t.msgs ?? 0}</td>
-              <td className="pl-3 text-gray-400">{t.last ?? "—"}</td>
-              <td className="text-right text-gray-600 text-[9px]">→</td>
+          {displayTopics.length === 0 ? (
+            <tr><td colSpan={5} className="py-4 text-center text-[10px] text-[#64748b] font-mono">No blackboard topics</td></tr>
+          ) : displayTopics.map(t => (
+            <tr key={t.topic} className="border-b border-[#1e293b]/30 hover:bg-[#1e293b] cursor-pointer">
+              <td className="py-1 text-[#06b6d4] font-mono font-bold">{t.topic}</td>
+              <td className="text-right text-[#f8fafc] font-mono">{t.subs ?? 0}</td>
+              <td className="text-right text-[#94a3b8] font-mono">{t.msgs ?? 0}</td>
+              <td className="pl-3 text-[#94a3b8] truncate max-w-[120px]">{t.last ?? "—"}</td>
+              <td className="text-right">
+                <button type="button" className="text-[9px] text-[#06b6d4] hover:text-[#22d3ee] font-mono cursor-pointer">INSPECT</button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -859,34 +906,43 @@ function BlackboardFeed({ topics = [] }) {
   );
 }
 
-// ─── MAIN TAB (mockup 01: strict 3 columns — Left: Health + Quick Actions + Team + Alerts | Center: Activity + Resource + Blackboard | Right: Topology + ELO + Conference + Last Conference + Drift) ─────────────────────────────────────────────────────────────────
+// ─── MAIN TAB — Grid: Row1 [3][5][4], Row2 [4][5][3], Row3 [6][6] ─────────────────────────────────────────
 
-export default function SwarmOverviewTab({ agents = [], teams = [], alerts = [], topics = [], conferenceData = null, driftData = [] }) {
+export default function SwarmOverviewTab({ agents = [], teams = [], alerts = [], topics = [], conferenceData = null, driftData = [], onAgentClick, setTab }) {
   return (
     <div className="grid grid-cols-12 gap-3">
-      {/* ── COL 1 (Left): Agent Health Matrix, Quick Actions, Team Status, System Alerts ── */}
-      <div className="col-span-4 flex flex-col gap-3">
-        <AgentHealthMatrix agents={agents} />
-        <QuickActions />
-        <TeamStatus teams={teams} />
-        <SystemAlertsPanel alerts={alerts} />
+      {/* Row 1: Agent Health Matrix (3) | Live Agent Activity Feed (5) | Swarm Topology + ELO (4) */}
+      <div className="col-span-3 flex flex-col gap-3">
+        <AgentHealthMatrix agents={agents} onAgentClick={onAgentClick} />
       </div>
-
-      {/* ── COL 2 (Center): Live Activity Feed, Resource Monitor, Blackboard ── */}
-      <div className="col-span-4 flex flex-col gap-3">
-        <div className="min-h-[280px]">
-          <LiveActivityFeed agents={agents} />
-        </div>
-        <ResourceMonitor agents={agents} />
-        <BlackboardFeed topics={topics} />
+      <div className="col-span-5 flex flex-col gap-3 min-h-[280px]">
+        <LiveActivityFeed agents={agents} />
       </div>
-
-      {/* ── COL 3 (Right): Swarm Topology, ELO Leaderboard, Conference Pipeline, Last Conference, Drift Monitor ── */}
       <div className="col-span-4 flex flex-col gap-3">
         <SwarmTopologyDAG agents={agents} />
         <EloLeaderboard />
-        <ConferencePipelineViz />
+      </div>
+
+      {/* Row 2: Quick Actions + Team + Alerts + HITL (4) | Resource Monitor (5) | Conference Pipeline + Last Conference (3) */}
+      <div className="col-span-4 flex flex-col gap-3">
+        <QuickActions />
+        <TeamStatus teams={teams} />
+        <SystemAlertsPanel alerts={alerts} />
+        <HITLQueue />
+      </div>
+      <div className="col-span-5 flex flex-col gap-3">
+        <ResourceMonitor agents={agents} />
+      </div>
+      <div className="col-span-3 flex flex-col gap-3">
+        <ConferencePipelineViz conferenceData={conferenceData} />
         <LastConference conferenceData={conferenceData} />
+      </div>
+
+      {/* Row 3: Blackboard Feed (6) | Drift Monitor (6) */}
+      <div className="col-span-6">
+        <BlackboardFeed topics={topics} />
+      </div>
+      <div className="col-span-6">
         <DriftMonitorPanel driftData={driftData} />
       </div>
     </div>

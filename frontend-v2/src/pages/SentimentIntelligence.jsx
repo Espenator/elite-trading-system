@@ -1,6 +1,7 @@
 // SENTIMENT INTELLIGENCE - Production-ready multi-source sentiment fusion
 // Uses useSentiment hook -> GET /api/v1/sentiment/summary + /history + WebSocket
 // Aurora Design System - 100% mockup fidelity (04-sentiment-intelligence.png)
+// No mock/fallback data — live useSentiment + useApi(signals, systemAlerts) only.
 import React, { useMemo, useCallback, useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -8,13 +9,13 @@ import {
 } from 'recharts';
 import { getApiUrl, getAuthHeaders } from '../config/api';
 import {
-  Activity, TrendingUp, TrendingDown, AlertTriangle, Target,
-  Newspaper, Twitter, MessageSquare, Server,
-  Flame, Zap, BarChart2, Radio, RefreshCw,
-  Database, Shield, Eye, Plus
+  Activity, AlertTriangle, Newspaper, Twitter, MessageSquare, Server,
+  RefreshCw, Database, Shield, Plus
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import clsx from 'clsx';
 import { useSentiment } from '../hooks/useSentiment';
+import { useApi, postAgentOverrideWeight, postAgentOverrideStatus } from '../hooks/useApi';
 import { SectorTreemap, ScannerStatusMatrix } from '../components/dashboard/SentimentWidgets';
 
 // ---- Constants ----
@@ -55,39 +56,7 @@ const SOURCE_LABELS = {
   sec: 'SEC',
 };
 
-// Default symbols for the heatmap grid - 3 columns x 4 rows = 12 tiles
-const HEATMAP_SYMBOLS = [
-  { sym: 'NVDA', pct: 4.2 },
-  { sym: 'TSLA', pct: -2.1 },
-  { sym: 'AAPL', pct: 1.8 },
-  { sym: 'AMD', pct: 3.5 },
-  { sym: 'MSFT', pct: 0.9 },
-  { sym: 'GOOG', pct: -0.4 },
-  { sym: 'AMZN', pct: 2.3 },
-  { sym: 'META', pct: 1.1 },
-  { sym: 'NFLX', pct: -1.5 },
-  { sym: 'PYPL', pct: -3.2 },
-  { sym: 'SQ', pct: 0.7 },
-  { sym: 'COIN', pct: -0.9 },
-];
-
-// Scanner matrix default symbols - dense grid with many symbols
-const SCANNER_SYMBOLS = [
-  'AAPL','AMD','NVDA','MSFT','TSLA','GOOG','AMZN','META',
-  'NFLX','PYPL','SQ','COIN','INTC','QCOM','CRM','ORCL',
-  'UBER','SHOP','SNAP','ROKU','PLTR','SOFI','RIVN','LCID',
-];
-
-// Sentiment source bar colors (for the horizontal bar section)
-const SENTIMENT_SOURCE_BARS = [
-  { name: 'Stockgeist API', color: '#22d3ee' },
-  { name: 'News Aggregator', color: '#a78bfa' },
-  { name: 'Discord Signals', color: '#f472b6' },
-  { name: 'X / Twitter', color: '#34d399' },
-  { name: 'FRED Macro', color: '#fbbf24' },
-  { name: 'SEC Filings', color: '#fb923c' },
-  { name: 'Reddit NLP', color: '#e879f9' },
-];
+const SOURCE_COLORS = ['#22d3ee', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#fb923c', '#e879f9'];
 
 // ---- Helpers ----
 const getSentimentColor = (score) => {
@@ -156,7 +125,13 @@ export default function SentimentIntelligence() {
     mood, sourceHealth, divergences, heatmap, signals, stats, history,
   } = useSentiment();
 
+  const { data: signalsApi } = useApi('signals', { pollIntervalMs: 15000 });
+  const { data: systemAlertsData, refetch: refetchAlerts } = useApi('systemAlerts', { pollIntervalMs: 20000 });
+
   const [discovering, setDiscovering] = useState(false);
+  const [heatmapFilterSymbol, setHeatmapFilterSymbol] = useState(null);
+  const [weightOverrides, setWeightOverrides] = useState({});
+  const [savingWeights, setSavingWeights] = useState(false);
 
   const handleAutoDiscover = useCallback(async () => {
     setDiscovering(true);
@@ -167,6 +142,7 @@ export default function SentimentIntelligence() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       refetch();
+      toast.success('Discovery triggered');
     } catch (err) {
       console.error('Auto Discover failed:', err);
       toast.error('Auto Discover failed: ' + (err?.message || 'network error'));
@@ -175,7 +151,7 @@ export default function SentimentIntelligence() {
     }
   }, [refetch]);
 
-  const moodValue = mood?.value ?? 87;
+  const moodValue = mood?.value ?? null;
 
   // Build agent list from sourceHealth
   const agentList = useMemo(() => {
@@ -191,24 +167,52 @@ export default function SentimentIntelligence() {
     });
   }, [sourceHealth]);
 
-  // Weight sliders data
+  // Weight sliders: live stats + local overrides; keys map to first 5 SOURCE_KEYS for API
+  const weightSliderKeys = ['composite', 'signal', 'reversal', 'market', 'macro'];
   const weightSliders = useMemo(() => {
     return WEIGHT_LABELS.map((label, i) => {
-      const keys = ['composite', 'signal', 'reversal', 'market', 'macro'];
-      const val = stats?.weights?.[keys[i]] ?? 0;
-      return { label, value: Math.round(typeof val === 'number' ? val : 50) };
+      const key = weightSliderKeys[i];
+      const fromStats = stats?.weights?.[key];
+      const val = weightOverrides[key] ?? (typeof fromStats === 'number' ? fromStats * 100 : null);
+      const value = val != null ? Math.round(Math.min(100, Math.max(0, val))) : null;
+      const agentKey = SOURCE_KEYS[i];
+      return { label, key, agentKey, value };
     });
-  }, [stats]);
+  }, [stats, weightOverrides]);
 
-  // Heatmap grid from live data or defaults
+  const handleWeightChange = useCallback((key, value) => {
+    setWeightOverrides(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleSaveWeights = useCallback(async () => {
+    setSavingWeights(true);
+    try {
+      for (let i = 0; i < weightSliders.length; i++) {
+        const { agentKey, value } = weightSliders[i];
+        if (value == null) continue;
+        const v = value / 100;
+        const alpha = v * 10;
+        const beta = (1 - v) * 10;
+        await postAgentOverrideWeight(agentKey, alpha, beta);
+      }
+      toast.success('Weights saved');
+      refetch();
+    } catch (err) {
+      toast.error('Save weights failed: ' + (err?.message || 'network error'));
+    } finally {
+      setSavingWeights(false);
+    }
+  }, [weightSliders, refetch]);
+
+  // Heatmap grid from live data only; empty = show skeleton placeholders
   const heatmapGrid = useMemo(() => {
     if (heatmap.length > 0) {
       return heatmap.slice(0, 12).map(h => ({
         sym: h.ticker,
-        pct: h.score != null ? h.score * 10 : 0,
+        pct: h.score != null ? h.score * 10 : null,
       }));
     }
-    return HEATMAP_SYMBOLS;
+    return [];
   }, [heatmap]);
 
   // 30-day sentiment chart data
@@ -217,52 +221,61 @@ export default function SentimentIntelligence() {
   // Sentiment sources timeline
   const sourcesTimeline = useMemo(() => generateSourcesTimeline(history), [history]);
 
-  // Radar chart data - primary layer
+  // Radar chart data — live only; no fake fallbacks
   const radarData = useMemo(() => {
     const liveCount = sourceHealth.filter(s => s.status === 'LIVE').length;
-    const totalSources = sourceHealth.length || 1;
+    const totalSources = Math.max(sourceHealth.length, 1);
+    const bull = stats?.bullish ?? 0;
+    const bear = stats?.bearish ?? 0;
+    const neut = stats?.neutral ?? 0;
+    const total = bull + bear + neut || 1;
     return [
-      { factor: 'Bullish', value: stats.bullish ? (stats.bullish / (stats.bullish + stats.bearish + (stats.neutral || 0))) * 100 : 72, prev: 58 },
-      { factor: 'Momentum', value: mood?.value ?? 65, prev: 50 },
-      { factor: 'Coverage', value: sourceHealth.length > 0 ? (liveCount / Math.max(totalSources, 1)) * 100 : 80, prev: 65 },
-      { factor: 'Signals', value: signals.length > 0 ? Math.min(100, signals.length * 10) : 55, prev: 42 },
-      { factor: 'Volume', value: stats.totalTickers ? Math.min(100, stats.totalTickers * 8) : 70, prev: 55 },
-      { factor: 'Confidence', value: mood?.value ? Math.min(100, Math.abs(mood.value - 50) * 2 + 50) : 60, prev: 48 },
-      { factor: 'Sentiment', value: heatmap.length > 0 ? Math.min(100, heatmap.reduce((a, h) => a + Math.abs(h.score), 0) / heatmap.length * 100) : 75, prev: 60 },
-      { factor: 'Divergence', value: divergences.length > 0 ? Math.min(100, divergences.length * 20) : 40, prev: 35 },
-    ];
+      { factor: 'Bullish', value: bull ? (bull / total) * 100 : null, prev: null },
+      { factor: 'Momentum', value: mood?.value != null ? mood.value : null, prev: null },
+      { factor: 'Coverage', value: sourceHealth.length > 0 ? (liveCount / totalSources) * 100 : null, prev: null },
+      { factor: 'Signals', value: signals.length > 0 ? Math.min(100, signals.length * 10) : null, prev: null },
+      { factor: 'Volume', value: stats?.totalTickers ? Math.min(100, stats.totalTickers * 8) : null, prev: null },
+      { factor: 'Confidence', value: mood?.value != null ? Math.min(100, Math.abs(mood.value - 50) * 2 + 50) : null, prev: null },
+      { factor: 'Sentiment', value: heatmap.length > 0 ? Math.min(100, heatmap.reduce((a, h) => a + Math.abs(h.score ?? 0), 0) / heatmap.length * 100) : null, prev: null },
+      { factor: 'Divergence', value: divergences.length > 0 ? Math.min(100, divergences.length * 20) : null, prev: null },
+    ].map((d) => ({ ...d, value: d.value ?? 0, prev: d.prev ?? 0 }));
   }, [stats, mood, sourceHealth, signals, heatmap, divergences]);
 
-  // Trade signals text
+  // Trade signals text — no fake mood percentage
   const tradeSignalText = useMemo(() => {
     if (signals.length > 0) {
-      const bull = signals.filter(s => s.composite >= 0.2);
-      const bear = signals.filter(s => s.composite <= -0.2);
-      return `${bull.length} bullish signals detected across ${signals.length} instruments. ${bear.length} bearish divergences flagged. Multi-source accuracy rating: ${Math.round(moodValue)}% confidence.`;
+      const bull = signals.filter(s => (s.composite ?? 0) >= 0.2);
+      const bear = signals.filter(s => (s.composite ?? 0) <= -0.2);
+      const confidence = mood?.value != null ? ` ${Math.round(mood.value)}% confidence.` : '';
+      return `${bull.length} bullish signals across ${signals.length} instruments. ${bear.length} bearish flagged.${confidence}`;
     }
-    return 'Multi-source sentiment fusion is active. Signals will appear here when agents detect actionable patterns. Cross-referencing social volume, news flow, and macro indicators for accuracy.';
-  }, [signals, moodValue]);
+    return 'Multi-source sentiment fusion is active. Signals will appear here when agents detect actionable patterns.';
+  }, [signals, mood]);
 
-  // Prediction market values
+  // Prediction market values — live only; show — when null
   const predMarket1 = useMemo(() => ({
-    probability: mood?.value ?? 73,
+    probability: mood?.value != null ? mood.value : null,
     progress: sourceHealth.length > 0
       ? Math.round((sourceHealth.filter(s => s.status === 'LIVE').length / sourceHealth.length) * 100)
-      : 68,
+      : null,
   }), [mood, sourceHealth]);
 
   const predMarket2 = useMemo(() => ({
-    probability: divergences.length > 0 ? Math.min(95, divergences.length * 25) : 45,
-    progress: divergences.length > 0 ? Math.min(100, divergences.length * 20) : 52,
+    probability: divergences.length > 0 ? Math.min(95, divergences.length * 25) : null,
+    progress: divergences.length > 0 ? Math.min(100, divergences.length * 20) : null,
   }), [divergences]);
 
-  // Scanner status matrix data - dense dot grid with 14 columns per row
+  // Scanner matrix: symbols from heatmap or signals API only
+  const scannerSymbols = useMemo(() => {
+    if (heatmap.length > 0) return heatmap.slice(0, 24).map(h => ({ ticker: h.ticker, score: h.score }));
+    const list = signalsApi?.signals ?? signalsApi ?? [];
+    const arr = Array.isArray(list) ? list : [];
+    return arr.slice(0, 24).map(s => ({ ticker: s.ticker ?? s.symbol ?? '—', score: s.composite ?? null }));
+  }, [heatmap, signalsApi, signals]);
+
   const scannerData = useMemo(() => {
-    const syms = heatmap.length > 0
-      ? heatmap.slice(0, 24)
-      : SCANNER_SYMBOLS.map(s => ({ ticker: s, score: null }));
-    return syms.map((item, ri) => {
-      const score = typeof item === 'object' ? (item.score ?? null) : null;
+    return scannerSymbols.map((item) => {
+      const score = item.score ?? null;
       const cols = Array.from({ length: 14 }, (_, ci) => {
         const variation = score != null ? score + (ci - 7) * 0.04 : 0;
         let color;
@@ -272,21 +285,30 @@ export default function SentimentIntelligence() {
         else color = '#ef4444';
         return { color, opacity: 0.5 + Math.abs(variation) * 0.5 };
       });
-      return { sym: typeof item === 'object' ? item.ticker : item, cols };
+      return { sym: item.ticker, cols };
     });
-  }, [heatmap]);
+  }, [scannerSymbols]);
 
-  // Source health bars for Sentiment Sources section
+  // Source health bars — from sourceHealth only; names from SOURCE_LABELS
   const sourceBarData = useMemo(() => {
-    return SENTIMENT_SOURCE_BARS.map((bar, i) => {
-      const src = sourceHealth[i];
-      const width = src ? Math.round((src.weight ?? 0.5) * 100) : 0;
-      return { ...bar, width: Math.round(width) };
-    });
+    return sourceHealth.length > 0
+      ? sourceHealth.slice(0, 7).map((src, i) => ({
+          name: SOURCE_LABELS[src.source] ?? src.source,
+          color: SOURCE_COLORS[i % SOURCE_COLORS.length],
+          width: Math.round((src.weight ?? 0) * 100),
+        }))
+      : [];
   }, [sourceHealth]);
 
+  // Filtered signals for table (by heatmap cell click)
+  const displayedSignals = useMemo(() => {
+    const list = signals.length > 0 ? signals : (Array.isArray(signalsApi?.signals) ? signalsApi.signals : Array.isArray(signalsApi) ? signalsApi : []);
+    if (!heatmapFilterSymbol) return list.slice(0, 8);
+    return list.filter(s => (s.ticker ?? s.symbol) === heatmapFilterSymbol).slice(0, 8);
+  }, [signals, signalsApi, heatmapFilterSymbol]);
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 bg-[#0a0e1a] min-h-full">
       {/* ========== HEADER ========== */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -319,12 +341,11 @@ export default function SentimentIntelligence() {
         </div>
       )}
 
-      {/* ========== MAIN 4-ZONE LAYOUT ========== */}
-      {/* Mockup layout: Left(agents+sources) | Center(banner+heatmap+30day) | Center-Right(signals+radar+prediction+alerts) | Far-Right(scanner) */}
-      <div className="grid grid-cols-12 gap-3">
+      {/* ========== MAIN 3-COLUMN LAYOUT (Aurora: left 3, center 5, right 4) ========== */}
+      <div className="grid grid-cols-12 gap-3 bg-[#0a0e1a]">
 
         {/* ===== LEFT COLUMN: OpenClaw Agent Swarm + Sentiment Sources ===== */}
-        <div className="col-span-12 xl:col-span-2 space-y-3">
+        <div className="col-span-12 xl:col-span-3 space-y-3">
           {/* Agent Swarm Panel */}
           <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
             <div className="px-3 py-2.5 border-b border-[#1e293b]">
@@ -362,19 +383,35 @@ export default function SentimentIntelligence() {
                 );
               })}
 
-              {/* Weight sliders */}
+              {/* Weight sliders — wired to postAgentOverrideWeight */}
               <div className="border-t border-[#1e293b] pt-1.5 mt-1.5 space-y-1">
-                {weightSliders.map((w) => (
-                  <div key={w.label} className="flex items-center justify-between px-1">
-                    <span className="text-[9px] text-slate-500">{w.label}</span>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-12 bg-slate-800 rounded-full h-1">
-                        <div className="h-1 rounded-full bg-cyan-600/60" style={{ width: `${w.value}%` }} />
+                {weightSliders.map((w) => {
+                  const val = w.value != null ? w.value : 0;
+                  return (
+                    <div key={w.label} className="flex items-center justify-between px-1">
+                      <span className="text-[9px] text-slate-500">{w.label}</span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={val}
+                          onChange={(e) => handleWeightChange(w.key, Number(e.target.value))}
+                          className="w-12 h-1 bg-slate-800 rounded-full accent-cyan-500"
+                        />
+                        <span className="text-[8px] text-slate-500 font-mono w-5 text-right">{w.value != null ? w.value : '—'}</span>
                       </div>
-                      <span className="text-[8px] text-slate-500 font-mono w-5 text-right">{w.value}</span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                <button
+                  type="button"
+                  disabled={savingWeights}
+                  onClick={handleSaveWeights}
+                  className="w-full mt-1.5 py-1 rounded-md bg-[#00D9FF]/20 border border-[#00D9FF]/40 text-[#00D9FF] text-[10px] font-semibold hover:bg-[#00D9FF]/30 transition-colors disabled:opacity-50"
+                >
+                  {savingWeights ? 'Saving…' : 'Save Weights'}
+                </button>
               </div>
 
               {/* Auto Discover Button */}
@@ -454,34 +491,44 @@ export default function SentimentIntelligence() {
         </div>
 
         {/* ===== CENTER COLUMN: Banner + Heatmap + 30-Day Sentiment ===== */}
-        <div className="col-span-12 xl:col-span-4 space-y-3">
+        <div className="col-span-12 xl:col-span-5 space-y-3">
 
-          {/* PAS v8 Regime Banner — mockup: green banner BULL_TREND 87% */}
+          {/* PAS v8 Regime Banner — live mood or — */}
           <div className="bg-[#064e3b]/40 border border-[#10b981]/50 rounded-md p-3 text-center">
             <span className="text-[#10b981] font-black text-sm tracking-widest uppercase font-mono">
-              PAS v8 Regime: BULL_TREND {moodValue}%
+              PAS v8 Regime: BULL_TREND {moodValue != null ? `${moodValue}%` : '—'}
             </span>
           </div>
 
-          {/* Symbol Heatmap Grid - 3 columns x 4 rows matching mockup */}
+          {/* Symbol Heatmap Grid — live data only; cells clickable to filter signals */}
           <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
-            <SectorTreemap />
+            <SectorTreemap data={heatmap.length > 0 ? heatmap.map(h => ({ sector: 'Sentiment', symbol: h.ticker, change_pct: (h.score ?? 0) * 10 })) : []} />
             <div className="grid grid-cols-3 gap-1.5 mt-3">
-              {heatmapGrid.map((item) => {
-                const isPositive = item.pct >= 0;
+              {heatmapGrid.length > 0 ? heatmapGrid.map((item) => {
+                const isPositive = (item.pct ?? 0) >= 0;
+                const active = heatmapFilterSymbol === item.sym;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={item.sym}
-                    className="rounded-lg p-2.5 text-center cursor-pointer hover:scale-105 transition-transform"
+                    onClick={() => setHeatmapFilterSymbol(prev => prev === item.sym ? null : item.sym)}
+                    className={clsx('rounded-lg p-2.5 text-center cursor-pointer hover:scale-105 transition-transform border', active ? 'ring-2 ring-[#00D9FF]' : 'border-transparent')}
                     style={{ backgroundColor: getHeatmapCellBg(item.pct) }}
                   >
                     <div className="text-xs font-black text-white tracking-wider">{item.sym}</div>
-                    <div className={`text-[10px] font-mono font-bold ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
-                      {isPositive ? '+' : ''}{item.pct.toFixed(1)}%
+                    <div className={`text-[10px] font-mono font-bold ${item.pct != null ? (isPositive ? 'text-green-300' : 'text-red-300') : 'text-slate-500'}`}>
+                      {item.pct != null ? `${isPositive ? '+' : ''}${item.pct.toFixed(1)}%` : '—'}
                     </div>
-                  </div>
+                  </button>
                 );
-              })}
+              }) : (
+                Array.from({ length: 12 }, (_, i) => (
+                  <div key={`skeleton-${i}`} className="rounded-lg p-2.5 text-center bg-slate-800/50 animate-pulse" style={{ minHeight: 52 }}>
+                    <div className="text-xs text-slate-600">—</div>
+                    <div className="text-[10px] text-slate-600">—</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -517,40 +564,44 @@ export default function SentimentIntelligence() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              {/* Segmented horizontal bars per mockup: Consensus, Dominating, etc. (green/blue/purple) */}
-              <div className="mt-3 space-y-1.5">
-                {[
-                  { label: 'Consensus', g: 60, b: 25, p: 15 },
-                  { label: 'Dominating', g: 40, b: 35, p: 25 },
-                  { label: 'Tracies', g: 50, b: 30, p: 20 },
-                  { label: 'Content', g: 70, b: 20, p: 10 },
-                  { label: 'Intelligence', g: 45, b: 40, p: 15 },
-                  { label: 'Nckey', g: 55, b: 25, p: 20 },
-                ].map((row, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="text-[9px] font-mono text-[#64748b] w-20 shrink-0">{row.label}</span>
-                    <div className="flex-1 h-2 rounded overflow-hidden flex bg-[#1e293b]">
-                      <div className="bg-[#10b981]" style={{ width: `${row.g}%` }} />
-                      <div className="bg-[#3b82f6]" style={{ width: `${row.b}%` }} />
-                      <div className="bg-[#8b5cf6]" style={{ width: `${row.p}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {/* Segmented bars — only when we have stats (no hardcoded mock) */}
+              {stats?.weights && Object.keys(stats.weights).length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {Object.entries(stats.weights).slice(0, 6).map(([key, val]) => {
+                    const v = typeof val === 'number' ? Math.min(100, Math.max(0, val * 100)) : 0;
+                    const g = Math.round(v);
+                    const b = Math.round((100 - v) / 2);
+                    const p = 100 - g - b;
+                    return (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="text-[9px] font-mono text-[#64748b] w-20 shrink-0 capitalize">{key}</span>
+                        <div className="flex-1 h-2 rounded overflow-hidden flex bg-[#1e293b]">
+                          <div className="bg-[#10b981]" style={{ width: `${g}%` }} />
+                          <div className="bg-[#3b82f6]" style={{ width: `${b}%` }} />
+                          <div className="bg-[#8b5cf6]" style={{ width: `${p}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* ===== CENTER-RIGHT COLUMN: Trade Signals + Radar + Prediction + Alerts ===== */}
-        <div className="col-span-12 xl:col-span-3 space-y-3">
+        {/* ===== RIGHT COLUMN: Trade Signals + Radar + Prediction + Alerts ===== */}
+        <div className="col-span-12 xl:col-span-4 space-y-3">
 
-          {/* Trade Signals — mockup: table with Stock, Tip, Bought, Value, Return, Factor + SLAM DUNK tags */}
+          {/* Trade Signals — live from useSentiment/useApi(signals); filter by heatmap cell click */}
           <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
-            <div className="px-4 py-2 border-b border-[#1e293b]">
+            <div className="px-4 py-2 border-b border-[#1e293b] flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Trade Signals</h3>
+              {heatmapFilterSymbol && (
+                <button type="button" onClick={() => setHeatmapFilterSymbol(null)} className="text-[9px] text-[#00D9FF] hover:underline">Clear filter</button>
+              )}
             </div>
             <div className="p-3">
-              {signals.length > 0 ? (
+              {displayedSignals.length > 0 ? (
                 <table className="w-full text-[10px] font-mono">
                   <thead>
                     <tr className="text-[#64748b] border-b border-[#1e293b]">
@@ -563,7 +614,7 @@ export default function SentimentIntelligence() {
                     </tr>
                   </thead>
                   <tbody>
-                    {signals.slice(0, 8).map((s, i) => (
+                    {displayedSignals.map((s, i) => (
                       <tr key={i} className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
                         <td className="py-1.5 text-[#06b6d4] font-bold">{s.ticker || s.symbol || '—'}</td>
                         <td className="text-[#94a3b8]">{s.direction || '—'}</td>
@@ -591,7 +642,7 @@ export default function SentimentIntelligence() {
             </div>
           </div>
 
-          {/* Market Events — mockup: scrolling timestamped feed */}
+          {/* Market Events — live from history or useApi('systemAlerts') */}
           <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
             <div className="px-4 py-2 border-b border-[#1e293b]">
               <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Market Events</h3>
@@ -608,13 +659,23 @@ export default function SentimentIntelligence() {
                     </div>
                   );
                 })
-              ) : (
-                <>
-                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:33</span><span>Market regime update</span></div>
-                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:29</span><span>Sentiment feed normalized</span></div>
-                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:30</span><span>Cross-source consensus refresh</span></div>
-                </>
-              )}
+              ) : (() => {
+                const alerts = Array.isArray(systemAlertsData) ? systemAlertsData : (systemAlertsData?.alerts ?? []);
+                return alerts.length > 0 ? (
+                  alerts.slice(0, 12).map((a, i) => {
+                    const t = a.timestamp ? new Date(a.timestamp) : a.created_at ? new Date(a.created_at) : new Date();
+                    const time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+                    return (
+                      <div key={i} className="flex gap-2 text-[9px] text-[#94a3b8]">
+                        <span className="font-mono text-[#64748b] shrink-0">{time}</span>
+                        <span className="truncate">{a.message ?? a.type ?? 'Alert'}</span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-[9px] text-[#64748b]">No events</p>
+                );
+              })()}
             </div>
           </div>
 
@@ -631,7 +692,7 @@ export default function SentimentIntelligence() {
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(51,65,85,0.3)" strokeWidth="2.5" />
                     <circle
                       cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="2.5"
-                      strokeDasharray={`${predMarket1.probability} ${100 - predMarket1.probability}`}
+                      strokeDasharray={`${predMarket1.probability ?? 0} ${100 - (predMarket1.probability ?? 0)}`}
                       strokeLinecap="round"
                     />
                   </svg>
@@ -642,17 +703,17 @@ export default function SentimentIntelligence() {
                 <div className="w-full space-y-1 mt-0.5">
                   <div className="flex justify-between text-[8px]">
                     <span className="text-[#64748b]">Probability</span>
-                    <span className="text-[#10b981] font-bold font-mono">{predMarket1.probability}%</span>
+                    <span className="text-[#10b981] font-bold font-mono">{predMarket1.probability != null ? `${predMarket1.probability}%` : '—'}</span>
                   </div>
                   <div className="w-full bg-[#1e293b] rounded-full h-1">
-                    <div className="h-1 rounded-full bg-[#10b981] transition-all" style={{ width: `${predMarket1.probability}%` }} />
+                    <div className="h-1 rounded-full bg-[#10b981] transition-all" style={{ width: `${predMarket1.probability != null ? predMarket1.probability : 0}%` }} />
                   </div>
                   <div className="flex justify-between text-[8px]">
                     <span className="text-[#64748b]">Progress</span>
-                    <span className="text-[#10b981] font-bold font-mono">{predMarket1.progress}%</span>
+                    <span className="text-[#10b981] font-bold font-mono">{predMarket1.progress != null ? `${predMarket1.progress}%` : '—'}</span>
                   </div>
                   <div className="w-full bg-[#1e293b] rounded-full h-1">
-                    <div className="bg-[#10b981] h-1 rounded-full transition-all" style={{ width: `${predMarket1.progress}%` }} />
+                    <div className="bg-[#10b981] h-1 rounded-full transition-all" style={{ width: `${predMarket1.progress != null ? predMarket1.progress : 0}%` }} />
                   </div>
                 </div>
               </div>
@@ -669,7 +730,7 @@ export default function SentimentIntelligence() {
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(51,65,85,0.3)" strokeWidth="2.5" />
                     <circle
                       cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="2.5"
-                      strokeDasharray={`${predMarket2.probability} ${100 - predMarket2.probability}`}
+                      strokeDasharray={`${predMarket2.probability ?? 0} ${100 - (predMarket2.probability ?? 0)}`}
                       strokeLinecap="round"
                     />
                   </svg>
@@ -680,25 +741,37 @@ export default function SentimentIntelligence() {
                 <div className="w-full space-y-1 mt-0.5">
                   <div className="flex justify-between text-[8px]">
                     <span className="text-[#64748b]">Probability</span>
-                    <span className="text-[#10b981] font-bold font-mono">{predMarket2.probability}%</span>
+                    <span className="text-[#10b981] font-bold font-mono">{predMarket2.probability != null ? `${predMarket2.probability}%` : '—'}</span>
                   </div>
                   <div className="w-full bg-[#1e293b] rounded-full h-1">
-                    <div className="h-1 rounded-full bg-[#10b981] transition-all" style={{ width: `${predMarket2.probability}%` }} />
+                    <div className="h-1 rounded-full bg-[#10b981] transition-all" style={{ width: `${predMarket2.probability != null ? predMarket2.probability : 0}%` }} />
                   </div>
                   <div className="flex justify-between text-[8px]">
                     <span className="text-[#64748b]">Progress</span>
-                    <span className="text-[#3b82f6] font-bold font-mono">{predMarket2.progress}%</span>
+                    <span className="text-[#3b82f6] font-bold font-mono">{predMarket2.progress != null ? `${predMarket2.progress}%` : '—'}</span>
                   </div>
                   <div className="w-full bg-[#1e293b] rounded-full h-1">
-                    <div className="bg-[#3b82f6] h-1 rounded-full transition-all" style={{ width: `${predMarket2.progress}%` }} />
+                    <div className="bg-[#3b82f6] h-1 rounded-full transition-all" style={{ width: `${predMarket2.progress != null ? predMarket2.progress : 0}%` }} />
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Radar Chart - two polygons: green (current) + purple (previous) per mockup */}
+          {/* Radar Chart — Refresh button calls refetch() */}
           <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+            <div className="px-3 py-2 border-b border-[#1e293b] flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">30-Day Radar</h3>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                disabled={loading}
+                className="p-1 rounded border border-[#1e293b] text-[#64748b] hover:text-[#00D9FF] hover:border-[#00D9FF]/40 transition-colors disabled:opacity-50"
+                title="Refresh radar data"
+              >
+                <RefreshCw className={clsx('w-3.5 h-3.5', loading && 'animate-spin')} />
+              </button>
+            </div>
             <div className="p-3">
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -777,7 +850,11 @@ export default function SentimentIntelligence() {
               <span className="text-[9px] text-[#64748b] font-mono">{scannerData.length} symbols</span>
             </div>
             <div className="p-2.5">
-              <ScannerStatusMatrix />
+              <ScannerStatusMatrix
+                symbols={scannerData.length > 0 ? scannerData.map(r => r.sym) : []}
+                sources={sourceHealth.length > 0 ? sourceHealth.map(s => SOURCE_LABELS[s.source] ?? s.source) : Object.values(SOURCE_LABELS).slice(0, 6)}
+                statusMap={{}}
+              />
             </div>
             <div className="p-2.5 overflow-x-auto">
               <div className="grid gap-y-[3px]">

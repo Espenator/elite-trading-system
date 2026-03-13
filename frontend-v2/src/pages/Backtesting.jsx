@@ -113,9 +113,9 @@ class SafeReactFlow extends Component {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Lightweight Charts: Equity Curve (area)                           */
+/*  Lightweight Charts: Equity Curve (area) + optional SPY benchmark   */
 /* ------------------------------------------------------------------ */
-function EquityCurveLC({ data = [], height = 220 }) {
+function EquityCurveLC({ data = [], benchmarkData = [], height = 220 }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current) return;
@@ -147,6 +147,19 @@ function EquityCurveLC({ data = [], height = 220 }) {
       }));
       series.setData(mapped);
     }
+    if (Array.isArray(benchmarkData) && benchmarkData.length > 0) {
+      const benchSeries = chart.addLineSeries({
+        color: "#00D9FF",
+        lineWidth: 1,
+        lineStyle: 2,
+        title: "SPY",
+      });
+      const benchMapped = benchmarkData.map((d) => ({
+        time: d.time || d.date || d.x,
+        value: d.value ?? d.equity ?? d.y ?? 0,
+      }));
+      benchSeries.setData(benchMapped);
+    }
     // drawdown overlay
     const ddSeries = chart.addAreaSeries({
       topColor: "rgba(239,68,68,0.0)",
@@ -173,7 +186,7 @@ function EquityCurveLC({ data = [], height = 220 }) {
       ro.disconnect();
       chart.remove();
     };
-  }, [data, height]);
+  }, [data, benchmarkData, height]);
   return <div ref={ref} className="w-full" style={{ height }} />;
 }
 
@@ -504,25 +517,6 @@ const defaultStratEdges = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Swarm agents list for OpenClaw panel (mockup: 7 Core Agents)       */
-/* ------------------------------------------------------------------ */
-const SWARM_AGENTS = [
-  { name: "Apex Orchestrator", pct: 100, icon: Brain, color: "#00D9FF" },
-  { name: "Relative Weakness", pct: 81, icon: TrendingDown, color: "#00D9FF" },
-  { name: "Short Basket", pct: 75, icon: TrendingDown, color: "#00D9FF" },
-  { name: "Meta Architect", pct: 90, icon: Layers, color: "#00D9FF" },
-  { name: "Meta Alchemist", pct: 81, icon: Layers, color: "#00D9FF" },
-  { name: "Risk Governor", pct: 100, icon: Shield, color: "#00D9FF" },
-  { name: "Signal Engine", pct: 95, icon: Cpu, color: "#00D9FF" },
-];
-const SWARM_TEAMS = [
-  { name: "Team Alpha", agents: 23, pct: 92, status: "green" },
-  { name: "Team Beta", agents: 31, pct: 88, status: "green" },
-  { name: "Team Gamma", agents: 22, pct: 72, status: "yellow" },
-  { name: "Team Delta", agents: 17, pct: 58, status: "orange" },
-];
-
-/* ------------------------------------------------------------------ */
 /*  Recharts dark tooltip                                             */
 /* ------------------------------------------------------------------ */
 function DarkTooltip({ active, payload, label }) {
@@ -571,6 +565,19 @@ export default function Backtesting() {
   const { data: runsRaw, loading: loadRuns } = useApi("backtestRuns", {
     pollIntervalMs: 30000,
   });
+  const { data: corrRaw, loading: loadCorr } = useApi("backtestCorrelation", {
+    pollIntervalMs: 60000,
+  });
+  const { data: sectorRaw, loading: loadSector } = useApi(
+    "backtestSectorExposure",
+    { pollIntervalMs: 60000 },
+  );
+  const { data: ddRaw, loading: loadDd } = useApi("backtestDrawdownAnalysis", {
+    pollIntervalMs: 60000,
+  });
+  const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 30000 });
+  const { data: teamsRaw } = useApi("teams", { pollIntervalMs: 30000 });
+  const { data: healthRaw } = useApi("system/health", { pollIntervalMs: 10000 });
 
   // --- Normalize API data ---
   const results = useMemo(
@@ -618,9 +625,35 @@ export default function Backtesting() {
     () => runsRaw?.data ?? runsRaw?.runs ?? runsRaw ?? [],
     [runsRaw],
   );
+  const swarmAgents = useMemo(() => {
+    const list = agentsRaw?.data ?? agentsRaw?.agents ?? agentsRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [agentsRaw]);
+  const swarmTeams = useMemo(() => {
+    const list = teamsRaw?.data ?? teamsRaw?.teams ?? teamsRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [teamsRaw]);
+  const benchmarkCurve = useMemo(
+    () =>
+      results?.benchmark_curve ??
+      results?.benchmark_equity ??
+      results?.spy_curve ??
+      [],
+    [results],
+  );
 
   // --- Config state ---
   const [strategy, setStrategy] = useState("Mean Reversion V2");
+  const [selectedAgentIds, setSelectedAgentIds] = useState(() => new Set());
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [tradeSortKey, setTradeSortKey] = useState("date");
+  const [tradeSortDir, setTradeSortDir] = useState("asc");
+  const [sweepPage, setSweepPage] = useState(0);
+  const [sweepSortKey, setSweepSortKey] = useState("paramA");
+  const [sweepSortDir, setSweepSortDir] = useState("asc");
+  const runAbortRef = useRef(null);
+  const [progress, setProgress] = useState({ pct: 0, elapsedMs: 0, etaMs: null });
+  const progressIntervalRef = useRef(null);
   const [startDate, setStartDate] = useState("2023-01-01");
   const [endDate, setEndDate] = useState("2024-01-01");
   const [assets, setAssets] = useState(
@@ -710,62 +743,104 @@ export default function Backtesting() {
     return optData;
   }, [optData]);
 
-  // --- Parallel run data ---
+  // --- Parallel run data (no fallback; empty when no API data) ---
   const parallelRuns = useMemo(() => {
-    if (!Array.isArray(runs) || !runs.length)
-      return [
-        {
-          name: "Mean Reversion V2",
-          sharpe: 1.2,
-          return: 12.5,
-          maxDD: -8.2,
-          color: "#00D9FF",
-        },
-        {
-          name: "Mean Reversion V2",
-          sharpe: 1.8,
-          return: 18.3,
-          maxDD: -5.1,
-          color: "#10B981",
-        },
-        {
-          name: "Mean Reversion V2",
-          sharpe: 1.5,
-          return: 15.1,
-          maxDD: -6.8,
-          color: "#A78BFA",
-        },
-      ];
+    if (!Array.isArray(runs) || !runs.length) return [];
     return runs.slice(0, 5).map((r, i) => ({
       name: r.name ?? r.strategy ?? `Run ${i + 1}`,
-      sharpe: r.sharpe ?? r.metrics?.sharpe ?? 0,
-      return: r.total_return ?? r.metrics?.total_return ?? 0,
-      maxDD: r.max_drawdown ?? r.metrics?.max_drawdown ?? 0,
+      sharpe: r.sharpe ?? r.metrics?.sharpe ?? null,
+      return: r.total_return ?? r.metrics?.total_return ?? null,
+      maxDD: r.max_drawdown ?? r.metrics?.max_drawdown ?? null,
+      status: r.status ?? r.state ?? null,
       color: ["#00D9FF", "#10B981", "#A78BFA", "#F59E0B", "#EC4899"][i % 5],
     }));
   }, [runs]);
 
-  // --- Regime performance (mockup: BULL 65.5% $450 avg, BEAR 42.0% -$120 avg, SIDEWAYS 51.1% $80 avg) ---
+  // --- Regime performance (no fallback; empty when no API data) ---
   const regimeChartData = useMemo(() => {
-    if (!Array.isArray(regimeData) || !regimeData.length)
-      return [
-        { regime: "BULL", winRate: 65.5, avgPnl: 450 },
-        { regime: "BEAR", winRate: 42.0, avgPnl: -120 },
-        { regime: "SIDEWAYS", winRate: 51.1, avgPnl: 80 },
-      ];
+    if (!Array.isArray(regimeData) || !regimeData.length) return [];
     return regimeData.map((r) => {
-      const pnl = r.avg_pnl ?? r.pnl ?? r.total_pnl ?? 0;
+      const pnl = r.avg_pnl ?? r.pnl ?? r.total_pnl ?? null;
       return {
         regime: r.regime ?? r.name ?? "UNKNOWN",
-        winRate: r.win_rate ?? r.winRate ?? 50,
+        winRate: r.win_rate ?? r.winRate ?? null,
         avgPnl: pnl,
       };
     });
   }, [regimeData]);
 
-  // --- Run backtest handler ---
+  // --- Flattened parameter sweep rows (for table, 25 per page, sortable) ---
+  const SWEEP_PAGE_SIZE = 25;
+  const sweepRows = useMemo(() => {
+    if (!Array.isArray(heatmapGrid) || !heatmapGrid.length) return [];
+    return heatmapGrid.flatMap((row, ri) =>
+      (row.values ?? row).map((val, ci) => {
+        const v =
+          typeof val === "object"
+            ? val.value ?? val.sharpe ?? null
+            : Number(val) ?? null;
+        return {
+          paramA: row.row_label ?? row.param_a ?? ri,
+          paramB: heatmapGrid[0]?.col_labels?.[ci] ?? ci,
+          value: v,
+        };
+      }),
+    );
+  }, [heatmapGrid]);
+  const sortedSweepRows = useMemo(() => {
+    const sorted = [...sweepRows].sort((a, b) => {
+      const aVal = a[sweepSortKey];
+      const bVal = b[sweepSortKey];
+      const cmp =
+        typeof aVal === "number" && typeof bVal === "number"
+          ? aVal - bVal
+          : String(aVal ?? "").localeCompare(String(bVal ?? ""));
+      return sweepSortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [sweepRows, sweepSortKey, sweepSortDir]);
+  const paginatedSweepRows = useMemo(
+    () =>
+      sortedSweepRows.slice(
+        sweepPage * SWEEP_PAGE_SIZE,
+        (sweepPage + 1) * SWEEP_PAGE_SIZE,
+      ),
+    [sortedSweepRows, sweepPage],
+  );
+  const sweepTotalPages = Math.max(
+    1,
+    Math.ceil(sortedSweepRows.length / SWEEP_PAGE_SIZE),
+  );
+
+  // --- Sorted trades for table ---
+  const sortedTrades = useMemo(() => {
+    const list = Array.isArray(trades) ? [...trades] : [];
+    list.sort((a, b) => {
+      const aVal = a[tradeSortKey] ?? "";
+      const bVal = b[tradeSortKey] ?? "";
+      const cmp =
+        typeof aVal === "number" && typeof bVal === "number"
+          ? aVal - bVal
+          : String(aVal).localeCompare(String(bVal));
+      return tradeSortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [trades, tradeSortKey, tradeSortDir]);
+
+  // --- Run backtest handler (POST with params, progress, abort on Cancel) ---
   const handleRun = useCallback(async () => {
+    runAbortRef.current = new AbortController();
+    const signal = runAbortRef.current.signal;
     setRunning(true);
+    setProgress({ pct: 0, elapsedMs: 0, etaMs: null });
+    const startTs = Date.now();
+    progressIntervalRef.current = setInterval(() => {
+      setProgress((p) => ({
+        ...p,
+        elapsedMs: Date.now() - startTs,
+        pct: Math.min(p.pct + 2, 95),
+      }));
+    }, 800);
     try {
       const url = getApiUrl("backtest");
       if (!url) {
@@ -789,16 +864,39 @@ export default function Backtesting() {
           commission,
           regime_filter: regimeFilter,
           slippage,
+          agent_ids:
+            selectedAgentIds.size > 0
+              ? Array.from(selectedAgentIds)
+              : undefined,
+          param_a: paramA,
+          b_min_max: bMinMax,
+          position_size_pct: positionSizePct,
+          stop_loss_pct: stopLossPct,
+          take_profit_pct: takeProfit,
+          kelly_sizing: kellySizing,
+          warm_up_period: warmUpPeriod,
+          walk_forward_window: walkForwardWindow,
+          monte_carlo_iterations: monteCarloIter,
         }),
+        signal,
       });
+      if (signal.aborted) return;
+      clearInterval(progressIntervalRef.current);
+      setProgress({ pct: 100, elapsedMs: Date.now() - startTs, etaMs: 0 });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       toast.success("Backtest started");
       setTimeout(() => refetchResults(), 2000);
     } catch (err) {
-      log.error("Backtest run failed", err);
-      toast.error(`Backtest failed: ${err.message}`);
+      if (err.name === "AbortError") {
+        toast.info("Backtest cancelled");
+      } else {
+        log.error("Backtest run failed", err);
+        toast.error(`Backtest failed: ${err.message}`);
+      }
     } finally {
+      clearInterval(progressIntervalRef.current);
       setRunning(false);
+      setProgress({ pct: 0, elapsedMs: 0, etaMs: null });
     }
   }, [
     strategy,
@@ -814,111 +912,140 @@ export default function Backtesting() {
     commission,
     regimeFilter,
     slippage,
+    selectedAgentIds,
+    paramA,
+    bMinMax,
+    positionSizePct,
+    stopLossPct,
+    takeProfit,
+    kellySizing,
+    warmUpPeriod,
+    walkForwardWindow,
+    monteCarloIter,
     refetchResults,
   ]);
 
-  // --- KPI definitions (mockup: 18 KPIs with primary + secondary values) ---
+  const handleCancel = useCallback(() => {
+    if (runAbortRef.current) runAbortRef.current.abort();
+    setRunning(false);
+    setProgress({ pct: 0, elapsedMs: 0, etaMs: null });
+    clearInterval(progressIntervalRef.current);
+  }, []);
+
+  const toggleAgent = useCallback((idOrName) => {
+    setSelectedAgentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(idOrName)) next.delete(idOrName);
+      else next.add(idOrName);
+      return next;
+    });
+  }, []);
+
+  // --- KPI definitions (no fallback numbers; null → "--") ---
   const kpiItems = useMemo(
     () => [
       {
         label: "Net P&L",
-        value: fmtUsd(kpis.net_pnl ?? kpis.netPnl ?? 345000),
-        sub: fmtPct(kpis.net_pnl_pct ?? 2.43),
-        raw: kpis.net_pnl ?? kpis.netPnl ?? 345000,
+        value: fmtUsd(kpis.net_pnl ?? kpis.netPnl),
+        sub: fmtPct(kpis.net_pnl_pct),
+        raw: kpis.net_pnl ?? kpis.netPnl ?? null,
         thresholds: { good: 0, warn: -1000 },
       },
       {
         label: "Sharpe",
-        value: fmt(kpis.sharpe ?? kpis.sharpe_ratio ?? 2.35, 2),
-        sub: fmtPct(kpis.sharpe_sub ?? 9.3),
-        raw: kpis.sharpe ?? kpis.sharpe_ratio ?? 2.35,
+        value: fmt(kpis.sharpe ?? kpis.sharpe_ratio, 2),
+        sub: fmtPct(kpis.sharpe_sub),
+        raw: kpis.sharpe ?? kpis.sharpe_ratio ?? null,
         thresholds: { good: 1.5, warn: 1.0 },
       },
       {
         label: "Sortino",
-        value: fmt(kpis.sortino ?? kpis.sortino_ratio ?? 3.5, 2),
-        sub: fmt(kpis.sortino_sub ?? 4.56, 2),
-        raw: kpis.sortino ?? kpis.sortino_ratio ?? 3.5,
+        value: fmt(kpis.sortino ?? kpis.sortino_ratio, 2),
+        sub: fmt(kpis.sortino_sub, 2),
+        raw: kpis.sortino ?? kpis.sortino_ratio ?? null,
         thresholds: { good: 2.0, warn: 1.0 },
       },
       {
         label: "Calmar",
-        value: fmt(kpis.calmar ?? 1.96, 2),
-        sub: fmt(kpis.calmar_sub ?? 3.86, 2),
-        raw: kpis.calmar ?? 1.96,
+        value: fmt(kpis.calmar, 2),
+        sub: fmt(kpis.calmar_sub, 2),
+        raw: kpis.calmar ?? null,
         thresholds: { good: 1.5, warn: 1.0 },
       },
       {
         label: "Max DD",
-        value: fmtPct(kpis.max_drawdown ?? kpis.maxDrawdown ?? -12.5),
-        sub: fmt(kpis.maxdd_sub ?? 3.3, 1),
-        raw: kpis.max_drawdown ?? kpis.maxDrawdown ?? -12.5,
+        value: fmtPct(kpis.max_drawdown ?? kpis.maxDrawdown),
+        sub: fmt(kpis.maxdd_sub, 1),
+        raw: kpis.max_drawdown ?? kpis.maxDrawdown ?? null,
         thresholds: { good: -5, warn: -15, invert: true },
       },
       {
         label: "Win Rate",
-        value: fmtPct(kpis.win_rate ?? kpis.winRate ?? 58.5),
-        sub: fmt(kpis.winrate_sub ?? 2.15, 2),
-        raw: kpis.win_rate ?? kpis.winRate ?? 58.5,
+        value: fmtPct(kpis.win_rate ?? kpis.winRate),
+        sub: fmt(kpis.winrate_sub, 2),
+        raw: kpis.win_rate ?? kpis.winRate ?? null,
         thresholds: { good: 55, warn: 45 },
       },
       {
         label: "Profit Factor",
-        value: fmt(kpis.profit_factor ?? kpis.profitFactor ?? 3.5, 2),
-        sub: fmt(kpis.pf_sub ?? 71.24, 2),
-        raw: kpis.profit_factor ?? kpis.profitFactor ?? 3.5,
+        value: fmt(kpis.profit_factor ?? kpis.profitFactor, 2),
+        sub: fmt(kpis.pf_sub, 2),
+        raw: kpis.profit_factor ?? kpis.profitFactor ?? null,
         thresholds: { good: 1.5, warn: 1.0 },
       },
       {
         label: "Avg Trade",
-        value: fmtUsd(kpis.avg_trade ?? kpis.avgTrade ?? 196),
-        sub: kpis.avg_grade ?? "A+",
-        raw: kpis.avg_trade ?? kpis.avgTrade ?? 196,
+        value: fmtUsd(kpis.avg_trade ?? kpis.avgTrade),
+        sub: kpis.avg_grade ?? null,
+        raw: kpis.avg_trade ?? kpis.avgTrade ?? null,
         thresholds: { good: 0, warn: -50 },
       },
       {
         label: "Total Trades",
-        value: String(kpis.total_trades ?? kpis.totalTrades ?? 1250).replace(
-          /\B(?=(\d{3})+(?!\d))/g,
-          ",",
-        ),
-        sub: fmtPct(kpis.trades_sub ?? 31.2),
-        raw: kpis.total_trades ?? kpis.totalTrades ?? 1250,
+        value:
+          kpis.total_trades != null || kpis.totalTrades != null
+            ? String(kpis.total_trades ?? kpis.totalTrades).replace(
+                /\B(?=(\d{3})+(?!\d))/g,
+                ",",
+              )
+            : "--",
+        sub: fmtPct(kpis.trades_sub),
+        raw: kpis.total_trades ?? kpis.totalTrades ?? null,
         thresholds: { good: 50, warn: 20 },
       },
       {
         label: "Expectancy",
-        value: fmt(kpis.expectancy ?? 0.0847, 4),
-        sub: fmtPct(kpis.exp_sub ?? 14.8),
-        raw: kpis.expectancy ?? 0.0847,
+        value: fmt(kpis.expectancy, 4),
+        sub: fmtPct(kpis.exp_sub),
+        raw: kpis.expectancy ?? null,
         thresholds: { good: 0.5, warn: 0 },
       },
       {
         label: "Kelly Efficiency",
-        value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency ?? 78),
-        sub: fmtPct(kpis.kelly_sub ?? 8.5),
-        raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency ?? 78,
+        value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency),
+        sub: fmtPct(kpis.kelly_sub),
+        raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency ?? null,
         thresholds: { good: 30, warn: 15 },
       },
       {
         label: "Trading Grade",
-        value: kpis.trading_grade ?? kpis.tradingGrade ?? kpis.grade ?? "A+",
-        sub: fmt(kpis.grade_sub ?? 0.72, 2),
+        value: kpis.trading_grade ?? kpis.tradingGrade ?? kpis.grade ?? "--",
+        sub: fmt(kpis.grade_sub, 2),
         raw: null,
         thresholds: null,
       },
       {
         label: "CAGR",
-        value: fmtPct(kpis.cagr ?? kpis.total_return ?? 31.2),
-        sub: fmt(kpis.cagr_sub ?? 1.85, 2),
-        raw: kpis.cagr ?? kpis.total_return ?? 31.2,
+        value: fmtPct(kpis.cagr ?? kpis.total_return),
+        sub: fmt(kpis.cagr_sub, 2),
+        raw: kpis.cagr ?? kpis.total_return ?? null,
         thresholds: { good: 10, warn: 0 },
       },
       {
         label: "Beta",
-        value: fmt(kpis.beta ?? 0.31, 2),
-        sub: fmt(kpis.beta_sub ?? 2.31, 2),
-        raw: kpis.beta ?? 0.31,
+        value: fmt(kpis.beta, 2),
+        sub: fmt(kpis.beta_sub, 2),
+        raw: kpis.beta ?? null,
         thresholds: { good: 0.5, warn: 1.0, invert: true },
       },
     ],
@@ -1049,13 +1176,17 @@ export default function Backtesting() {
   /* ================================================================ */
   /*  RENDER                                                           */
   /* ================================================================ */
-  const swarmSize = 100;
-  const wsLatency = 42;
+  const swarmSize =
+    Array.isArray(swarmAgents) && swarmAgents.length > 0
+      ? swarmAgents.length
+      : "--";
+  const wsLatency =
+    healthRaw?.latency_ms ?? healthRaw?.ws_latency ?? healthRaw?.latency ?? "--";
 
   return (
-    <div className="space-y-4 p-4 min-h-screen bg-[#0B0E14]">
-      {/* ------- TOP HEADER BAR (mockup: center title, right status + buttons) ------- */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#0B0E14] border-b border-[rgba(42,52,68,0.5)] shrink-0">
+    <div className="space-y-4 p-4 min-h-screen bg-[#0a0e1a]">
+      {/* ------- TOP HEADER BAR ------- */}
+      <div className="flex items-center justify-between px-4 py-2 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] shrink-0 rounded-lg">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -1067,7 +1198,7 @@ export default function Backtesting() {
             OC_CORE_v3.2.1
           </span>
           <span className="text-[10px] text-gray-500 font-mono">
-            WS LATENCY: {wsLatency}ms
+            WS LATENCY: {typeof wsLatency === "number" ? `${wsLatency}ms` : wsLatency}
           </span>
           <span className="text-[10px] text-gray-500 font-mono">
             SWARM_SIZE: {swarmSize}
@@ -1083,6 +1214,22 @@ export default function Backtesting() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {running && (
+            <div className="flex items-center gap-2 px-2 py-1 rounded bg-[#0a0e1a] border border-[#00D9FF]/30 min-w-[140px]">
+              <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#00D9FF] rounded-full transition-all duration-300"
+                  style={{ width: `${progress.pct}%` }}
+                />
+              </div>
+              <span className="text-[10px] text-[#00D9FF] font-mono">
+                {progress.pct}%
+              </span>
+              <span className="text-[10px] text-gray-500">
+                {Math.round(progress.elapsedMs / 1000)}s
+              </span>
+            </div>
+          )}
           <Button
             size="sm"
             variant="primary"
@@ -1091,15 +1238,16 @@ export default function Backtesting() {
             onClick={handleRun}
             className="!bg-emerald-600 !border-emerald-500/50"
           >
-            Run
+            Run Backtest
           </Button>
           <Button
             size="sm"
             variant="danger"
             leftIcon={Square}
-            onClick={() => setRunning(false)}
+            onClick={handleCancel}
+            disabled={!running}
           >
-            Stop
+            Cancel
           </Button>
           <Button size="sm" variant="ghost" leftIcon={Download}>
             Export
@@ -1116,9 +1264,11 @@ export default function Backtesting() {
       </div>
 
       {/* ============================================================ */}
-      {/*  TOP ROW: Config | Parameter Sweeps | OpenClaw Swarm          */}
+      {/*  2-COL LAYOUT: LEFT 35% (params) | RIGHT 65% (results)        */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[35fr_65fr] gap-4">
+        {/* --- LEFT COLUMN: Parameter panels --- */}
+        <div className="space-y-3">
         {/* --- Backtest Configuration (mockup) --- */}
         <Card title="Backtest Configuration" loading={loadResults}>
           <div className="space-y-2">
@@ -1132,6 +1282,13 @@ export default function Backtesting() {
                 "ML Ensemble",
                 "Stat Arb",
                 "Pairs Trading",
+                "Breakout",
+                "Trend Following",
+                "Mean Reversion V1",
+                "Volatility Breakout",
+                "Sector Rotation",
+                "Multi-Timeframe",
+                "Hybrid ML",
               ]}
             />
             <div className="grid grid-cols-2 gap-2">
@@ -1148,6 +1305,36 @@ export default function Backtesting() {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
+            {swarmAgents.length > 0 && (
+              <div>
+                <label className="text-xs text-secondary font-medium mb-1 block">
+                  Agent participants
+                </label>
+                <div className="max-h-24 overflow-y-auto space-y-1 rounded border border-secondary/30 p-1.5 bg-[#0a0e1a]">
+                  {swarmAgents.slice(0, 20).map((a) => {
+                    const id = a.id ?? a.name ?? a.agent_id ?? String(a);
+                    const name = typeof a === "object" ? a.name ?? a.id ?? "--" : String(a);
+                    const checked = selectedAgentIds.has(id);
+                    return (
+                      <label
+                        key={id}
+                        className="flex items-center gap-2 cursor-pointer hover:bg-[#00D9FF]/5 rounded px-1 py-0.5"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAgent(id)}
+                          className="rounded border-secondary/50 text-[#00D9FF]"
+                        />
+                        <span className="text-[11px] text-white truncate">
+                          {name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <TextField
               label="Assets"
               value={assets}
@@ -1190,14 +1377,107 @@ export default function Backtesting() {
                 size="sm"
                 variant="danger"
                 leftIcon={Square}
-                onClick={() => setRunning(false)}
+                onClick={handleCancel}
+                disabled={!running}
               >
-                Stop
+                Cancel
               </Button>
             </div>
           }
         >
           <div className="space-y-2">
+            {sortedSweepRows.length > 0 && (
+              <div className="mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-secondary uppercase">
+                    Sweep table ({sortedSweepRows.length} rows)
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSweepSortKey("paramA");
+                        setSweepSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                      className="px-1 py-0.5 text-[10px] rounded border border-secondary/30 hover:bg-[#00D9FF]/10"
+                    >
+                      Param A {sweepSortKey === "paramA" ? (sweepSortDir === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSweepSortKey("paramB");
+                        setSweepSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                      className="px-1 py-0.5 text-[10px] rounded border border-secondary/30 hover:bg-[#00D9FF]/10"
+                    >
+                      Param B {sweepSortKey === "paramB" ? (sweepSortDir === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSweepSortKey("value");
+                        setSweepSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      }}
+                      className="px-1 py-0.5 text-[10px] rounded border border-secondary/30 hover:bg-[#00D9FF]/10"
+                    >
+                      Value {sweepSortKey === "value" ? (sweepSortDir === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-32 overflow-auto rounded border border-secondary/20 text-[10px]">
+                  <table className="w-full">
+                    <thead className="bg-[#111827] sticky top-0">
+                      <tr>
+                        <th className="text-left px-1 py-0.5">Param A</th>
+                        <th className="text-left px-1 py-0.5">Param B</th>
+                        <th className="text-right px-1 py-0.5">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedSweepRows.map((row, i) => (
+                        <tr key={i} className="border-t border-secondary/10">
+                          <td className="px-1 py-0.5 text-white">{row.paramA}</td>
+                          <td className="px-1 py-0.5 text-white">{row.paramB}</td>
+                          <td className="px-1 py-0.5 text-right text-[#00D9FF]">
+                            {row.value != null ? Number(row.value).toFixed(2) : "--"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className="text-[9px] text-secondary">
+                    Page {sweepPage + 1} of {sweepTotalPages}
+                  </span>
+                  <div className="flex gap-0.5">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="!min-w-0 !px-1 !py-0 text-[10px]"
+                      onClick={() => setSweepPage((p) => Math.max(0, p - 1))}
+                      disabled={sweepPage === 0}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="!min-w-0 !px-1 !py-0 text-[10px]"
+                      onClick={() =>
+                        setSweepPage((p) =>
+                          Math.min(sweepTotalPages - 1, p + 1),
+                        )
+                      }
+                      disabled={sweepPage >= sweepTotalPages - 1}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Slider
                 label="Param A"
@@ -1382,7 +1662,7 @@ export default function Backtesting() {
           </div>
         </Card>
 
-        {/* --- OpenClaw Swarm Backtest Integration (mockup) --- */}
+        {/* --- OpenClaw Swarm Backtest Integration (from API) --- */}
         <Card
           title="OpenClaw Swarm Backtest Integration"
           action={
@@ -1391,69 +1671,126 @@ export default function Backtesting() {
         >
           <div className="space-y-2">
             <div className="text-[10px] text-secondary font-medium uppercase tracking-wider mb-1">
-              7 Core Agents
+              Agent participants
             </div>
-            <div className="space-y-1">
-              {SWARM_AGENTS.map((agent) => {
-                const Ic = agent.icon;
-                const pct = agent.pct ?? 100;
-                return (
-                  <div
-                    key={agent.name}
-                    className="flex items-center justify-between gap-2 bg-dark/50 rounded px-2 py-1"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                      <span className="text-[11px] text-white truncate">
-                        {agent.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <div className="w-12 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full"
-                          style={{ width: `${pct}%` }}
-                        />
+            {swarmAgents.length === 0 ? (
+              <div className="text-[11px] text-secondary py-2">
+                No agents loaded. Run from Agent Command Center or refresh.
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {swarmAgents.slice(0, 12).map((agent) => {
+                  const id = agent.id ?? agent.name ?? agent.agent_id ?? String(agent);
+                  const name = typeof agent === "object" ? agent.name ?? agent.id ?? "--" : String(agent);
+                  const pct = typeof agent === "object" ? (agent.weight ?? agent.pct ?? agent.confidence ?? null) : null;
+                  return (
+                    <div
+                      key={id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedAgent(agent)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedAgent(agent);
+                        }
+                      }}
+                      className="flex items-center justify-between gap-2 bg-[#0a0e1a]/50 rounded px-2 py-1 cursor-pointer hover:bg-[#00D9FF]/10 border border-transparent hover:border-[#00D9FF]/30"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="text-[11px] text-white truncate">
+                          {name}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-emerald-400 w-8 text-right">
-                        {pct}%
+                      {pct != null && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="w-12 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{ width: `${Math.min(100, Number(pct) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-emerald-400 w-8 text-right">
+                            {typeof pct === "number" ? `${(pct * 100).toFixed(0)}%` : pct}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {swarmTeams.length > 0 && (
+              <div className="pt-2 border-t border-secondary/20 space-y-1">
+                <div className="text-[10px] text-secondary">
+                  Teams: {swarmTeams.length} active
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {swarmTeams.slice(0, 4).map((t, i) => (
+                    <div
+                      key={t.id ?? t.name ?? i}
+                      className="flex items-center justify-between text-[10px]"
+                    >
+                      <span className="text-white truncate">{t.name ?? t.id ?? "--"}:</span>
+                      <span className="flex items-center gap-1 shrink-0">
+                        <span
+                          className={clsx(
+                            "w-1.5 h-1.5 rounded-full shrink-0",
+                            (t.status ?? t.health) === "green" || t.status === "active"
+                              ? "bg-emerald-500"
+                              : (t.status ?? t.health) === "yellow"
+                                ? "bg-amber-500"
+                                : "bg-orange-500",
+                          )}
+                        />
+                        <span className="text-secondary">
+                          {t.agents ?? t.agent_count ?? 0} agents
+                        </span>
                       </span>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="pt-2 border-t border-secondary/20 space-y-1">
-              <div className="text-[10px] text-secondary">
-                EXTENDED SWARM: 93 sub-agents active
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-1">
-                {SWARM_TEAMS.map((t) => (
-                  <div
-                    key={t.name}
-                    className="flex items-center justify-between text-[10px]"
+            )}
+            {selectedAgent && (
+              <div className="pt-2 border-t border-secondary/20 rounded bg-[#111827] p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-medium text-[#00D9FF]">
+                    Agent metrics
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAgent(null)}
+                    className="text-[10px] text-secondary hover:text-white"
                   >
-                    <span className="text-white">{t.name}:</span>
-                    <span className="flex items-center gap-1">
-                      <span
-                        className={clsx(
-                          "w-1.5 h-1.5 rounded-full shrink-0",
-                          t.status === "green"
-                            ? "bg-emerald-500"
-                            : t.status === "yellow"
-                              ? "bg-amber-500"
-                              : "bg-orange-500",
-                        )}
-                      />
-                      <span className="text-secondary">{t.agents} agents</span>
-                    </span>
-                  </div>
-                ))}
+                    Close
+                  </button>
+                </div>
+                <div className="text-[10px] text-secondary space-y-0.5">
+                  <p>
+                    {typeof selectedAgent === "object"
+                      ? selectedAgent.name ?? selectedAgent.id ?? "--"
+                      : String(selectedAgent)}
+                  </p>
+                  {typeof selectedAgent === "object" &&
+                    ["weight", "confidence", "pct", "status"].map(
+                      (k) =>
+                        selectedAgent[k] != null && (
+                          <p key={k}>
+                            {k}: {String(selectedAgent[k])}
+                          </p>
+                        ),
+                    )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </Card>
-      </div>
+        </div>
+
+        {/* --- RIGHT COLUMN: Results --- */}
+        <div className="space-y-3">
 
       {/* ============================================================ */}
       {/*  KPI MEGA STRIP                                               */}
@@ -1530,6 +1867,7 @@ export default function Backtesting() {
         >
           <EquityCurveLC
             data={Array.isArray(equity) ? equity : []}
+            benchmarkData={Array.isArray(benchmarkCurve) ? benchmarkCurve : []}
             height={220}
           />
         </Card>
@@ -1553,18 +1891,37 @@ export default function Backtesting() {
                 </tr>
               </thead>
               <tbody>
-                {parallelRuns.map((r, i) => (
-                  <tr key={i} className="border-b border-secondary/10">
-                    <td className="py-1 px-1 text-white">{i + 1}</td>
-                    <td className="py-1 px-1 text-white">{r.name}</td>
-                    <td className="py-1 px-1">
-                      <span className="text-emerald-400">Running</span>
+                {parallelRuns.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-2 px-1 text-secondary text-[10px]">
+                      No runs — run a backtest
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  parallelRuns.map((r, i) => (
+                    <tr key={i} className="border-b border-secondary/10">
+                      <td className="py-1 px-1 text-white">{i + 1}</td>
+                      <td className="py-1 px-1 text-white">{r.name}</td>
+                      <td className="py-1 px-1">
+                        <span
+                          className={
+                            r.status === "completed" || r.status === "done"
+                              ? "text-emerald-400"
+                              : r.status === "running"
+                                ? "text-amber-400"
+                                : "text-secondary"
+                          }
+                        >
+                          {r.status ?? "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
+          {parallelRuns.length > 0 && (
           <ResponsiveContainer width="100%" height={130}>
             <BarChart data={parallelRuns} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
@@ -1576,6 +1933,7 @@ export default function Backtesting() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          )}
         </Card>
 
         {/* Trade P&L Distribution */}
@@ -1906,9 +2264,9 @@ export default function Backtesting() {
               >
                 <Background color="#1E293B" gap={16} size={1} />
                 <Controls
-                  showZoom={false}
-                  showFitView={false}
-                  showInteractive={false}
+                  showZoom
+                  showFitView
+                  showInteractive
                 />
               </ReactFlow>
             </SafeReactFlow>
@@ -1936,14 +2294,59 @@ export default function Backtesting() {
           </div>
         }
       >
-        <div className="max-h-[240px] overflow-auto">
-          <DataTable
-            columns={tradeColumns}
-            data={Array.isArray(trades) ? trades.slice(0, 50) : []}
-            loading={loadResults}
-            emptyMessage="No trades — run a backtest first"
-            rowKey={(r, i) => `${r.date}-${r.asset ?? r.symbol}-${i}`}
-          />
+        <div className="max-h-[240px] overflow-auto rounded-md border border-secondary/30 bg-surface">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-surface border-b border-secondary/30 sticky top-0 z-10">
+              <tr>
+                {tradeColumns.map((col) => (
+                  <th
+                    key={col.key}
+                    className="px-4 py-3 text-left text-xs font-medium text-cyan-400 uppercase whitespace-nowrap cursor-pointer hover:bg-[#00D9FF]/10 select-none"
+                    onClick={() => {
+                      setTradeSortKey(col.key);
+                      setTradeSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                    }}
+                  >
+                    {col.label}
+                    {tradeSortKey === col.key && (
+                      <span className="ml-0.5">{tradeSortDir === "asc" ? " ↑" : " ↓"}</span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-cyan-500/10">
+              {loadResults ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={`skel-${i}`}>
+                    {tradeColumns.map((col) => (
+                      <td key={col.key} className="px-4 py-3">
+                        <div className="h-4 bg-secondary/20 rounded animate-pulse" style={{ width: "60%" }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : sortedTrades.length === 0 ? (
+                <tr>
+                  <td colSpan={tradeColumns.length} className="px-4 py-8 text-center text-sm text-secondary">
+                    No trades — run a backtest first
+                  </td>
+                </tr>
+              ) : (
+                sortedTrades.slice(0, 50).map((row, rowIndex) => (
+                  <tr key={`${row.date}-${row.asset ?? row.symbol}-${rowIndex}`} className="hover:bg-cyan-500/5">
+                    {tradeColumns.map((col) => (
+                      <td key={col.key} className="px-4 py-3 text-white/70">
+                        {typeof col.render === "function"
+                          ? col.render(row[col.key], row, rowIndex)
+                          : row[col.key]}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </Card>
 
@@ -1991,45 +2394,62 @@ export default function Backtesting() {
                 </tr>
               </thead>
               <tbody>
-                {SWARM_TEAMS.map((t) => (
-                  <tr key={t.name} className="border-b border-secondary/10">
-                    <td className="py-1 px-1 text-white">{t.name}</td>
-                    <td className="py-1 px-1 text-white">{t.pct}%</td>
-                    <td className="py-1 px-1">
-                      <div className="flex gap-0.5">
-                        {Array.from({ length: t.agents }, (_, i) => (
-                          <div
-                            key={i}
-                            className={clsx(
-                              "w-1.5 h-3 rounded-sm shrink-0",
-                              t.status === "green"
-                                ? "bg-emerald-500"
-                                : t.status === "yellow"
-                                  ? "bg-amber-500"
-                                  : "bg-orange-500",
-                            )}
-                          />
-                        ))}
-                      </div>
+                {swarmTeams.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-2 px-1 text-secondary text-[10px]">
+                      No team data — load from API
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  swarmTeams.slice(0, 6).map((t, i) => {
+                    const n = t.agents ?? t.agent_count ?? 0;
+                    const pct = t.pct ?? t.agreement ?? null;
+                    const status = t.status ?? t.health ?? "green";
+                    return (
+                      <tr key={t.id ?? t.name ?? i} className="border-b border-secondary/10">
+                        <td className="py-1 px-1 text-white truncate">{t.name ?? t.id ?? "--"}</td>
+                        <td className="py-1 px-1 text-white">{pct != null ? `${pct}%` : "--"}</td>
+                        <td className="py-1 px-1">
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: Math.min(Number(n) || 0, 20) }, (_, j) => (
+                              <div
+                                key={j}
+                                className={clsx(
+                                  "w-1.5 h-3 rounded-sm shrink-0",
+                                  status === "green" || status === "active"
+                                    ? "bg-emerald-500"
+                                    : status === "yellow"
+                                      ? "bg-amber-500"
+                                      : "bg-orange-500",
+                                )}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </Card>
       </div>
+      </div>
+      </div>
 
-      {/* Footer: Agent status bar (mockup: 7 Agents OK, EXTENDED SWARM (93)) */}
-      <div className="flex items-center justify-between bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-md px-4 py-2">
+      {/* Footer: Agent status bar (from API) */}
+      <div className="flex items-center justify-between bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md px-4 py-2">
         <div className="flex items-center gap-3 text-xs text-secondary">
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-emerald-400 font-medium">7 Agents OK</span>
+            <span className="text-emerald-400 font-medium">
+              {swarmAgents.length > 0 ? `${swarmAgents.length} Agents` : "Agents"} OK
+            </span>
           </span>
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40">
             <span className="text-emerald-400 font-medium">
-              EXTENDED SWARM (93)
+              EXTENDED SWARM ({swarmTeams.length > 0 ? swarmTeams.reduce((acc, t) => acc + (t.agents ?? t.agent_count ?? 0), 0) : "--"})
             </span>
           </span>
         </div>

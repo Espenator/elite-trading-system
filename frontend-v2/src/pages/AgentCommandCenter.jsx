@@ -29,13 +29,30 @@ const TABS = [
   { key: "logs", label: "Logs & Telemetry" },
 ];
 
-// Progress bar component for system metrics
-function MetricBar({ value, max = 100, color = "#00D9FF" }) {
-  const pct = Math.min(100, Math.max(0, (value / max) * 100));
-  const barColor = value > 80 ? "#ef4444" : value > 60 ? "#f59e0b" : color;
+// Format uptime_seconds to "Xd Xh Xm" for display
+function formatUptime(seconds) {
+  if (seconds == null || typeof seconds !== "number") return null;
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  parts.push(`${m}m`);
+  return parts.join(" ");
+}
+
+// Progress bar component for system metrics (design system: track #1e293b, 4–6px height). value null → show dash.
+function MetricBar({ value, max = 100 }) {
+  if (value == null || (typeof value === "number" && (Number.isNaN(value)))) {
+    return <span className="text-[#64748b] font-mono text-[10px]">—</span>;
+  }
+  const num = Number(value);
+  const pct = Math.min(100, Math.max(0, (num / max) * 100));
+  const barColor = num > 80 ? "#ef4444" : num > 60 ? "#f59e0b" : "#06b6d4";
   return (
     <div className="inline-flex items-center gap-1">
-      <div className="w-12 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+      <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#1e293b" }}>
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: barColor }}
@@ -48,8 +65,9 @@ function MetricBar({ value, max = 100, color = "#00D9FF" }) {
 export default function AgentCommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
+  const [registryPreselectedAgent, setRegistryPreselectedAgent] = useState(null);
 
-  // Data hooks (real API — no mock data)
+  // Data hooks (real API — no mock data); all 8 hooks per spec
   const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 15000 });
   const { data: systemStatus } = useApi("system/health");
   const { data: teamsRaw } = useApi("teams", { pollIntervalMs: 20000 });
@@ -84,36 +102,36 @@ export default function AgentCommandCenter() {
     return agents;
   }, [cnsAgentsHealthRaw, agents]);
 
-  // Derived metrics
+  // Derived metrics — live from system/health only; show "—" when null (no mock fallbacks)
   const onlineCount = agents.filter(a => a.status === "running").length;
-  const totalCount = agents.length || 42;
-  const cpuAvg = agents.length > 0
-    ? Math.round(agents.reduce((s, a) => s + (a.cpu_usage || 0), 0) / agents.length)
-    : 47;
-  const ramPct = systemStatus?.memory_percent || 31;
-  const gpuPct = systemStatus?.gpu_percent || 61;
-  const uptime = systemStatus?.uptime || "47d 12h 33m";
+  const totalCount = agents.length;
+  const cpuPct = systemStatus?.cpu_percent ?? systemStatus?.cpu ?? null;
+  const ramPct = systemStatus?.memory_used_percent ?? systemStatus?.memory_percent ?? systemStatus?.memory ?? systemStatus?.ram ?? null;
+  const gpuPct = systemStatus?.gpu_percent ?? systemStatus?.gpu ?? (systemStatus?.gpus?.[0]?.gpu_utilization_pct) ?? null;
+  const uptime = systemStatus?.uptime ?? (systemStatus?.uptime_seconds != null ? formatUptime(systemStatus.uptime_seconds) : null) ?? "—";
 
   const setTab = (key) => setSearchParams({ tab: key });
+  const handleAgentClickFromOverview = (agentName) => {
+    setRegistryPreselectedAgent(agentName);
+    setTab("registry");
+  };
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col">
       {/* ========== HEADER BAR (mockup 01: AGENT COMMAND CENTER, GREEN, Uptime, 42/42 ONLINE, CPU/RAM/GPU, KILL SWITCH, ELITE TRADING SYSTEM) ========== */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1e293b] bg-[#111827] shrink-0">
-        {/* Left: Title + Status */}
+        {/* Left: Title + Status (mockup: text-xl bold white, GREEN dot + GREEN text) */}
         <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-[#06b6d4]" />
-          <h1 className="text-sm font-bold tracking-widest text-[#f8fafc] font-mono">AGENT COMMAND CENTER</h1>
-          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-[#064e3b] text-[#10b981] border border-[#10b981]/40 tracking-wider">
-            GREEN
-          </span>
+          <h1 className="text-xl font-bold text-[#f8fafc] tracking-wide">AGENT COMMAND CENTER</h1>
+          <div className="w-2 h-2 rounded-full bg-[#10b981] shrink-0" title="System green" />
+          <span className="text-[#10b981] font-semibold text-sm uppercase tracking-wider">GREEN</span>
         </div>
 
         {/* Center: System Metrics */}
         <div className="flex items-center gap-5 text-[10px] font-mono">
           <div className="flex items-center gap-1.5">
             <span className="text-[#64748b]">Uptime:</span>
-            <span className="text-[#f8fafc] font-bold">{uptime}</span>
+            <span className="text-[#f8fafc] font-bold">{uptime ?? "—"}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[#f8fafc] font-bold">{onlineCount}/{totalCount}</span>
@@ -122,25 +140,25 @@ export default function AgentCommandCenter() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[#64748b]">CPU:</span>
-            <span className={cpuAvg > 80 ? "text-[#ef4444] font-bold" : cpuAvg > 60 ? "text-[#f59e0b] font-bold" : "text-[#f8fafc] font-bold"}>{cpuAvg}%</span>
-            <MetricBar value={cpuAvg} color="#3b82f6" />
+            <span className={`font-mono font-bold ${cpuPct == null ? "text-[#64748b]" : cpuPct > 80 ? "text-[#ef4444]" : cpuPct > 60 ? "text-[#f59e0b]" : "text-[#f8fafc]"}`}>{cpuPct != null ? `${cpuPct}%` : "—"}</span>
+            <MetricBar value={cpuPct} />
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[#64748b]">RAM:</span>
-            <span className={ramPct > 80 ? "text-[#ef4444] font-bold" : "text-[#f8fafc] font-bold"}>{ramPct}%</span>
-            <MetricBar value={ramPct} color="#10b981" />
+            <span className={`font-mono font-bold ${ramPct == null ? "text-[#64748b]" : ramPct > 80 ? "text-[#ef4444]" : "text-[#f8fafc]"}`}>{ramPct != null ? `${ramPct}%` : "—"}</span>
+            <MetricBar value={ramPct} />
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[#64748b]">GPU:</span>
-            <span className={gpuPct > 80 ? "text-[#ef4444] font-bold" : gpuPct > 60 ? "text-[#f59e0b] font-bold" : "text-[#f8fafc] font-bold"}>{gpuPct}%</span>
-            <MetricBar value={gpuPct} color="#8b5cf6" />
+            <span className={`font-mono font-bold ${gpuPct == null ? "text-[#64748b]" : gpuPct > 80 ? "text-[#ef4444]" : gpuPct > 60 ? "text-[#f59e0b]" : "text-[#f8fafc]"}`}>{gpuPct != null ? `${gpuPct}%` : "—"}</span>
+            <MetricBar value={gpuPct} />
           </div>
         </div>
 
         {/* Right: Kill Switch + Branding */}
         <div className="flex items-center gap-4">
           <button
-            className="px-4 py-1.5 text-[11px] font-bold bg-[#7f1d1d] text-[#f87171] border border-[#ef4444]/50 rounded-full hover:bg-[#991b1b] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
+            className="px-4 py-1.5 text-[11px] font-bold bg-[#ef4444] text-white border border-[#ef4444]/50 rounded-md hover:bg-[#dc2626] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider cursor-pointer"
             onClick={async () => {
               try {
                 const res = await fetch(getApiUrl("orders/emergency-stop"), { method: "POST", headers: getAuthHeaders() });
@@ -192,9 +210,17 @@ export default function AgentCommandCenter() {
             topics={blackboardTopics}
             conferenceData={conferenceData}
             driftData={driftData}
+            onAgentClick={handleAgentClickFromOverview}
+            setTab={setTab}
           />
         )}
-        {activeTab === "registry" && <AgentRegistryTab agents={agents} />}
+        {activeTab === "registry" && (
+          <AgentRegistryTab
+            agents={agents}
+            preselectedAgentName={registryPreselectedAgent}
+            onClearPreselection={() => setRegistryPreselectedAgent(null)}
+          />
+        )}
         {activeTab === "spawn" && <SpawnScaleTab />}
         {activeTab === "wiring" && <LiveWiringTab />}
         {activeTab === "blackboard" && <BlackboardCommsTab />}
@@ -203,32 +229,34 @@ export default function AgentCommandCenter() {
         {activeTab === "logs" && <LogsTelemetryTab />}
       </div>
 
-      {/* ========== FOOTER BAR (mockup: WebSocket Connected • API Healthy • 42 agents • LLM Flow 847 • Conference 8/12 • Last Refresh • Load • Uptime) ========== */}
-      <div className="flex items-center justify-between px-4 py-1.5 border-t border-[#1e293b] bg-[#111827] text-[10px] font-mono shrink-0">
-        <div className="flex items-center gap-3 text-[#64748b]">
-          <span className="flex items-center gap-1">
-            WebSocket <span className="text-[#10b981] ml-0.5">Connected</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse ml-0.5" />
+      {/* ========== FOOTER BAR: Left = WS + API | Center = agents, LLM Flow, Conference | Right = Last Refresh, Load, Uptime + Embodier.ai ========== */}
+      <div className="flex items-center justify-between px-4 py-1.5 border-t border-[#1e293b] bg-[#111827] text-xs font-mono text-[#64748b] shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] shrink-0" />
+            <span>WebSocket <span className="text-[#10b981]">Connected</span></span>
           </span>
           <span className="text-[#374151]">|</span>
-          <span>API <span className="text-[#10b981]">Healthy</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse inline-block ml-0.5" />
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] shrink-0" />
+            <span>API <span className="text-[#10b981]">Healthy</span></span>
           </span>
-          <span className="text-[#374151]">|</span>
+        </div>
+        <div className="flex items-center gap-3">
           <span><span className="text-[#f8fafc]">{totalCount}</span> agents</span>
           <span className="text-[#374151]">|</span>
-          <span>LLM Flow <span className="text-[#f8fafc]">847</span></span>
+          <span>LLM Flow <span className="text-[#f8fafc]">{conferenceData ? (conferenceData.id ?? "—") : "—"}</span></span>
           <span className="text-[#374151]">|</span>
-          <span>Conference <span className="text-[#f8fafc]">8/12</span></span>
-          <span className="text-[#374151]">|</span>
+          <span>Conference <span className="text-[#f8fafc]">{onlineCount}/{totalCount}</span></span>
+        </div>
+        <div className="flex items-center gap-3">
           <span>Last Refresh <span className="text-[#06b6d4]">{new Date().toLocaleTimeString("en-US", { hour12: false })}</span></span>
           <span className="text-[#374151]">|</span>
-          <span>Load <span className="text-[#f8fafc]">2.4/4.0</span></span>
+          <span>Load <span className="text-[#f8fafc]">{cpuPct != null ? `${cpuPct}/100` : "—"}</span></span>
           <span className="text-[#374151]">|</span>
-          <span>Uptime <span className="text-[#f8fafc]">{uptime}</span></span>
-        </div>
-        <div className="text-[#64748b]">
-          Embodier.ai v2.0
+          <span>Uptime <span className="text-[#f8fafc]">{uptime ?? "—"}</span></span>
+          <span className="text-[#374151] ml-2">|</span>
+          <span className="text-[#64748b]">Embodier.ai v2.0</span>
         </div>
       </div>
     </div>
