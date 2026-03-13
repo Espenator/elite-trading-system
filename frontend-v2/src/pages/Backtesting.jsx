@@ -531,6 +531,10 @@ function DarkTooltip({ active, payload, label }) {
 /*  MAIN COMPONENT                                                     */
 /* ================================================================== */
 export default function Backtesting() {
+  // --- Backtest running state (must be before useApi hooks that reference it) ---
+  const [running, setRunning] = useState(false);
+  const [hasRunBacktest, setHasRunBacktest] = useState(false);
+
   // --- API hooks ---
   const {
     data: resultsRaw,
@@ -671,9 +675,7 @@ export default function Backtesting() {
   const [wfPasses, setWfPasses] = useState(5);
   const [equityTimeframe, setEquityTimeframe] = useState("ALL");
 
-  // --- Backtest running state ---
-  const [running, setRunning] = useState(false);
-  const [hasRunBacktest, setHasRunBacktest] = useState(false);
+  // --- (running/hasRunBacktest state declared above useApi hooks) ---
 
   // --- ReactFlow state ---
   const [nodes, setNodes] = useState(defaultStratNodes);
