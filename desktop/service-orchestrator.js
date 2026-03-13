@@ -19,6 +19,142 @@ const backendManager = require("./backend-manager");
 const { peerMonitor, PEER_STATE } = require("./peer-monitor");
 const { MobileServer } = require("./mobile-server");
 
+// ── Frontend (Vite) Process Manager ──────────────────────────────────────
+// Spawns `npm run dev` in frontend-v2/ with auto-restart on crash.
+class FrontendManager {
+  constructor() {
+    this._process = null;
+    this._running = false;
+    this._crashCount = 0;
+    this._maxCrashes = 10;
+    this._crashWindowMs = 15 * 60 * 1000; // 15 minutes
+    this._crashTimestamps = [];
+    this._baseDelay = 3000;
+    this._maxDelay = 60000;
+    this._repoRoot = path.resolve(__dirname, "..");
+    this._frontendDir = path.join(this._repoRoot, "frontend-v2");
+    this._port = 3000; // matches vite.config.js VITE_PORT default
+  }
+
+  async start() {
+    if (this._running && this._process) {
+      log.info("[FrontendManager] Already running");
+      return;
+    }
+    this._running = true;
+    this._spawn();
+  }
+
+  _spawn() {
+    if (!this._running) return;
+
+    // Prune old crashes outside the window
+    const now = Date.now();
+    this._crashTimestamps = this._crashTimestamps.filter(
+      (t) => now - t < this._crashWindowMs
+    );
+
+    if (this._crashTimestamps.length >= this._maxCrashes) {
+      log.error(
+        `[FrontendManager] Crash budget exhausted (${this._maxCrashes} in ${this._crashWindowMs / 60000}min) — stopping auto-restart`
+      );
+      this._running = false;
+      return;
+    }
+
+    const isWin = process.platform === "win32";
+    const npmCmd = isWin ? "npm.cmd" : "npm";
+
+    log.info(`[FrontendManager] Spawning: ${npmCmd} run dev in ${this._frontendDir}`);
+
+    this._process = spawn(npmCmd, ["run", "dev"], {
+      cwd: this._frontendDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      env: { ...process.env, BROWSER: "none" }, // prevent Vite opening browser
+    });
+
+    this._process.stdout?.on("data", (data) => {
+      const line = data.toString().trim();
+      if (line) log.info(`[Vite] ${line}`);
+    });
+
+    this._process.stderr?.on("data", (data) => {
+      const line = data.toString().trim();
+      if (line) log.warn(`[Vite:err] ${line}`);
+    });
+
+    this._process.on("exit", (code, signal) => {
+      log.warn(
+        `[FrontendManager] Vite exited (code=${code}, signal=${signal})`
+      );
+      this._process = null;
+
+      if (!this._running) return; // intentional stop
+
+      this._crashTimestamps.push(Date.now());
+      this._crashCount++;
+
+      const delay = Math.min(
+        this._baseDelay * Math.pow(2, this._crashCount - 1),
+        this._maxDelay
+      );
+      log.info(
+        `[FrontendManager] Auto-restart in ${delay / 1000}s (crash #${this._crashCount})`
+      );
+      setTimeout(() => this._spawn(), delay);
+    });
+
+    this._process.on("error", (err) => {
+      log.error(`[FrontendManager] Spawn error: ${err.message}`);
+      this._process = null;
+    });
+  }
+
+  async stop() {
+    this._running = false;
+    if (this._process) {
+      log.info("[FrontendManager] Stopping Vite dev server...");
+      if (process.platform === "win32") {
+        // On Windows, npm.cmd spawns a child cmd — kill the whole tree
+        try {
+          spawn("taskkill", ["/pid", String(this._process.pid), "/T", "/F"], {
+            stdio: "ignore",
+          });
+        } catch (e) {
+          this._process.kill("SIGTERM");
+        }
+      } else {
+        this._process.kill("SIGTERM");
+      }
+      this._process = null;
+    }
+  }
+
+  isRunning() {
+    return this._running && this._process !== null;
+  }
+
+  /**
+   * Check if Vite is actually serving HTTP on its port.
+   */
+  isReachable() {
+    return new Promise((resolve) => {
+      const req = http.get(`http://127.0.0.1:${this._port}`, (res) => {
+        res.resume();
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
+      });
+      req.on("error", () => resolve(false));
+      req.setTimeout(2000, () => {
+        req.destroy();
+        resolve(false);
+      });
+    });
+  }
+}
+
+const frontendManager = new FrontendManager();
+
 // Service definitions with start order and health check info
 const SERVICE_DEFINITIONS = {
   backend: {
@@ -32,10 +168,10 @@ const SERVICE_DEFINITIONS = {
   },
   frontend: {
     order: 2,
-    // Frontend is loaded by Electron BrowserWindow, not a separate process
-    startFn: async () => log.info("[Orchestrator] Frontend loaded via BrowserWindow"),
-    stopFn: async () => {},
-    healthFn: () => true,
+    // Spawn Vite dev server as a managed child process with auto-restart
+    startFn: () => frontendManager.start(),
+    stopFn: () => frontendManager.stop(),
+    healthFn: () => frontendManager.isRunning(),
     critical: true,
   },
   council: {
@@ -394,4 +530,4 @@ class ServiceOrchestrator {
 
 const serviceOrchestrator = new ServiceOrchestrator();
 
-module.exports = { serviceOrchestrator };
+module.exports = { serviceOrchestrator, frontendManager };

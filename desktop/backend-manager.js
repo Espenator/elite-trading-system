@@ -23,6 +23,9 @@ let backendProcess = null;
 let healthCheckInterval = null;
 let isShuttingDown = false;
 let restartCount = 0;
+let crashTimestamps = [];
+const CRASH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_CRASHES_IN_WINDOW = 10;
 
 // ── Python Resolution ────────────────────────────────────────────────────────
 
@@ -246,13 +249,27 @@ function startBackend() {
       log.info(`Backend exited (code=${code}, signal=${signal})`);
       backendProcess = null;
       if (!isShuttingDown && code !== 0) {
+        // Windowed crash budget: only count crashes in the last 15 minutes
+        const now = Date.now();
+        crashTimestamps.push(now);
+        crashTimestamps = crashTimestamps.filter((t) => now - t < CRASH_WINDOW_MS);
         restartCount++;
-        if (restartCount > 5) {
-          log.error("Backend crashed too many times (5), giving up auto-restart");
+
+        if (crashTimestamps.length >= MAX_CRASHES_IN_WINDOW) {
+          log.error(
+            `Backend crashed ${MAX_CRASHES_IN_WINDOW} times in ${CRASH_WINDOW_MS / 60000}min — pausing auto-restart for 5 minutes`
+          );
+          // Reset after cooldown so it can try again
+          setTimeout(() => {
+            crashTimestamps = [];
+            restartCount = 0;
+            log.info("Backend auto-restart cooldown expired — will restart on next crash");
+            if (!isShuttingDown) startBackend().catch(() => {});
+          }, 5 * 60 * 1000);
           return;
         }
         const delay = Math.min(3000 * Math.pow(2, restartCount - 1), 60000);
-        log.warn(`Backend crashed — restart #${restartCount} in ${delay}ms...`);
+        log.warn(`Backend crashed — restart #${restartCount} in ${delay / 1000}s (${crashTimestamps.length}/${MAX_CRASHES_IN_WINDOW} in window)...`);
         setTimeout(() => {
           if (!isShuttingDown) startBackend().catch(() => {});
         }, delay);

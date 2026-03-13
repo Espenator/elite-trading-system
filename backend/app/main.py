@@ -1562,16 +1562,31 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(_event_loop_watchdog())
 
+    # Start HealthMonitor background task
+    try:
+        from app.services.health_monitor import health_monitor as _health_monitor
+        await _health_monitor.start()
+        log.info("✅ HealthMonitor started (auto-debug + self-healing)")
+    except Exception as e:
+        log.warning("HealthMonitor failed to start: %s", e)
+
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
     _port = settings.effective_port; log.info("  API: http://localhost:%s/docs", _port)
     log.info("  Health: http://localhost:%s/health", _port)
+    log.info("  Deep Health: http://localhost:%s/health/deep", _port)
     log.info("  WS: ws://localhost:%s/ws", _port)
     log.info("=" * 60)
 
     try:
         yield
     finally:
+        # Stop HealthMonitor
+        try:
+            from app.services.health_monitor import health_monitor as _hm
+            await _hm.stop()
+        except Exception:
+            pass
         # Stop ingestion framework
         try:
             if 'ingestion_scheduler' in locals():
@@ -2048,4 +2063,24 @@ async def health_check():
         return JSONResponse(
             status_code=500,
             content={"status": "unhealthy", "error": str(exc)},
+        )
+
+
+@app.get("/health/deep")
+async def deep_health_check():
+    """Deep health check — all components with auto-debug diagnostics.
+
+    Runs full health checks on every component (DB, Alpaca, Brain, Ollama,
+    MessageBus, Council, Signal Engine, Frontend). Used by the Service
+    Supervisor for auto-restart decisions.
+    """
+    try:
+        from app.services.health_monitor import health_monitor
+        await health_monitor._run_all_checks()
+        return health_monitor.get_full_report()
+    except Exception as exc:
+        log.exception("Deep health check failed")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "error": str(exc)},
         )
