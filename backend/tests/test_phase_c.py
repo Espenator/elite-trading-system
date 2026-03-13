@@ -304,9 +304,7 @@ class TestSelfAwareness:
         from app.council.self_awareness import SelfAwareness
         sa = SelfAwareness()
         agent = "test_agent_bayesian_phase_c"  # unique to avoid cross-test streak state
-        # Reset streak state to avoid accumulation from other tests via singleton
-        if hasattr(sa.streaks, '_streaks') and agent in sa.streaks._streaks:
-            sa.streaks._streaks[agent] = {"wins": 0, "losses": 0, "streak": 0}
+        sa.streaks.reset(agent)
         # record_trade_outcome updates streaks only (no duplicate Bayesian store)
         for _ in range(5):
             sa.record_trade_outcome(agent, profitable=True)
