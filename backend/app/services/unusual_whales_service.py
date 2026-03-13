@@ -25,6 +25,11 @@ class UnusualWhalesService:
         self.flow_path = flow_path or "/option-trades/flow-alerts"
         if not self.flow_path.startswith("/"):
             self.flow_path = "/" + self.flow_path
+        # Real-time cache warmed via MessageBus bridge in main.py
+        self._last_flow_cache: List[Dict[str, Any]] = []
+        self._last_flow_ts: float = 0.0
+        self._last_congress_cache: List[Dict[str, Any]] = []
+        self._last_congress_ts: float = 0.0
 
     def _validate_api_key(self) -> None:
         if not self.api_key:

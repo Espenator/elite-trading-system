@@ -9,12 +9,13 @@ import logging
 import subprocess
 from typing import Any, Dict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.modules.social_news_engine import get_status as social_news_status
 from app.modules.chart_patterns import get_status as chart_patterns_status
 from app.modules.ml_engine import get_status as ml_engine_status
 from app.modules.execution_engine import get_status as execution_status, get_trading_mode
+from app.core.security import require_auth
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -269,7 +270,7 @@ async def dlq_list(limit: int = 50):
         return {"count": 0, "entries": []}
 
 
-@router.post("/dlq/replay")
+@router.post("/dlq/replay", dependencies=[Depends(require_auth)])
 async def dlq_replay(topic: str = None, limit: int = 50):
     """Replay dead-letter queue entries back onto the MessageBus."""
     try:
@@ -282,7 +283,7 @@ async def dlq_replay(topic: str = None, limit: int = 50):
         return {"replayed": 0, "error": "DLQ replay failed"}
 
 
-@router.delete("/dlq")
+@router.delete("/dlq", dependencies=[Depends(require_auth)])
 async def dlq_clear():
     """Clear the dead-letter queue."""
     try:

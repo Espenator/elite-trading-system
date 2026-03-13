@@ -14,6 +14,7 @@ import concurrent.futures
 import logging
 import os
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -429,7 +430,7 @@ async def _start_event_driven_pipeline():
         from app.council.council_gate import CouncilGate
         _council_gate = CouncilGate(
             message_bus=_message_bus,
-            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "0.65")),
+            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "65.0")),
             max_concurrent=int(os.getenv("COUNCIL_MAX_CONCURRENT", "3")),
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
@@ -448,7 +449,7 @@ async def _start_event_driven_pipeline():
                 return
             await _message_bus.publish("council.verdict", {
                 "symbol": signal_data.get("symbol", ""),
-                "final_direction": signal_data.get("label", "long"),
+                "final_direction": signal_data.get("direction", "buy"),
                 "final_confidence": score_to_final_confidence_0_1(score_100, context="signal_to_verdict_fallback"),
                 "execution_ready": True,
                 "vetoed": False,
@@ -501,7 +502,7 @@ async def _start_event_driven_pipeline():
     async def _bridge_signal_to_ws(signal_data):
         try:
             from app.websocket_manager import broadcast_ws
-            await broadcast_ws("signal", {"type": "new_signal", "signal": signal_data})
+            await broadcast_ws("signals", {"type": "new_signal", "signal": signal_data})
         except Exception as e:
             log.debug("WS broadcast failed: %s", e)
 
@@ -762,6 +763,35 @@ async def _start_event_driven_pipeline():
 
     await _message_bus.subscribe("scout.discovery", _bridge_macro_to_ws)
     log.info("\u2705 Swarm/Macro->WebSocket bridges registered")
+
+    # 5b. Wire UnusualWhales MessageBus -> council cache warmers.
+    # Agents still support direct fetches; this keeps UW data warm between cycles.
+    try:
+        from app.services.unusual_whales_service import get_unusual_whales_service
+
+        _uw_svc = get_unusual_whales_service()
+
+        async def _cache_uw_flow(data):
+            try:
+                alerts = data.get("alerts", [])
+                _uw_svc._last_flow_cache = alerts if isinstance(alerts, list) else []
+                _uw_svc._last_flow_ts = time.time()
+            except Exception:
+                pass
+
+        async def _cache_uw_congress(data):
+            try:
+                trades = data.get("trades", [])
+                _uw_svc._last_congress_cache = trades if isinstance(trades, list) else []
+                _uw_svc._last_congress_ts = time.time()
+            except Exception:
+                pass
+
+        await _message_bus.subscribe("unusual_whales.flow", _cache_uw_flow)
+        await _message_bus.subscribe("unusual_whales.congress", _cache_uw_congress)
+        log.info("\u2705 UnusualWhales->Cache bridge active")
+    except Exception as e:
+        log.warning("UnusualWhales cache bridge skipped: %s", e)
 
     # -- Lightweight services (DuckDB-only, no LLM) -- start immediately --
 
@@ -1759,6 +1789,7 @@ async def add_security_and_correlation_headers(request, call_next):
     finally:
         correlation_id.reset(token)
 
+
 # --- API Routers ---
 app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["stocks"])
 app.include_router(quotes.router, prefix="/api/v1/quotes", tags=["quotes"])
@@ -1825,13 +1856,13 @@ async def ws_registry():
         "channels": all_channel_names,
         "subscriber_counts": subscriber_counts,
         "message_schema": {
-            "channel": "string (e.g. signal, council, risk, market, order, swarm)",
+            "channel": "string (e.g. signals, council, risk, market, order, swarm)",
             "type": "string (e.g. update, new_signal, verdict)",
             "data": "object (payload)",
             "ts": "number (Unix timestamp)",
         },
         "schema_examples": [
-            {"channel": "signal", "type": "new_signal", "data": {"symbol": "AAPL", "score": 80}, "ts": 1234567890.0},
+            {"channel": "signals", "type": "new_signal", "data": {"symbol": "AAPL", "score": 80}, "ts": 1234567890.0},
             {"channel": "council", "type": "verdict", "data": {"symbol": "AAPL", "direction": "buy"}, "ts": 1234567890.0},
         ],
     }
@@ -1847,11 +1878,13 @@ async def consensus_alias():
 # --- Valid WebSocket channels (server-side only publishing) ---
 # Must match WS_ALLOWED_CHANNELS in websocket_manager.py and frontend WS_CHANNELS (config/api.js)
 _VALID_WS_CHANNELS = frozenset({
-    "signal", "signals", "order", "council", "council_verdict",
-    "risk", "swarm", "kelly", "market", "macro", "blackboard",
-    "alerts", "performance", "agents", "data_sources", "datasources",
-    "trades", "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
-    "health", "market_data", "outcomes", "system", "briefing",
+    # Frontend channels (must match frontend-v2/src/config/api.js WS_CHANNELS values)
+    "signals", "order", "council", "council_verdict", "risk", "swarm",
+    "kelly", "market", "macro", "agents", "data_sources", "trades",
+    "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
+    # Backend-only channels (server-side publishing, no frontend subscriber yet)
+    "health", "market_data", "outcomes", "system", "blackboard",
+    "performance", "alerts", "datasources",
 })
 
 # --- WebSocket rate limiting (Audit Task 15) ---

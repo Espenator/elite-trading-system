@@ -499,7 +499,7 @@ class EventDrivenSignalEngine:
     Publishes signals to 'signal.generated' topic when score >= threshold.
     """
 
-    SIGNAL_THRESHOLD = 65  # Minimum score to publish a signal
+    SIGNAL_THRESHOLD = 50  # Pre-filter; CouncilGate applies regime-adaptive threshold (55-75)
     MAX_BAR_HISTORY = 50   # Rolling window per symbol
 
     def __init__(self, message_bus):

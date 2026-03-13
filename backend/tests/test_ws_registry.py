@@ -14,10 +14,10 @@ async def test_ws_registry_returns_channels_and_schema(client):
     assert "schema_examples" in body
     assert "total_connections" in body
     assert "subscriber_counts" in body
-    assert "signal" in body["channels"]
+    assert "signals" in body["channels"]
     assert "council" in body["channels"]
     assert "market" in body["channels"]
-    assert body["message_schema"].get("channel") == "string (e.g. signal, council, risk, market, order, swarm)"
+    assert body["message_schema"].get("channel") == "string (e.g. signals, council, risk, market, order, swarm)"
     assert body["message_schema"].get("type") and body["message_schema"].get("ts")
 
 
@@ -29,11 +29,11 @@ async def test_ws_payload_has_canonical_shape():
     from unittest.mock import AsyncMock, MagicMock
 
     # Build canonical payload as broadcast_ws would
-    channel = "signal"
+    channel = "signals"
     data = {"type": "new_signal", "signal": {"symbol": "AAPL", "score": 80}}
     ts = 1234567890.0
     msg = {"channel": channel, "type": data.get("type", "update"), "data": data, "ts": ts}
-    assert msg["channel"] == "signal"
+    assert msg["channel"] == "signals"
     assert msg["type"] == "new_signal"
     assert "data" in msg
     assert "ts" in msg

@@ -16,11 +16,13 @@ Sub-agents:
 Council integration: Enriches flow_perception_agent metadata.
 """
 import logging
+import time
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
+from app.services.unusual_whales_service import get_unusual_whales_service
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +159,22 @@ def _congressional_to_vote(
 
 async def _fetch_congressional_trades(symbol: str) -> List[Dict[str, Any]]:
     """Fetch congressional trade disclosures."""
+    # Use fresh UW cache first (warmed via MessageBus bridge) to avoid blocking API calls.
+    try:
+        uw_svc = get_unusual_whales_service()
+        cached = getattr(uw_svc, "_last_congress_cache", []) or []
+        cache_age = time.time() - float(getattr(uw_svc, "_last_congress_ts", 0) or 0)
+        if cached and cache_age < 60:
+            filtered = [
+                t for t in cached
+                if isinstance(t, dict)
+                and str(t.get("ticker", t.get("symbol", ""))).upper() == symbol.upper()
+            ]
+            if filtered:
+                return filtered
+    except Exception:
+        pass
+
     # Try Capitol Trades API
     try:
         from app.services.capitol_trades_service import get_trades_by_ticker
