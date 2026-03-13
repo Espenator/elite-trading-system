@@ -32,6 +32,7 @@ from app.council.blackboard import BlackboardState
 from app.council.schemas import AgentVote, DecisionPacket, CognitiveMeta
 from app.council.arbiter import arbitrate
 from app.council.task_spawner import TaskSpawner
+from app.council.council_coordinator import get_council_coordinator
 from app.services.cognitive_telemetry import (
     record_cognitive_snapshot, determine_cognitive_mode, get_cognitive_dashboard
 )
@@ -309,19 +310,38 @@ async def run_council(
 
     all_votes: List[AgentVote] = []
 
-    # ── Level 3A: Distributed Council — Stage 1 + Stage 2 ──────────────
-    # When Brain Service (PC2) is available, offload Stage 1 perception agents
-    # to PC2 while PC1 runs Stage 2 technical analysis simultaneously.
-    # This cuts stage 1+2 latency from ~400-500ms sequential to ~300ms parallel.
+    # ── Phase 4: Distributed Council via CouncilCoordinator ─────────────
+    # Uses Redis Streams to split agents between PC1 (local) and PC2 (remote).
+    # Falls back to all-local execution if PC2/Redis is unavailable.
+    # See council_coordinator.py for PC1/PC2 assignment tables.
+    coordinator = get_council_coordinator()
+    decision_id = blackboard.council_decision_id
 
-    _stage1_agent_types = [
-        "market_perception", "flow_perception", "regime", "social_perception",
-        "news_catalyst", "youtube_knowledge", "intermarket",
-        "gex_agent", "insider_agent",
-        "finbert_sentiment_agent", "earnings_tone_agent",
-        "dark_pool_agent", "macro_regime_agent",
+    _stage_start = time.monotonic() * 1000
+
+    # Stage 1: Perception (13 agents) — distributed across PCs
+    stage1_configs = [
+        {"agent_type": at, "symbol": symbol, "timeframe": timeframe, "context": context}
+        for at in [
+            "market_perception", "flow_perception", "regime", "social_perception",
+            "news_catalyst", "youtube_knowledge", "intermarket",
+            "gex_agent", "insider_agent", "finbert_sentiment_agent",
+            "earnings_tone_agent", "dark_pool_agent", "macro_regime_agent",
+        ]
     ]
+    stage1, stage1_lats = await coordinator.execute_distributed_stage(
+        decision_id=decision_id, stage="1", all_agents=stage1_configs, spawner=spawner,
+    )
+    all_votes.extend(stage1)
+    context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
+    for v in stage1:
+        blackboard.perceptions[v.agent_name] = v.to_dict()
+    blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
+    for lat in stage1_lats:
+        blackboard.stage_latencies[f"stage1_{lat.pc}"] = lat.duration_ms
 
+    # Stage 2: Technical Analysis (8 agents) — distributed across PCs
+    _stage_start = time.monotonic() * 1000
     stage2_configs = [
         {"agent_type": "rsi", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "bbv", "symbol": symbol, "timeframe": timeframe, "context": context},
@@ -332,109 +352,26 @@ async def run_council(
         {"agent_type": "institutional_flow_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "congressional_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
     ]
-
-    # Check if distributed council is available
-    _use_distributed = False
-    try:
-        from app.services.brain_client import get_brain_client
-        brain = get_brain_client()
-        if brain.enabled and brain._circuit.can_execute():
-            _use_distributed = True
-    except Exception:
-        pass
-
-    _stage_start = time.monotonic() * 1000
-
-    if _use_distributed:
-        # DISTRIBUTED: PC2 runs Stage 1 perception while PC1 runs Stage 2 technical
-        import json as _json
-        logger.info("Distributed council: Stage 1 → PC2, Stage 2 → PC1 (parallel)")
-
-        _feat_json = _json.dumps(features, default=str)
-        _ctx_json = _json.dumps(
-            {k: v for k, v in context.items() if k != "blackboard"},
-            default=str,
-        )
-
-        stage1_remote_coro = brain.run_council_stage(
-            symbol=symbol,
-            timeframe=timeframe,
-            feature_json=_feat_json,
-            context_json=_ctx_json,
-            stage=1,
-            agent_types=_stage1_agent_types,
-        )
-        stage2_local_coro = spawner.spawn_parallel(stage2_configs)
-
-        stage1_result, stage2 = await asyncio.gather(
-            stage1_remote_coro, stage2_local_coro, return_exceptions=True,
-        )
-
-        # Process Stage 1 remote results
-        stage1 = []
-        if isinstance(stage1_result, dict) and stage1_result.get("votes"):
-            for v_data in stage1_result["votes"]:
-                vote = AgentVote(
-                    agent_name=v_data["agent_name"],
-                    direction=v_data["direction"],
-                    confidence=v_data["confidence"],
-                    reasoning=v_data["reasoning"],
-                    veto=v_data.get("veto", False),
-                    veto_reason=v_data.get("veto_reason", ""),
-                    metadata=v_data.get("metadata", {}),
-                    blackboard_ref=blackboard.council_decision_id,
-                )
-                stage1.append(vote)
-            logger.info(
-                "Distributed Stage 1: %d votes from PC2 in %.0fms",
-                len(stage1), stage1_result.get("stage_latency_ms", 0),
-            )
-        else:
-            # Fallback: run Stage 1 locally if PC2 failed
-            logger.warning("Distributed Stage 1 failed, falling back to local")
-            stage1_configs = [
-                {"agent_type": at, "symbol": symbol, "timeframe": timeframe, "context": context}
-                for at in _stage1_agent_types
-            ]
-            stage1 = await spawner.spawn_parallel(stage1_configs)
-
-        if isinstance(stage2, Exception):
-            logger.warning("Stage 2 local failed: %s", stage2)
-            stage2 = []
-    else:
-        # LOCAL: Run Stage 1 then Stage 2 sequentially (original behavior)
-        stage1_configs = [
-            {"agent_type": at, "symbol": symbol, "timeframe": timeframe, "context": context}
-            for at in _stage1_agent_types
-        ]
-        stage1 = await spawner.spawn_parallel(stage1_configs)
-
-        blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
-        _stage_start = time.monotonic() * 1000
-
-        stage2 = await spawner.spawn_parallel(stage2_configs)
-
-    # Merge Stage 1 + Stage 2 votes
-    all_votes.extend(stage1)
-    context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
-    for v in stage1:
-        blackboard.perceptions[v.agent_name] = v.to_dict()
-    if "stage1" not in blackboard.stage_latencies:
-        blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
-
+    stage2, stage2_lats = await coordinator.execute_distributed_stage(
+        decision_id=decision_id, stage="2", all_agents=stage2_configs, spawner=spawner,
+    )
     all_votes.extend(stage2)
     context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
     for v in stage2:
         blackboard.perceptions[v.agent_name] = v.to_dict()
     blackboard.stage_latencies["stage2"] = time.monotonic() * 1000 - _stage_start
+    for lat in stage2_lats:
+        blackboard.stage_latencies[f"stage2_{lat.pc}"] = lat.duration_ms
 
-    # Stage 3: Hypothesis + Memory (parallel — 2 agents)
+    # Stage 3: Hypothesis + Memory (parallel — distributed: hypothesis=PC1, memory=PC2)
     _stage_start = time.monotonic() * 1000
     stage3_configs = [
         {"agent_type": "hypothesis", "symbol": symbol, "timeframe": timeframe, "context": context, "model_tier": "deep"},
         {"agent_type": "layered_memory_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
     ]
-    stage3 = await spawner.spawn_parallel(stage3_configs)
+    stage3, stage3_lats = await coordinator.execute_distributed_stage(
+        decision_id=decision_id, stage="3", all_agents=stage3_configs, spawner=spawner,
+    )
     all_votes.extend(stage3)
     context["stage3"] = {v.agent_name: v.to_dict() for v in stage3}
     for v in stage3:
@@ -442,6 +379,8 @@ async def run_council(
             blackboard.hypothesis = v.to_dict()
             break
     blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
+    for lat in stage3_lats:
+        blackboard.stage_latencies[f"stage3_{lat.pc}"] = lat.duration_ms
 
     # Stage 4: Strategy
     _stage_start = time.monotonic() * 1000
@@ -451,13 +390,16 @@ async def run_council(
     blackboard.strategy = stage4.to_dict()
     blackboard.stage_latencies["stage4"] = time.monotonic() * 1000 - _stage_start
 
-    # Stage 5: Risk + Execution (parallel)
+    # Stage 5: Risk + Execution + Portfolio Opt (distributed: risk+port_opt=PC1, execution=PC2)
     _stage_start = time.monotonic() * 1000
-    stage5 = await spawner.spawn_parallel([
+    stage5_configs = [
         {"agent_type": "risk", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "execution", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "portfolio_optimizer_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
-    ])
+    ]
+    stage5, stage5_lats = await coordinator.execute_distributed_stage(
+        decision_id=decision_id, stage="5", all_agents=stage5_configs, spawner=spawner,
+    )
     all_votes.extend(stage5)
     context["stage5"] = {v.agent_name: v.to_dict() for v in stage5}
     for v in stage5:
@@ -466,6 +408,8 @@ async def run_council(
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
     blackboard.stage_latencies["stage5"] = time.monotonic() * 1000 - _stage_start
+    for lat in stage5_lats:
+        blackboard.stage_latencies[f"stage5_{lat.pc}"] = lat.duration_ms
 
     # ── Bayesian Regime Update ────────────────────────────────────────────
     try:
@@ -647,12 +591,50 @@ async def run_council(
         decision.council_decision_id = blackboard.council_decision_id
         return decision
 
-    # Stage 7: Arbiter
-    decision = arbitrate(symbol, timeframe, timestamp, all_votes)
+    # Stage 7: Arbiter (Phase 4: pass regime_entropy for meta-model)
+    _arbiter_regime_entropy = blackboard.metadata.get("regime_entropy", 0.0)
+    decision = arbitrate(symbol, timeframe, timestamp, all_votes, regime_entropy=_arbiter_regime_entropy)
     decision.council_decision_id = blackboard.council_decision_id
 
-    # ── ETBI: Populate cognitive telemetry on DecisionPacket ────────────
+    # ── Phase 4 (Item 5): Latency instrumentation — 2.5s budget ────────
     total_latency = time.monotonic() * 1000 - blackboard.council_start_ms
+    COUNCIL_LATENCY_BUDGET_MS = 2500.0
+    if total_latency > COUNCIL_LATENCY_BUDGET_MS:
+        _bottleneck = max(
+            blackboard.stage_latencies.items(),
+            key=lambda kv: kv[1],
+            default=("unknown", 0),
+        )
+        logger.warning(
+            "LATENCY BUDGET EXCEEDED for %s: %.0fms > %.0fms budget. "
+            "Bottleneck: %s (%.0fms). All stages: %s",
+            symbol, total_latency, COUNCIL_LATENCY_BUDGET_MS,
+            _bottleneck[0], _bottleneck[1],
+            {k: f"{v:.0f}ms" for k, v in blackboard.stage_latencies.items()},
+        )
+        try:
+            from app.core.message_bus import get_message_bus
+            _lat_bus = get_message_bus()
+            asyncio.create_task(_lat_bus.publish("alert.latency_exceeded", {
+                "symbol": symbol,
+                "total_latency_ms": round(total_latency, 1),
+                "budget_ms": COUNCIL_LATENCY_BUDGET_MS,
+                "bottleneck_stage": _bottleneck[0],
+                "bottleneck_ms": round(_bottleneck[1], 1),
+                "stage_latencies": {k: round(v, 1) for k, v in blackboard.stage_latencies.items()},
+                "decision_id": blackboard.council_decision_id,
+                "distributed": coordinator.is_distributed,
+            }))
+        except Exception:
+            pass
+    else:
+        logger.info(
+            "Council latency for %s: %.0fms (budget: %.0fms, headroom: %.0fms)",
+            symbol, total_latency, COUNCIL_LATENCY_BUDGET_MS,
+            COUNCIL_LATENCY_BUDGET_MS - total_latency,
+        )
+
+    # ── ETBI: Populate cognitive telemetry on DecisionPacket ────────────
     cognitive = CognitiveMeta(
         mode=blackboard.cognitive_mode,
         hypothesis_diversity=CognitiveMeta.compute_diversity(all_votes),

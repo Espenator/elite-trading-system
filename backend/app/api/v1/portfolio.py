@@ -163,7 +163,7 @@ def get_sync_status():
         }
     except Exception as e:
         logger.warning("Position sync status error: %s", e)
-        return {"synced": False, "error": str(e)}
+        return {"synced": False, "error": "position sync status unavailable"}
 
 
 async def _get_portfolio_inner():

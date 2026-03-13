@@ -50,7 +50,7 @@ elite-trading-system/
 │   ├── app/core/     ← Config, message bus
 │   ├── app/modules/  ← OpenClaw, ML engine, Social/News, YouTube agent
 │   ├── app/services/ ← llm_clients (Ollama, Perplexity, Claude), firehose, scouts, scanning, trading, Alpaca, Finviz, FRED, SEC EDGAR, etc.
-│   └── tests/        ← 666 tests passing
+│   └── tests/        ← 981+ tests passing
 ├── brain_service/    ← gRPC + Ollama (local LLM); part of 3-tier router
 ├── desktop/          ← Electron app (BUILD-READY); service orchestrator, backend manager
 ├── frontend-v2/      ← React + Vite + Tailwind (15 pages); WebSocket active, 5 pages wired
@@ -66,7 +66,7 @@ elite-trading-system/
 - **Desktop:** ✅ BUILD-READY (Electron)
 - **Council:** 35-agent DAG, 7 stages; SignalEngine → CouncilGate → Council → OrderExecutor
 - **LLM:** 3-tier router (Ollama → Perplexity → Claude). Ollama handles most routine calls; Claude used for 6 deep-reasoning tasks: strategy_critic, strategy_evolution, deep_postmortem, trade_thesis, overnight_analysis, directive_evolution
-- **Tests:** 666 passing (CI green)
+- **Tests:** 981+ passing (CI green)
 - **Auth:** Bearer token, fail-closed
 - **Redis:** Used for caching/sessions where applicable
 

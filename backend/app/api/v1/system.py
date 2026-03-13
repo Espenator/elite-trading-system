@@ -111,7 +111,8 @@ def _run_nvidia_smi(args: list[str] | None = None) -> Dict[str, Any]:
     except subprocess.TimeoutExpired:
         return {"available": False, "error": "nvidia-smi timed out (>10s)"}
     except Exception as exc:
-        return {"available": False, "error": str(exc)}
+        log.debug("nvidia-smi error: %s", exc)
+        return {"available": False, "error": "nvidia-smi execution error"}
 
 
 def _parse_gpu_query() -> Dict[str, Any]:
@@ -246,7 +247,7 @@ async def backfill_status():
         return backfill_orchestrator.get_status()
     except Exception as e:
         log.debug("backfill status failed: %s", e)
-        return {"status": "unavailable", "error": str(e)}
+        return {"status": "unavailable", "error": "backfill status unavailable"}
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +279,7 @@ async def dlq_replay(topic: str = None, limit: int = 50):
         return {"replayed": count, "filter_topic": topic}
     except Exception as e:
         log.warning("dlq replay failed: %s", e)
-        return {"replayed": 0, "error": str(e)}
+        return {"replayed": 0, "error": "DLQ replay failed"}
 
 
 @router.delete("/dlq")
@@ -291,7 +292,7 @@ async def dlq_clear():
         return {"cleared": count}
     except Exception as e:
         log.warning("dlq clear failed: %s", e)
-        return {"cleared": 0, "error": str(e)}
+        return {"cleared": 0, "error": "DLQ clear failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -306,7 +307,7 @@ async def session_scanner_status():
         return scanner.get_status()
     except Exception as e:
         log.debug("session-scanner status failed: %s", e)
-        return {"running": False, "error": str(e)}
+        return {"running": False, "error": "session scanner unavailable"}
 
 
 # ---------------------------------------------------------------------------

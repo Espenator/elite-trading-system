@@ -15,7 +15,7 @@ if getattr(sys, "frozen", False):
     sys.path.insert(0, os.path.dirname(sys.executable))
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)  # override=True so .env values win over empty system env vars
 
 import uvicorn
 

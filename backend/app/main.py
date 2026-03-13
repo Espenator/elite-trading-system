@@ -1488,6 +1488,17 @@ async def lifespan(app: FastAPI):
     if not _bg_loops:
         log.info("\u26A0\uFE0F Background loops disabled (BACKGROUND_LOOPS=false)")
 
+    # Phase 4: Regime Publisher — broadcasts current regime every 60s
+    _regime_pub_task = None
+    if _bg_loops:
+        try:
+            from app.council.regime_publisher import get_regime_publisher
+            _regime_pub = get_regime_publisher()
+            await _regime_pub.start()
+            log.info("RegimePublisher started (60s interval)")
+        except Exception as e:
+            log.debug("RegimePublisher not started: %s", e)
+
     # Event loop watchdog — logs every 5s to detect freezes
     # 30. Wire critical PUBLISH_ONLY subscribers (Audit Item 2)
     # These events were published into the void — now they have handlers.
@@ -1584,6 +1595,14 @@ async def lifespan(app: FastAPI):
                     await task
                 except asyncio.CancelledError:
                     pass
+        # Stop regime publisher
+        try:
+            from app.council.regime_publisher import get_regime_publisher
+            _rp = get_regime_publisher()
+            await _rp.stop()
+        except Exception:
+            pass
+
         # Stop intelligence cache background loop
         try:
             from app.services.intelligence_cache import get_intelligence_cache
@@ -1748,8 +1767,30 @@ _VALID_WS_CHANNELS = frozenset({
 
 # --- WebSocket rate limiting (Audit Task 15) ---
 _WS_MSG_RATE: dict = {}  # websocket -> list of timestamps
+_WS_MSG_RATE_LAST_PRUNE: float = 0.0  # last prune epoch
 _WS_MAX_MSGS_PER_MIN = 120
 _WS_MAX_CONNECTIONS = 50
+
+
+def _prune_ws_rate_dict() -> None:
+    """Safety-net pruning for _WS_MSG_RATE — removes stale entries.
+
+    Runs at most once per 60 seconds. Catches leaked WebSocket entries
+    whose finally block didn't execute (e.g., process crash, TCP RST).
+    """
+    import time as _t
+    global _WS_MSG_RATE_LAST_PRUNE
+    now = _t.time()
+    if now - _WS_MSG_RATE_LAST_PRUNE < 60:
+        return
+    _WS_MSG_RATE_LAST_PRUNE = now
+    # Remove entries with no recent activity (>120s)
+    stale = [ws for ws, ts_list in _WS_MSG_RATE.items()
+             if not ts_list or (now - max(ts_list)) > 120]
+    for ws in stale:
+        _WS_MSG_RATE.pop(ws, None)
+    if stale:
+        log.debug("WS rate-limit pruned %d stale entries", len(stale))
 
 
 @app.websocket("/ws")
@@ -1787,6 +1828,7 @@ async def websocket_endpoint(websocket: WebSocket):
             raw = await websocket.receive_text()
 
             # Rate limiting (Task 15): max 120 msgs/min per connection
+            _prune_ws_rate_dict()  # safety-net prune for leaked entries
             now = _time.time()
             timestamps = _WS_MSG_RATE.get(websocket, [])
             timestamps = [t for t in timestamps if now - t < 60]

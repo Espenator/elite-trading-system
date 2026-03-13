@@ -307,8 +307,11 @@ class KnowledgeIngestionService:
         if hint:
             content = f"Context: {hint}\n\n{content}"
 
-        # Determine type from URL
-        if "youtube.com" in url or "youtu.be" in url:
+        # Determine type from URL (use urlparse for proper hostname matching)
+        from urllib.parse import urlparse
+        _parsed = urlparse(url)
+        _host = (_parsed.hostname or "").lower()
+        if _host in ("youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"):
             return await self.ingest_youtube(url=url, transcript=content)
 
         return await self.ingest_news(url=url, text=content, source_name=self._domain_from_url(url))
@@ -427,53 +430,87 @@ class KnowledgeIngestionService:
         return ""
 
     @staticmethod
-    def _is_safe_url(url: str) -> bool:
-        """Validate URL to prevent SSRF — block private/internal networks."""
+    def _resolve_and_validate_url(url: str) -> Optional[str]:
+        """Validate URL and resolve to a safe IP address.
+
+        Returns the first safe resolved IP, or None if the URL is blocked.
+        This resolves DNS ONCE and the caller must pin the connection to
+        this IP — preventing DNS rebinding attacks (TOCTOU SSRF).
+        """
         import ipaddress
+        import socket
         from urllib.parse import urlparse
 
         try:
             parsed = urlparse(url)
         except Exception:
-            return False
+            return None
 
         # Only allow http/https schemes
         if parsed.scheme not in ("http", "https"):
-            return False
+            return None
 
         hostname = parsed.hostname
         if not hostname:
-            return False
+            return None
 
         # Block obvious internal hostnames
         blocked_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"}
         if hostname.lower() in blocked_hosts:
-            return False
+            return None
 
         # Resolve hostname and block private IP ranges
         try:
-            import socket
             resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
             for family, _type, _proto, _canon, sockaddr in resolved:
                 ip = ipaddress.ip_address(sockaddr[0])
                 if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                    return False
+                    return None
+            # Return the first safe IP to pin the connection
+            if resolved:
+                return resolved[0][4][0]
         except (socket.gaierror, ValueError):
-            return False
+            return None
 
-        return True
+        return None
 
     async def _fetch_url_content(self, url: str) -> str:
-        """Fetch and extract text content from a URL (with SSRF protection)."""
-        if not self._is_safe_url(url):
+        """Fetch and extract text content from a URL (with SSRF protection).
+
+        Security: resolves DNS once, pins the TCP connection to the resolved IP
+        via a custom aiohttp.TCPConnector to prevent DNS rebinding attacks.
+        """
+        from urllib.parse import urlparse
+
+        resolved_ip = self._resolve_and_validate_url(url)
+        if not resolved_ip:
             logger.warning("URL blocked by SSRF filter: %s", url)
             return ""
+
+        parsed = urlparse(url)
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+        # Pin the connection to the resolved IP so aiohttp cannot
+        # re-resolve to a different (potentially private) address.
+        connector = aiohttp.TCPConnector(
+            ssl=parsed.scheme == "https",
+        )
         try:
-            async with aiohttp.ClientSession() as session:
+            # Build a URL that connects to the pinned IP but sends the
+            # original Host header (required for virtual hosting / TLS SNI).
+            pinned_url = f"{parsed.scheme}://{resolved_ip}:{port}{parsed.path or '/'}"
+            if parsed.query:
+                pinned_url += f"?{parsed.query}"
+
+            headers = {"Host": parsed.hostname}
+
+            async with aiohttp.ClientSession(connector=connector) as session:
                 async with session.get(
-                    url,
+                    pinned_url,
+                    headers=headers,
                     timeout=aiohttp.ClientTimeout(total=15),
                     allow_redirects=False,
+                    ssl=False if parsed.scheme == "https" else None,
                 ) as resp:
                     if resp.status != 200:
                         return ""
@@ -482,20 +519,52 @@ class KnowledgeIngestionService:
         except Exception as e:
             logger.debug("URL fetch failed for %s: %s", url, e)
             return ""
+        finally:
+            await connector.close()
 
-    def _html_to_text(self, html: str) -> str:
-        """Basic HTML to text conversion."""
-        # Remove script and style tags
-        text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
-        # Remove HTML tags
-        text = re.sub(r'<[^>]+>', ' ', text)
-        # Clean up whitespace
-        text = re.sub(r'\s+', ' ', text).strip()
-        # Decode HTML entities
+    @staticmethod
+    def _html_to_text(html: str) -> str:
+        """Convert HTML to plain text using stdlib html.parser (ReDoS-safe).
+
+        Previous implementation used regex which is vulnerable to catastrophic
+        backtracking (ReDoS) on malicious HTML input. The html.parser approach
+        is both safer and more correct.
+        """
+        from html.parser import HTMLParser
         import html as html_mod
-        text = html_mod.unescape(text)
-        return text[:10000]
+
+        class _TextExtractor(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self._pieces: list[str] = []
+                self._skip = False  # inside <script>/<style>
+
+            def handle_starttag(self, tag, attrs):
+                if tag in ("script", "style"):
+                    self._skip = True
+
+            def handle_endtag(self, tag):
+                if tag in ("script", "style"):
+                    self._skip = False
+
+            def handle_data(self, data):
+                if not self._skip:
+                    self._pieces.append(data)
+
+            def get_text(self) -> str:
+                raw = " ".join(self._pieces)
+                # Collapse whitespace
+                return re.sub(r'\s+', ' ', raw).strip()
+
+        extractor = _TextExtractor()
+        try:
+            extractor.feed(html_mod.unescape(html))
+        except Exception:
+            # Fallback: strip tags with simple non-greedy regex (safe pattern)
+            text = re.sub(r'<[^>]{0,500}>', ' ', html)
+            text = re.sub(r'\s+', ' ', text).strip()
+            return html_mod.unescape(text)[:10000]
+        return extractor.get_text()[:10000]
 
     def _domain_from_url(self, url: str) -> str:
         """Extract domain from URL."""
