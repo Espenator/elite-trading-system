@@ -138,14 +138,93 @@ def run() -> dict:
         result["error"] = str(e)
         _emit_metric("outcome_resolution_total", {"status": "error"})
 
-    # 2. Update trade outcomes from DuckDB if available
+    # 2. Scan DuckDB trade_outcomes for resolved trades not yet in outcome_resolver
+    duckdb_synced = 0
     try:
         from app.data.duckdb_storage import duckdb_store
+        from app.modules.ml_engine.outcome_resolver import record_outcome, _get_store
 
+        conn = duckdb_store.get_thread_cursor()
+        rows = conn.execute("""
+            SELECT symbol, direction, entry_date, exit_date, pnl, signal_score
+            FROM trade_outcomes
+            WHERE exit_date IS NOT NULL AND pnl IS NOT NULL
+            ORDER BY exit_date DESC
+            LIMIT 500
+        """).fetchall()
+
+        if rows:
+            # Build set of already-resolved (symbol, signal_date) pairs to avoid duplicates
+            store = _get_store()
+            existing = {
+                (r.get("symbol", ""), r.get("signal_date", ""))
+                for r in (store.get("resolved") or [])
+            }
+
+            for row in rows:
+                symbol, direction, entry_date, exit_date, pnl, signal_score = row
+                sig_date = str(entry_date)
+                if (symbol, sig_date) in existing:
+                    continue
+                # outcome: 1 if profitable, 0 if not
+                outcome = 1 if (pnl or 0) > 0 else 0
+                # prediction: 1 if signal was bullish (buy), 0 if bearish (sell)
+                prediction = 1 if direction == "buy" else 0
+                record_outcome(
+                    symbol=symbol,
+                    signal_date=sig_date,
+                    outcome=outcome,
+                    prediction=prediction,
+                    resolved_at=str(exit_date) if exit_date else None,
+                )
+                duckdb_synced += 1
+
+            if duckdb_synced > 0:
+                log.info("Synced %d trade_outcomes from DuckDB to outcome_resolver", duckdb_synced)
+                # Re-fetch metrics after syncing new outcomes
+                from app.modules.ml_engine.outcome_resolver import get_flywheel_metrics as _refresh
+                refreshed = _refresh()
+                result["resolved_count"] = refreshed.get("resolved_count", result["resolved_count"])
+                result["accuracy_30d"] = refreshed.get("accuracy_30d") or result.get("accuracy_30d")
+                result["accuracy_90d"] = refreshed.get("accuracy_90d") or result.get("accuracy_90d")
+
+        result["duckdb_synced"] = duckdb_synced
         health = duckdb_store.health_check()
         result["duckdb_rows"] = health.get("total_rows", 0)
     except Exception as e:
-        log.debug("DuckDB outcome update skipped: %s", e)
+        log.debug("DuckDB outcome sync skipped: %s", e)
+        result["duckdb_synced"] = 0
+
+    # 3. Re-sync flywheel_data after DuckDB scan (in case new outcomes were added)
+    if duckdb_synced > 0:
+        try:
+            from app.services.database import db_service
+
+            stored = db_service.get_config("flywheel_data") or {}
+            history = list(stored.get("history") or [])
+            acc_30 = result.get("accuracy_30d")
+            acc_90 = result.get("accuracy_90d")
+            entry = {
+                "date": today,
+                "accuracy": round(float(acc_30 or acc_90 or 0), 4),
+            }
+            # Replace today's entry if already appended in step 1
+            history = [h for h in history if h.get("date") != today]
+            history.append(entry)
+            if len(history) > 365:
+                history = history[-365:]
+            updated = {
+                **stored,
+                "accuracy30d": float(acc_30) if acc_30 is not None else stored.get("accuracy30d", 0.0),
+                "accuracy90d": float(acc_90) if acc_90 is not None else stored.get("accuracy90d", 0.0),
+                "resolvedSignals": result["resolved_count"],
+                "pendingResolution": stored.get("pendingResolution", 0),
+                "history": history,
+            }
+            db_service.set_config("flywheel_data", updated)
+            log.info("Re-synced flywheel_data after DuckDB scan (%d new outcomes)", duckdb_synced)
+        except Exception as sync_err:
+            log.warning("Post-DuckDB flywheel_data sync failed: %s", sync_err)
 
     _save_state(today, result)
     _emit_metric("outcome_reconcile_total", {"status": "completed"})
