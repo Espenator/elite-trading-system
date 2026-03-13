@@ -23,10 +23,9 @@ import secrets
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Header, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from app.core.security import require_auth
 
 router = APIRouter(prefix="/api/v1/metrics", tags=["metrics"])
 

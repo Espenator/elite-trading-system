@@ -1847,13 +1847,11 @@ async def consensus_alias():
 # --- Valid WebSocket channels (server-side only publishing) ---
 # Must match WS_ALLOWED_CHANNELS in websocket_manager.py and frontend WS_CHANNELS (config/api.js)
 _VALID_WS_CHANNELS = frozenset({
-    # Frontend channels (match WS_CHANNELS values in frontend-v2/src/config/api.js)
-    "signals", "order", "council", "council_verdict", "risk", "swarm",
-    "kelly", "market", "macro", "agents", "data_sources", "trades",
-    "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
-    # Backend-only channels (server-side publishing)
-    "health", "market_data", "outcomes", "system", "blackboard",
-    "performance", "alerts", "datasources", "briefing",
+    "signal", "signals", "order", "council", "council_verdict",
+    "risk", "swarm", "kelly", "market", "macro", "blackboard",
+    "alerts", "performance", "agents", "data_sources", "datasources",
+    "trades", "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
+    "health", "market_data", "outcomes", "system", "briefing",
 })
 
 # --- WebSocket rate limiting (Audit Task 15) ---

@@ -191,7 +191,14 @@ export default function SettingsPage() {
 
   const onExport = async () => {
     try {
-      const data = await exportSettings();
+      // Try the export endpoint first; fall back to current settings object
+      let data;
+      try {
+        data = await exportSettings();
+      } catch {
+        data = settings;
+      }
+      if (!data) { toast.error("No settings to export", TOAST_CFG); return; }
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -215,6 +222,43 @@ export default function SettingsPage() {
       toast.success("Settings imported successfully", TOAST_CFG);
     } catch {
       toast.error("Import failed - invalid JSON", TOAST_CFG);
+    }
+  };
+
+  // -- Save All handler (shared by top + bottom buttons) --
+  const handleSaveAll = async () => {
+    try {
+      await saveAllSettings();
+      toast.success("All settings saved", TOAST_CFG);
+    } catch {
+      toast.error("Failed to save settings", TOAST_CFG);
+    }
+  };
+
+  // -- Pull Ollama models --
+  const [pullingModels, setPullingModels] = useState(false);
+  const handlePullModels = async () => {
+    const endpoint = get("ollama", "ollamaHostUrl", "http://localhost:11434");
+    if (!ollamaCr.valid) {
+      toast.error("Ollama not connected — test connection first", TOAST_CFG);
+      return;
+    }
+    setPullingModels(true);
+    try {
+      const res = await fetch(`${endpoint}/api/tags`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const names = (data.models || []).map((m) => m.name || m.model).filter(Boolean);
+      if (names.length > 0) {
+        updateField("ollama", "models", names.join(","));
+        toast.success(`Found ${names.length} model(s): ${names.slice(0, 3).join(", ")}${names.length > 3 ? "..." : ""}`, TOAST_CFG);
+      } else {
+        toast.info("No models found on Ollama server", TOAST_CFG);
+      }
+    } catch (err) {
+      toast.error(`Failed to pull models: ${err.message}`, TOAST_CFG);
+    } finally {
+      setPullingModels(false);
     }
   };
 
@@ -268,7 +312,7 @@ export default function SettingsPage() {
           )}
         </div>
         <button
-          onClick={async () => { try { await saveAllSettings(); toast.success("All settings saved", TOAST_CFG); } catch { toast.error("Failed to save settings", TOAST_CFG); } }}
+          onClick={handleSaveAll}
           disabled={saving}
           className="bg-[#00D9FF] hover:bg-[#00D9FF]/80 text-black font-bold text-[11px] px-5 py-1.5 rounded uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5 transition-all hover:shadow-[0_0_12px_rgba(0,217,255,0.4)]"
         >
@@ -282,8 +326,8 @@ export default function SettingsPage() {
 
         {/* 1. IDENTITY & LOCALE */}
         <SectionCard title="Identity & Locale">
-          <MiniField label="Display Name" value={get("user", "displayName", "Espen Schiefloe")} onChange={(e) => updateField("user", "displayName", e.target.value)} />
-          <MiniField label="Email" value={get("user", "email", "espen@embodier.ai")} onChange={(e) => updateField("user", "email", e.target.value)} />
+          <MiniField label="Display Name" value={get("user", "displayName", "")} placeholder="Enter display name" onChange={(e) => updateField("user", "displayName", e.target.value)} />
+          <MiniField label="Email" value={get("user", "email", "")} placeholder="Enter email address" onChange={(e) => updateField("user", "email", e.target.value)} />
           <MiniSelect label="Timezone" value={get("user", "timezone", "America/New_York")} options={[
             { value: "America/New_York", label: "EST" },
             { value: "America/Chicago", label: "CT" },
@@ -312,14 +356,14 @@ export default function SettingsPage() {
         {/* 2. TRADING MODE */}
         <SectionCard title="Trading Mode">
           <div className="flex items-center gap-4 mb-1">
-            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "text-emerald-500" : "text-gray-500"}`}>PAPER</span>
+            <span className={`text-sm transition-all ${get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "font-bold text-emerald-400 drop-shadow-[0_0_4px_rgba(16,185,129,0.5)]" : "font-normal text-gray-600"}`}>PAPER</span>
             <button
               onClick={() => updateField("dataSources", "alpacaBaseUrl", get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "live" : "paper")}
               className={`relative w-14 h-7 rounded-full transition-colors ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "bg-red-500" : "bg-emerald-500"}`}
             >
               <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-transform ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "translate-x-7" : "translate-x-0.5"}`} />
             </button>
-            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "text-red-400" : "text-gray-500"}`}>LIVE</span>
+            <span className={`text-sm transition-all ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "font-bold text-red-400 drop-shadow-[0_0_4px_rgba(239,68,68,0.5)]" : "font-normal text-gray-600"}`}>LIVE</span>
           </div>
           {get("dataSources", "alpacaBaseUrl", "paper") === "live" && (
             <p className="text-[10px] text-emerald-400 mt-1">▲ Live mode = real money</p>
@@ -406,16 +450,16 @@ export default function SettingsPage() {
             <div className="flex items-center gap-1">
               <span className="text-[9px] text-emerald-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Connected</span>
               <span className="text-[9px] text-gray-500 font-mono">UW_882****</span>
-              <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Test]</button>
+              <button onClick={() => onTestConn("unusual_whales")} className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Test]</button>
               <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Edit]</button>
             </div>
           </div>
           <div className="flex items-center justify-between py-0.5">
             <span className="text-[10px] text-gray-400">Polygon.io</span>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-amber-400 flex items-center gap-1">▲ Degraded</span>
+              <span className="text-[9px] text-amber-400 flex items-center gap-1" title="Connection intermittent or rate limited — test to refresh status">▲ Degraded</span>
               <span className="text-[9px] text-gray-500 font-mono">sk-proj-****</span>
-              <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Test]</button>
+              <button onClick={() => onTestConn("polygon")} className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Test]</button>
               <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Edit]</button>
             </div>
           </div>
@@ -506,7 +550,9 @@ export default function SettingsPage() {
               );
             })}
           </div>
-          <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300 mt-0.5">[Pull Models]</button>
+          <button onClick={handlePullModels} disabled={pullingModels} className="text-[9px] text-[#00D9FF] hover:text-cyan-300 mt-0.5 disabled:opacity-50">
+            {pullingModels ? <><Loader2 className="w-2.5 h-2.5 inline animate-spin mr-0.5" /> Pulling...</> : "[Pull Models]"}
+          </button>
           <div className="flex items-center justify-between gap-2 py-[1px] pt-0.5">
             <span className="text-[10px] text-gray-400">Use for</span>
             <input type="text" value={get("ollama", "useFor", "Pattern Analysis")} onChange={(e) => updateField("ollama", "useFor", e.target.value)} placeholder="Pattern Analysis" className="w-24 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
@@ -682,12 +728,12 @@ export default function SettingsPage() {
               <input type="password" placeholder="Current" className="w-16 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none" />
               <input type="password" placeholder="New" className="w-16 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none" />
               <input type="password" placeholder="Confirm" className="w-16 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none" />
-              <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Update]</button>
+              <button onClick={() => toast.info("Password change not yet implemented — use the backend admin panel", TOAST_CFG)} className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Update]</button>
             </div>
           </div>
           <div className="flex gap-2 mb-1">
-            <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Enable TOTP]</button>
-            <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Enable SMS]</button>
+            <button onClick={() => toast.info("TOTP setup not yet implemented", TOAST_CFG)} className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Enable TOTP]</button>
+            <button onClick={() => toast.info("SMS 2FA not yet implemented", TOAST_CFG)} className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Enable SMS]</button>
           </div>
           <div className="flex items-center justify-between py-[1px]">
             <span className="text-[10px] text-gray-400">Encryption</span>
@@ -701,7 +747,7 @@ export default function SettingsPage() {
             <span className="text-[10px] text-gray-400">Last Login</span>
             <span className="text-[9px] text-gray-500">2026-03-01 06:30</span>
           </div>
-          <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300 mt-0.5">[Revoke All]</button>
+          <button onClick={() => { if (window.confirm("Revoke all active sessions? You will be logged out.")) toast.info("Session revocation not yet implemented", TOAST_CFG); }} className="text-[9px] text-red-400 hover:text-red-300 mt-0.5">[Revoke All]</button>
         </SectionCard>
 
         {/* 20. BACKUP & SYSTEM */}
@@ -778,42 +824,7 @@ export default function SettingsPage() {
         </SectionCard>
 
         {/* 24. AUDIT LOG */}
-        <SectionCard title="Audit Log">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[9px]">
-              <thead>
-                <tr className="text-gray-500 border-b border-gray-800/50">
-                  <th className="text-left py-1 font-bold">Time</th>
-                  <th className="text-left py-1 font-bold">Cat</th>
-                  <th className="text-left py-1 font-bold">Actor</th>
-                  <th className="text-left py-1 font-bold">Event</th>
-                </tr>
-              </thead>
-              <tbody className="text-gray-400">
-                {[
-                  { time: "03-01 06:50", cat: "CFG", actor: "Espen", event: "Paper Mode" },
-                  { time: "02-28 18:30", cat: "SEC", actor: "Espen", event: "Login 104.x" },
-                  { time: "02-28 15:05", cat: "RSK", actor: "Auto", event: "VIX Halt" },
-                  { time: "02-27 11:20", cat: "CFG", actor: "Espen", event: "API Keys" },
-                  { time: "02-27 09:15", cat: "SYS", actor: "OClaw", event: "WebSocket" },
-                ].map((row, i) => (
-                  <tr key={i} className="border-b border-gray-800/30">
-                    <td className="py-0.5">{row.time}</td>
-                    <td className="py-0.5">{row.cat}</td>
-                    <td className="py-0.5">{row.actor}</td>
-                    <td className="py-0.5">{row.event}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button
-            onClick={() => setShowFullLog(!showFullLog)}
-            className="mt-1 text-[9px] text-[#00D9FF] hover:text-cyan-300"
-          >
-            [View Full Log]
-          </button>
-        </SectionCard>
+        <CompactAuditLog showFullLog={showFullLog} setShowFullLog={setShowFullLog} />
 
         {/* 25. STRATEGY */}
         <SectionCard title="Strategy">
@@ -847,7 +858,7 @@ export default function SettingsPage() {
           </button>
         </div>
         <button
-          onClick={async () => { try { await saveAllSettings(); toast.success("All settings saved", TOAST_CFG); } catch { toast.error("Failed to save settings", TOAST_CFG); } }}
+          onClick={handleSaveAll}
           disabled={saving}
           className="bg-[#00D9FF] hover:bg-[#00D9FF]/80 text-black font-bold text-[10px] px-5 py-1.5 rounded uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5"
         >
@@ -863,6 +874,57 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// -- Compact Audit Log (fetches from API, shows last 5 entries) --
+function CompactAuditLog({ showFullLog, setShowFullLog }) {
+  const { data: auditData, loading: logLoading } = useApi("settings", { endpoint: "/settings/audit-log" });
+  const logs = auditData?.logs || [];
+  const recent = logs.slice(0, 5);
+
+  const fmtTime = (ts) => {
+    try { const d = new Date(ts); return `${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; }
+    catch { return ts; }
+  };
+
+  return (
+    <SectionCard title="Audit Log">
+      <div className="overflow-x-auto">
+        <table className="w-full text-[9px]">
+          <thead>
+            <tr className="text-gray-500 border-b border-gray-800/50">
+              <th className="text-left py-1 font-bold">Time</th>
+              <th className="text-left py-1 font-bold">Cat</th>
+              <th className="text-left py-1 font-bold">Actor</th>
+              <th className="text-left py-1 font-bold">Event</th>
+            </tr>
+          </thead>
+          <tbody className="text-gray-400">
+            {logLoading ? (
+              <tr><td colSpan={4} className="py-2 text-center"><Loader2 className="w-3 h-3 animate-spin inline mr-1" />Loading...</td></tr>
+            ) : recent.length === 0 ? (
+              <tr><td colSpan={4} className="py-2 text-center text-gray-600">No audit entries</td></tr>
+            ) : (
+              recent.map((log, i) => (
+                <tr key={i} className="border-b border-gray-800/30">
+                  <td className="py-0.5">{fmtTime(log.timestamp)}</td>
+                  <td className="py-0.5 uppercase">{log.action || log.category || "--"}</td>
+                  <td className="py-0.5">{log.actor || "System"}</td>
+                  <td className="py-0.5 truncate max-w-[100px]">{log.detail || log.category || "--"}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button
+        onClick={() => setShowFullLog(!showFullLog)}
+        className="mt-1 text-[9px] text-[#00D9FF] hover:text-cyan-300"
+      >
+        {showFullLog ? "[Hide Full Log]" : `[View Full Log${logs.length > 0 ? ` (${logs.length})` : ""}]`}
+      </button>
+    </SectionCard>
   );
 }
 

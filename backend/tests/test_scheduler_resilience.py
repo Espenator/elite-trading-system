@@ -93,34 +93,25 @@ class TestStartupOrdering:
 
     def test_start_scheduler_registers_six_jobs_when_enabled(self):
         """When SCHEDULER_ENABLED=true, start_scheduler() registers all 6 flywheel jobs."""
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            with patch("app.core.config.settings") as m_settings:
-                m_settings.SCHEDULER_ENABLED = True
-                try:
-                    s = start_scheduler()
-                    if s is not None:
-                        jobs = s.get_jobs()
-                        assert len(jobs) == 6, "Expected 6 scheduled jobs"
-                        ids = {j.id for j in jobs}
-                        expected = {
-                            "daily_outcome_update",
-                            "weekly_walkforward_train",
-                            "champion_challenger_eval",
-                            "daily_backfill",
-                            "overnight_refresh",
-                            "morning_briefing",
-                        }
-                        assert ids == expected, f"Job ids mismatch: {ids}"
-                finally:
-                    try:
-                        stop_scheduler()
-                    except (RuntimeError, AttributeError):
-                        pass  # Event loop teardown race
-        finally:
-            loop.close()
+        with patch("app.core.config.settings") as m_settings:
+            m_settings.SCHEDULER_ENABLED = True
+            try:
+                s = start_scheduler()
+                if s is not None:
+                    jobs = s.get_jobs()
+                    assert len(jobs) == 6, "Expected 6 scheduled jobs"
+                    ids = {j.id for j in jobs}
+                    expected = {
+                        "daily_outcome_update",
+                        "weekly_walkforward_train",
+                        "champion_challenger_eval",
+                        "daily_backfill",
+                        "overnight_refresh",
+                        "morning_briefing",
+                    }
+                    assert ids == expected, f"Job ids mismatch: {ids}"
+            finally:
+                stop_scheduler()
 
     def test_main_lifespan_order_scheduler_after_duckdb(self):
         """Documentation: main.py starts scheduler after DuckDB init and event pipeline."""

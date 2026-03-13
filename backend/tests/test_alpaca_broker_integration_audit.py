@@ -258,8 +258,6 @@ class TestAlpacaBrokerIntegrationAudit:
             return account, positions, orders
 
         account, positions, orders = asyncio.run(_fetch())
-        if account is None:
-            pytest.skip("Alpaca account endpoint unavailable/unauthorized in this environment")
         assert account is not None, "get_account() should return data"
         assert (account.get("status") or "").upper() == "ACTIVE", "Account should be ACTIVE"
         assert positions is not None and isinstance(positions, list)
