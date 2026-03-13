@@ -1,5 +1,6 @@
 """Tests for the 11-agent debate council + arbiter."""
 import pytest
+from unittest.mock import patch
 
 from app.council.schemas import AgentVote, DecisionPacket
 from app.council.arbiter import arbitrate, REQUIRED_AGENTS, VETO_AGENTS
@@ -130,8 +131,14 @@ class TestArbiter:
         assert result.vetoed is False  # strategy is not in VETO_AGENTS
 
     def test_unanimous_buy(self):
-        votes = _full_votes()
-        result = arbitrate("SPY", "1d", "2025-01-01T00:00:00Z", votes)
+        # Patch so arbiter uses static weights; avoid learned_weights/calibration zeroing
+        with patch("app.council.arbiter._get_learned_weights", return_value={}), \
+             patch("app.council.arbiter.get_thompson_sampler") as mock_ts:
+            mock_ts.return_value.should_explore.return_value = False
+            mock_cal = type("Cal", (), {"get_weight_penalty": lambda self, a: 1.0})()
+            with patch("app.council.calibration.get_calibration_tracker", return_value=mock_cal):
+                votes = _full_votes()
+                result = arbitrate("SPY", "1d", "2025-01-01T00:00:00Z", votes)
         assert result.final_direction == "buy"
         assert result.final_confidence > 0.5
         assert result.vetoed is False
@@ -147,12 +154,17 @@ class TestArbiter:
         assert result.final_confidence > 0.5
 
     def test_mixed_votes_majority_wins(self):
-        votes = _full_votes(
-            market_dir="buy", flow_dir="sell", regime_dir="buy",
-            hypothesis_dir="buy", strategy_dir="sell",
-            risk_dir="buy", execution_dir="buy", critic_dir="hold",
-        )
-        result = arbitrate("SPY", "1d", "2025-01-01T00:00:00Z", votes)
+        with patch("app.council.arbiter._get_learned_weights", return_value={}), \
+             patch("app.council.arbiter.get_thompson_sampler") as mock_ts:
+            mock_ts.return_value.should_explore.return_value = False
+            mock_cal = type("Cal", (), {"get_weight_penalty": lambda self, a: 1.0})()
+            with patch("app.council.calibration.get_calibration_tracker", return_value=mock_cal):
+                votes = _full_votes(
+                    market_dir="buy", flow_dir="sell", regime_dir="buy",
+                    hypothesis_dir="buy", strategy_dir="sell",
+                    risk_dir="buy", execution_dir="buy", critic_dir="hold",
+                )
+                result = arbitrate("SPY", "1d", "2025-01-01T00:00:00Z", votes)
         # Buy has more weighted votes
         assert result.final_direction == "buy"
 
@@ -174,12 +186,17 @@ class TestArbiter:
 
     def test_weighted_confidence_calculation(self):
         """Verify confidence is a weighted average."""
-        votes = [
-            _vote("regime", "buy", confidence=0.8, weight=1.2),
-            _vote("risk", "buy", confidence=0.6, weight=1.5),
-            _vote("strategy", "buy", confidence=0.9, weight=1.0),
-        ]
-        result = arbitrate("SPY", "1d", "2025-01-01T00:00:00Z", votes)
+        with patch("app.council.arbiter._get_learned_weights", return_value={}), \
+             patch("app.council.arbiter.get_thompson_sampler") as mock_ts:
+            mock_ts.return_value.should_explore.return_value = False
+            mock_cal = type("Cal", (), {"get_weight_penalty": lambda self, a: 1.0})()
+            with patch("app.council.calibration.get_calibration_tracker", return_value=mock_cal):
+                votes = [
+                    _vote("regime", "buy", confidence=0.8, weight=1.2),
+                    _vote("risk", "buy", confidence=0.6, weight=1.5),
+                    _vote("strategy", "buy", confidence=0.9, weight=1.0),
+                ]
+                result = arbitrate("SPY", "1d", "2025-01-01T00:00:00Z", votes)
         # All vote buy, so confidence = total_buy_weight / total_weight
         assert result.final_direction == "buy"
         assert result.final_confidence > 0.0

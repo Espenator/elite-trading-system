@@ -372,23 +372,10 @@ class ServiceOrchestrator {
   }
 
   /**
-   * Get default services for a role.
+   * Get default services for a role (delegates to device-config / lib/role-services).
    */
   _getServicesForRole(role) {
-    switch (role) {
-      case "full":
-        return ["backend", "frontend", "council", "ml-engine", "event-pipeline", "brain-service", "scanner", "mobile-server"];
-      case "primary":
-        return ["backend", "frontend", "council", "ml-engine", "event-pipeline", "mobile-server"];
-      case "secondary":
-        return ["backend", "frontend", "brain-service", "scanner"];
-      case "brain-only":
-        return ["brain-service"];
-      case "scanner-only":
-        return ["scanner"];
-      default:
-        return ["backend", "frontend"];
-    }
+    return deviceConfig.getServicesForRole ? deviceConfig.getServicesForRole(role) : ["backend", "frontend"];
   }
 
   /**

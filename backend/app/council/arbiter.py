@@ -573,6 +573,11 @@ def arbitrate(
         final_direction = wv_direction
         final_confidence = wv_confidence
         decision_method = f"weighted_vote({weight_source})"
+        # Regime entropy penalty: high entropy = uncertain regime → reduce confidence
+        if regime_entropy and regime_entropy > 0.5:
+            entropy_penalty = max(0.5, 1.0 - (regime_entropy - 0.5) * 0.3)
+            # entropy=0.5 → 1.0x (no penalty), 1.0 → 0.85x, 1.5 → 0.70x, 2.0 → 0.55x (max)
+            final_confidence *= entropy_penalty
 
     # Execution readiness — regime-adaptive threshold
     exec_threshold = _get_execution_threshold(current_regime)
@@ -623,8 +628,9 @@ def arbitrate(
         council_reasoning=reasoning,
     )
 
-    # Attach exploration metadata via experimental_history field
+    # Attach exploration flag for OrderExecutor to size down (50% position)
     if is_exploration:
+        packet.metadata["is_exploration"] = True
         packet.experimental_history.append({
             "type": "thompson_exploration",
             "thompson_sampled_weights": {

@@ -62,6 +62,13 @@ const KNOWN_DEVICES = {
   },
 };
 
+const { getServicesForRole: getServicesForRoleFromLib } = require("./lib/role-services");
+
+/** Role → services mapping (used by orchestrator and peer-monitor for fallback). */
+function getServicesForRole(role) {
+  return getServicesForRoleFromLib(role);
+}
+
 function getSystemInfo() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
@@ -298,6 +305,7 @@ module.exports = {
   setDeviceName,
   getDeviceRole,
   setDeviceRole,
+  getServicesForRole,
   isFirstRun,
   completeSetup,
   getPeerDevices,

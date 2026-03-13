@@ -30,6 +30,8 @@ class ExecutionDenyReason(str, Enum):
     PORTFOLIO_RISK_LIMIT = "portfolio_risk_limit"
     REGIME_BLOCKED = "regime_blocked"
     CIRCUIT_BREAKER = "circuit_breaker"
+    STALE_VERDICT = "stale_verdict"  # decision TTL 30s exceeded
+    HOMEOSTASIS_HALTED = "homeostasis_halted"  # autonomic HALTED mode blocks orders
 
 
 @dataclass
@@ -54,13 +56,14 @@ class ExecutionDecision:
     sizing_metadata: Dict[str, Any]
     risk_checks_passed: bool
     verdict_timestamp: float
-    # Optional for tracing
+    # Optional for tracing (every order must trace to council)
+    council_decision_id: Optional[str] = None
     trace_id: Optional[str] = None
     event_id: Optional[str] = None
 
     def to_order_payload(self, order_id: str = "", client_order_id: str = "") -> Dict[str, Any]:
         """Build the order.submitted event payload from this decision."""
-        return {
+        payload = {
             "order_id": order_id,
             "client_order_id": client_order_id,
             "symbol": self.symbol,
@@ -76,3 +79,6 @@ class ExecutionDecision:
             "sizing_metadata": self.sizing_metadata,
             "sizing_gate_passed": True,
         }
+        if self.council_decision_id:
+            payload["council_decision_id"] = self.council_decision_id
+        return payload

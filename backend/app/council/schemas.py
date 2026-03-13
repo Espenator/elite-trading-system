@@ -159,12 +159,14 @@ class DecisionPacket:
     execution_ready: bool
     council_reasoning: str
     council_decision_id: str = ""  # links to BlackboardState
+    homeostasis_mode: str = "NORMAL"  # AGGRESSIVE | NORMAL | DEFENSIVE | HALTED (from runner)
 
     # ── ETBI Cognitive Extensions ──────────────────────────────────────────
     cognitive: CognitiveMeta = field(default_factory=CognitiveMeta)
     active_hypothesis: Optional[Dict[str, Any]] = None  # hypothesis agent's output
     semantic_context: Optional[Dict[str, Any]] = None  # recalled heuristics/memories
     experimental_history: List[Dict[str, Any]] = field(default_factory=list)  # recent explore outcomes
+    metadata: Dict[str, Any] = field(default_factory=dict)  # e.g. is_exploration for Thompson sizing
 
     def to_dict(self) -> Dict[str, Any]:
         d = {
@@ -181,6 +183,7 @@ class DecisionPacket:
             "council_reasoning": self.council_reasoning,
             "vote_count": len(self.votes),
             "cognitive": self.cognitive.to_dict(),
+            "homeostasis_mode": self.homeostasis_mode,
         }
         if self.council_decision_id:
             d["council_decision_id"] = self.council_decision_id
@@ -190,4 +193,6 @@ class DecisionPacket:
             d["semantic_context"] = self.semantic_context
         if self.experimental_history:
             d["experimental_history"] = self.experimental_history[-10:]  # last 10
+        if self.metadata:
+            d["metadata"] = self.metadata
         return d

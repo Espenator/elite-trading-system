@@ -8,14 +8,11 @@ Monitors system vitals and automatically switches trading modes:
 
 Used by runner.py to load appropriate directives and scale positions.
 
-Usage:
-    from app.council.homeostasis import get_homeostasis
-    monitor = get_homeostasis()
-    mode = monitor.get_mode()
-    scale = monitor.get_position_scale()
+Agent 7: Tracks circuit breaker halt count per day for dashboard / vigilance.
 """
 import logging
 import time
+from datetime import date, timezone
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -35,6 +32,9 @@ class HomeostasisMonitor:
         self._last_check: float = 0
         self._mode: str = "NORMAL"
         self._cache_ttl: float = 10.0  # Recheck every 10s (fast enough for crisis detection)
+        # Agent 7: circuit breaker halt count per calendar day (for dashboard vigilance)
+        self._halt_date: Optional[str] = None  # "YYYY-MM-DD"
+        self._halt_count_today: int = 0
 
     async def check_vitals(self) -> Dict[str, Any]:
         """Returns system state: portfolio heat, agent health, data freshness, drawdown.
@@ -158,6 +158,22 @@ class HomeostasisMonitor:
             "DEFENSIVE": "bearish",
         }.get(self._mode, "unknown")
 
+    def record_circuit_breaker_halt(self) -> None:
+        """Record that the circuit breaker fired (for per-day count / vigilance)."""
+        today = date.today().isoformat()
+        if self._halt_date == today:
+            self._halt_count_today += 1
+        else:
+            self._halt_date = today
+            self._halt_count_today = 1
+
+    def get_halt_count_today(self) -> int:
+        """Return how many times the circuit breaker has fired today (dashboard)."""
+        today = date.today().isoformat()
+        if self._halt_date != today:
+            return 0
+        return self._halt_count_today
+
     def get_status(self) -> Dict[str, Any]:
         """Full status for dashboard."""
         return {
@@ -166,6 +182,7 @@ class HomeostasisMonitor:
             "directive_regime": self.get_directive_regime(),
             "vitals": self._last_vitals,
             "last_check": self._last_check,
+            "circuit_breaker_halts_today": self.get_halt_count_today(),
         }
 
 

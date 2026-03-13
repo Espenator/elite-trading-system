@@ -1,14 +1,16 @@
-"""Agent Self-Awareness System — Bayesian weights, streak detection, health monitoring.
+"""Agent Self-Awareness System — streak detection, health monitoring; weights from WeightLearner.
 
 Components:
-1. BayesianAgentWeights: Beta(alpha, beta) distribution updated from trade outcomes
-2. StreakDetector: Tracks win/loss streaks, PROBATION at 5, HIBERNATION at 10
+1. BayesianAgentWeights: READ-ONLY delegate to WeightLearner (single source of truth).
+   No longer updated from outcomes — avoids dual weight system desync (dopamine loop bug).
+2. StreakDetector: Tracks win/loss streaks, PROBATION at 5, HIBERNATION at 10.
+   Recovery: 5 consecutive wins after HIBERNATION -> ACTIVE.
 3. AgentHealthMonitor: Tracks latency, error rate, last success
 
 Usage:
     from app.council.self_awareness import get_self_awareness
     sa = get_self_awareness()
-    weight = sa.weights.get_weight("market_perception")
+    weight = sa.get_effective_weight("market_perception")  # WeightLearner weight * streak mult
     status = sa.streaks.get_status("risk")
     sa.health.record_run("hypothesis", latency_ms=45.0, success=True)
 """
@@ -27,69 +29,55 @@ CONFIG_KEY_STREAKS = "agent_streaks"
 
 
 # ---------------------------------------------------------------------------
-# 1. Bayesian Agent Weights
+# 1. Bayesian Agent Weights (read-through to WeightLearner — single source of truth)
 # ---------------------------------------------------------------------------
 class BayesianAgentWeights:
-    """Each agent has Beta(alpha, beta) distribution. Updated from trade outcomes.
+    """Weights delegate to WeightLearner to avoid dual weight system desync.
 
-    Weight = mean of Beta = alpha / (alpha + beta)
-    Profitable trade: alpha += 1
-    Losing trade: beta += 1
+    No longer stores or updates its own Beta(alpha, beta). get_weight() returns
+    WeightLearner.get_weight(agent). get_distribution() returns a synthetic view
+    for dashboard compatibility.
     """
 
     def __init__(self):
-        self._weights: Dict[str, tuple] = {}  # agent -> (alpha, beta)
+        self._weights: Dict[str, tuple] = {}  # legacy cache only; prefer weight_learner
         self._load()
 
     def _load(self):
-        """Load from SQLite config store."""
+        """Load legacy cache from SQLite (for backward compatibility only)."""
         data = db_service.get_config(CONFIG_KEY_WEIGHTS)
         if data:
             self._weights = {k: tuple(v) for k, v in data.items()}
 
-    def _save(self):
-        """Persist to SQLite config store."""
-        db_service.set_config(CONFIG_KEY_WEIGHTS, {k: list(v) for k, v in self._weights.items()})
+    def _get_learner_weight(self, agent_name: str) -> float:
+        """Single source of truth: WeightLearner."""
+        try:
+            from app.council.weight_learner import get_weight_learner
+            return get_weight_learner().get_weight(agent_name)
+        except Exception:
+            return 1.0
 
     def get_weight(self, agent_name: str) -> float:
-        """Returns mean of Beta distribution = alpha / (alpha + beta).
-
-        Default prior: Beta(2, 2) = 0.5 (neutral/uninformative).
-        """
-        alpha, beta = self._weights.get(agent_name, (2.0, 2.0))
-        denom = alpha + beta
-        return alpha / denom if denom > 0 else 0.5
+        """Returns WeightLearner weight for this agent (single source of truth)."""
+        return self._get_learner_weight(agent_name)
 
     def get_all_weights(self) -> Dict[str, float]:
-        """Return all agent weights as a dict."""
-        result = {}
-        for agent_name in self._weights:
-            result[agent_name] = self.get_weight(agent_name)
-        return result
-
-    def update(self, agent_name: str, trade_profitable: bool):
-        """Bayesian update: profitable -> alpha+1, loss -> beta+1."""
-        alpha, beta = self._weights.get(agent_name, (2.0, 2.0))
-        if trade_profitable:
-            alpha += 1.0
-        else:
-            beta += 1.0
-        self._weights[agent_name] = (alpha, beta)
-        self._save()
-        logger.debug(
-            "Bayesian update: %s -> Beta(%.1f, %.1f) = %.3f",
-            agent_name, alpha, beta, alpha / (alpha + beta) if (alpha + beta) > 0 else 0.5,
-        )
+        """Return weights for all agents known to WeightLearner."""
+        try:
+            from app.council.weight_learner import get_weight_learner
+            return get_weight_learner().get_weights()
+        except Exception:
+            return dict(self._weights) if self._weights else {}
 
     def get_distribution(self, agent_name: str) -> Dict[str, float]:
-        """Return full distribution info for an agent."""
-        alpha, beta = self._weights.get(agent_name, (2.0, 2.0))
-        denom = alpha + beta
+        """Return synthetic distribution for dashboard (mean = WeightLearner weight)."""
+        mean = self.get_weight(agent_name)
         return {
-            "alpha": alpha,
-            "beta": beta,
-            "mean": alpha / denom if denom > 0 else 0.5,
-            "samples": alpha + beta - 4,  # subtract prior
+            "alpha": 2.0,
+            "beta": 2.0,
+            "mean": mean,
+            "samples": 0,
+            "source": "weight_learner",
         }
 
 
@@ -134,17 +122,50 @@ class StreakDetector:
         info["status"] = self.get_status(agent_name)
         return info
 
+    # Consecutive wins required to recover: PROBATION -> ACTIVE
+    PROBATION_RECOVERY_WINS = 3
+    # Consecutive wins required to recover: HIBERNATION -> PROBATION (then 3 more -> ACTIVE)
+    HIBERNATION_RECOVERY_WINS = 5
+
     def record_outcome(self, agent_name: str, profitable: bool):
-        """Record a trade outcome for streak tracking."""
+        """Record a trade outcome for streak tracking.
+
+        Auto-recovery:
+        - 3 consecutive wins after PROBATION -> ACTIVE.
+        - 5 consecutive wins after HIBERNATION -> PROBATION; then 3 consecutive wins -> ACTIVE.
+        """
         if agent_name not in self._streaks:
             self._streaks[agent_name] = {"loss_streak": 0, "win_streak": 0, "max_loss_streak": 0}
 
         info = self._streaks[agent_name]
+        prev_loss = info.get("loss_streak", 0)
+        was_hibernated = prev_loss >= self.HIBERNATION_THRESHOLD
+        was_probation = self.PROBATION_THRESHOLD <= prev_loss < self.HIBERNATION_THRESHOLD
+
         if profitable:
             info["win_streak"] = info.get("win_streak", 0) + 1
-            info["loss_streak"] = 0
+            win_streak = info["win_streak"]
+
+            if was_hibernated and win_streak >= self.HIBERNATION_RECOVERY_WINS:
+                info["loss_streak"] = self.PROBATION_THRESHOLD
+                info["win_streak"] = 0
+                logger.info(
+                    "Agent %s recovered from HIBERNATION to PROBATION after %d wins",
+                    agent_name, self.HIBERNATION_RECOVERY_WINS,
+                )
+            elif was_probation and win_streak >= self.PROBATION_RECOVERY_WINS:
+                info["loss_streak"] = 0
+                info["win_streak"] = 0
+                logger.info(
+                    "Agent %s recovered from PROBATION to ACTIVE after %d wins",
+                    agent_name, self.PROBATION_RECOVERY_WINS,
+                )
+            elif was_hibernated or was_probation:
+                pass
+            else:
+                info["loss_streak"] = 0
         else:
-            info["loss_streak"] = info.get("loss_streak", 0) + 1
+            info["loss_streak"] = prev_loss + 1
             info["win_streak"] = 0
             info["max_loss_streak"] = max(info.get("max_loss_streak", 0), info["loss_streak"])
 
@@ -238,14 +259,13 @@ class SelfAwareness:
         self.health = AgentHealthMonitor()
 
     def get_effective_weight(self, agent_name: str) -> float:
-        """Get effective weight combining Bayesian and streak multiplier."""
-        bayesian = self.weights.get_weight(agent_name)
+        """Get effective weight: WeightLearner (single source) * streak multiplier."""
+        base_weight = self.weights.get_weight(agent_name)  # delegates to WeightLearner
         streak_mult = self.streaks.get_weight_multiplier(agent_name)
-        return bayesian * streak_mult
+        return base_weight * streak_mult
 
     def record_trade_outcome(self, agent_name: str, profitable: bool):
-        """Record a trade outcome for both Bayesian and streak tracking."""
-        self.weights.update(agent_name, profitable)
+        """Record a trade outcome for streak tracking only. Weights come from WeightLearner."""
         self.streaks.record_outcome(agent_name, profitable)
 
     def should_skip_agent(self, agent_name: str) -> bool:

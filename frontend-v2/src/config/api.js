@@ -19,12 +19,25 @@
  *   Bug #24 (prev):        preTradeCheck needed /{ticker} in path — fixed in useApi.js
  */
 
+/** Derive WebSocket base URL from backend HTTP URL (e.g. http://localhost:8000 → ws://localhost:8000). */
+function _deriveWsFromBackend(backendUrl) {
+  if (!backendUrl || typeof backendUrl !== "string") return "";
+  const s = backendUrl.trim();
+  const secure = /^https:\/\//i.test(s);
+  const u = s.replace(/^https?:\/\//i, "");
+  return u ? (secure ? `wss://${u}` : `ws://${u}`) : "";
+}
+
+// Hardcoded 24/7 defaults so app runs and reconnects without .env (backend 8000, WS same host).
+const _DEFAULT_BACKEND = "http://localhost:8000";
+const _DEFAULT_WS = "ws://localhost:8000";
+
 const API_CONFIG = {
-  // Use empty string in dev so requests go to same origin → Vite proxy forwards to backend (port 8000).
-  // Set VITE_API_URL / VITE_WS_URL when deploying (e.g. https://api.example.com).
-  BASE_URL: import.meta.env.VITE_API_URL ?? "",
+  // Env overrides; fallback to hardcoded backend so app runs automatically.
+  BASE_URL: import.meta.env.VITE_API_URL ?? import.meta.env.VITE_BACKEND_URL ?? _DEFAULT_BACKEND,
   API_PREFIX: "/api/v1",
-  WS_URL: import.meta.env.VITE_WS_URL ?? "",
+  // WS base; fallback to hardcoded so WebSocket reconnects to backend automatically.
+  WS_URL: import.meta.env.VITE_WS_URL ?? _deriveWsFromBackend(import.meta.env.VITE_BACKEND_URL ?? "") || _DEFAULT_WS,
 
   endpoints: {
     // ---- CORE DATA ----
@@ -85,6 +98,11 @@ const API_CONFIG = {
     kellyRanked:      "/signals/kelly-ranked",
     preTradeCheck:    "/strategy/pre-trade-check",
     swarmTopology:    "/agents/swarm-topology",
+    "agents/spawn":   "/agents/spawn",
+    "agents/clone":   "/agents/clone",
+    "agents/swarm/spawn": "/agents/swarm/spawn",
+    "agents/swarm/templates": "/agents/swarm/templates",
+    "agents/kill-all": "/agents/kill-all",
     agentConsensus:   "/agents/consensus",
     conference:       "/agents/conference",
     teams:            "/agents/teams",
@@ -106,6 +124,7 @@ const API_CONFIG = {
     "openclaw/memory":         "/openclaw/memory",
     "risk/config":             "/risk/config",
     "risk/risk-gauges":        "/risk/risk-gauges",
+    "risk/stress-test":        "/risk/stress-test",
     "openclaw/macro/override":  "/openclaw/macro/override",
     "openclaw/health":         "/openclaw/health",
     "risk/risk-score":         "/risk/risk-score",
@@ -120,6 +139,8 @@ const API_CONFIG = {
     "alpaca/activities":"/alpaca/activities",
     "orders/advanced": "/orders/advanced",
     "orders/emergency-stop": "/orders/emergency-stop",
+    "orders/flatten-all": "/orders/flatten-all",
+    "orders/recent": "/orders/recent",
     "riskShield/emergency-action": "/risk-shield/emergency-action",
 
     // ---- ALIGNMENT ENGINE ----
@@ -135,8 +156,19 @@ const API_CONFIG = {
     // ---- COUNCIL ----
     councilEvaluate:  "/council/evaluate",
     councilLatest:    "/council/latest",
+    councilHistory:   "/council/history",
     "council/status": "/council/status",
     councilWeights:   "/council/weights",
+
+    // ---- BRIEFING & TRADINGVIEW ----
+    morningBriefing:     "/briefing/morning",
+    briefingPositions:   "/briefing/positions",
+    weeklyReview:        "/briefing/weekly",
+    briefingWebhookTest: "/briefing/webhook/test",
+    briefingStatus:      "/briefing/status",
+    tradingviewPushSignals: "/tradingview/push-signals",
+    tradingviewConfig:   "/tradingview/config",
+    tradingviewPineScript: "/tradingview/pine-script",
 
     // ---- FEATURE STORE ----
     featuresLatest:   "/features/latest",
@@ -145,9 +177,17 @@ const API_CONFIG = {
     // ---- TRAINING ----
     training:         "/training/",
 
+    // ---- METRICS (pipeline, order executor, auto-execute) ----
+    metrics:          "/metrics",
+    metricsSetAutoExecute: "/metrics/auto-execute",
+    metricsEmergencyFlatten: "/metrics/emergency-flatten",
+
     // ---- DEVICE & SYSTEM ----
     "system/health":  "/system",
     deviceInfo:       "/system/device",
+
+    // ---- STARTUP HEALTH (7-phase full system check) ----
+    startupCheck:     "/health/startup-check",
 
     // ---- CNS ROUTES ----
     cnsHomeostasis:            "/cns/homeostasis/vitals",
@@ -203,6 +243,12 @@ const API_CONFIG = {
     flywheelModels:       "/flywheel/models",
     flywheelLogs:         "/flywheel/logs",
     flywheelFeatures:     "/flywheel/features",
+
+    // ---- BRIEFING / TRADINGVIEW ----
+    briefingMorning:      "/briefing/morning",
+    briefingTradingview:  "/briefing/tradingview",
+    briefingWatchlistExport: "/briefing/watchlist-export",
+    briefingPushWebhook:  "/briefing/push-webhook",
   },
 };
 

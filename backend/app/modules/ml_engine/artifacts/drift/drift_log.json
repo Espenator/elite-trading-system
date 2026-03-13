@@ -1,26 +1,28 @@
 [
   {
-    "timestamp": "2026-03-13T02:18:42.182740+00:00",
+    "timestamp": "2026-03-13T14:15:17.342053+00:00",
     "data_drift_detected": true,
     "performance_drift_detected": true,
     "needs_retrain": true,
     "drifted_features": [
-      "feature_b"
+      "feature_a",
+      "feature_b",
+      "feature_c"
     ],
     "drift_scores": {
-      "feature_a": 0.5209,
-      "feature_b": 0.1156,
-      "feature_c": 0.5648
+      "feature_a": 0.0,
+      "feature_b": 0.0,
+      "feature_c": 0.0
     },
     "psi_scores": {
-      "feature_a": 0.1036,
-      "feature_b": 0.3003,
-      "feature_c": 0.0808
+      "feature_a": 12.434,
+      "feature_b": 12.434,
+      "feature_c": 12.434
     },
-    "current_accuracy": 0.54,
+    "current_accuracy": 0.45,
     "baseline_accuracy": 0.65,
-    "accuracy_delta": -0.11,
-    "message": "PSI drift in 1/3 features: ['feature_b'] | Accuracy decayed -0.110 from baseline 0.650 | RETRAIN TRIGGERED",
+    "accuracy_delta": -0.2,
+    "message": "PSI drift in 3/3 features: ['feature_a', 'feature_b', 'feature_c'] | Accuracy 0.450 below floor 0.52 | RETRAIN TRIGGERED",
     "method": "psi_ks"
   }
 ]

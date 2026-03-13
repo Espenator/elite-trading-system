@@ -139,8 +139,12 @@ class WeightLearner:
         The outcome is recorded later when the trade resolves.
         Phase C: records trade_id and regime for proper attribution.
         """
-        # Phase C: Use decision_id as trade_id for unique matching
-        trade_id = getattr(decision, "decision_id", "") or ""
+        # Phase C: Use decision_id (or council_decision_id) as trade_id for unique matching
+        trade_id = (
+            getattr(decision, "decision_id", "")
+            or getattr(decision, "council_decision_id", "")
+            or ""
+        )
         if not trade_id:
             # Fallback: generate from symbol + timestamp
             trade_id = f"{decision.symbol}:{decision.timestamp}"
@@ -163,9 +167,116 @@ class WeightLearner:
             ],
         }
         self._decision_history.append(record)
-        # Keep only last 500 decisions in memory
+        # Keep only last 500 decisions in memory (DuckDB has full history for fallback)
         if len(self._decision_history) > 500:
             self._decision_history = self._decision_history[-500:]
+
+    def _find_matching_decision(
+        self,
+        trade_id: Optional[str],
+        outcome_id: Optional[str],
+        symbol: str,
+    ) -> Tuple[Optional[Dict[str, Any]], str]:
+        """Find a council decision for outcome matching. Tries in-memory first, then DuckDB.
+
+        Returns (decision_dict or None, source) where source is "memory", "duckdb", or "failed".
+        DuckDB is the canonical store (runner persists every decision) so long-lived trades
+        (e.g. closed 30 days later) can still match.
+        """
+        # 1. Try in-memory (fast path)
+        if trade_id:
+            for d in reversed(self._decision_history):
+                if d.get("trade_id") == trade_id:
+                    try:
+                        from app.core.metrics import counter_inc
+                        counter_inc("learner_decision_match", {"source": "memory"})
+                    except Exception:
+                        pass
+                    return d, "memory"
+        if outcome_id:
+            for d in reversed(self._decision_history):
+                if d.get("trade_id") == outcome_id or d.get("outcome_id") == outcome_id:
+                    try:
+                        from app.core.metrics import counter_inc
+                        counter_inc("learner_decision_match", {"source": "memory"})
+                    except Exception:
+                        pass
+                    return d, "memory"
+        sym_upper = (symbol or "").strip().upper()
+        if sym_upper:
+            for d in reversed(self._decision_history):
+                if (d.get("symbol") or "").strip().upper() == sym_upper:
+                    try:
+                        from app.core.metrics import counter_inc
+                        counter_inc("learner_decision_match", {"source": "memory"})
+                    except Exception:
+                        pass
+                    return d, "memory"
+
+        # 2. Fallback: DuckDB (full history, no 500 cap)
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            cur = duckdb_store.get_thread_cursor()
+            row = None
+            if trade_id:
+                cur.execute(
+                    "SELECT * FROM council_decisions WHERE decision_id = ? LIMIT 1",
+                    [trade_id],
+                )
+                row = cur.fetchone()
+            if not row and outcome_id:
+                cur.execute(
+                    "SELECT * FROM council_decisions WHERE decision_id = ? LIMIT 1",
+                    [outcome_id],
+                )
+                row = cur.fetchone()
+            if not row and sym_upper:
+                cur.execute(
+                    "SELECT * FROM council_decisions WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1",
+                    [sym_upper],
+                )
+                row = cur.fetchone()
+            if row and cur.description:
+                cols = [d[0] for d in cur.description]
+                raw = dict(zip(cols, row))
+                # Map DuckDB row to weight_learner decision shape
+                agent_votes_raw = raw.get("agent_votes")
+                votes = []
+                if agent_votes_raw:
+                    try:
+                        parsed = json.loads(agent_votes_raw) if isinstance(agent_votes_raw, str) else agent_votes_raw
+                        for v in parsed:
+                            votes.append({
+                                "agent_name": v.get("agent", v.get("agent_name", "")),
+                                "direction": v.get("vote", v.get("direction", "hold")),
+                                "confidence": float(v.get("confidence", 0.5)),
+                                "weight": float(v.get("weight", 1.0)),
+                            })
+                    except (TypeError, ValueError):
+                        pass
+                decision = {
+                    "trade_id": raw.get("decision_id", ""),
+                    "symbol": raw.get("symbol", symbol),
+                    "timestamp": raw.get("timestamp"),
+                    "final_direction": raw.get("final_verdict", raw.get("final_direction", "hold")),
+                    "final_confidence": float(raw.get("final_confidence", 0.5)),
+                    "regime": raw.get("regime", "UNKNOWN") or "UNKNOWN",
+                    "votes": votes,
+                }
+                try:
+                    from app.core.metrics import counter_inc
+                    counter_inc("learner_decision_match", {"source": "duckdb"})
+                except Exception:
+                    pass
+                return decision, "duckdb"
+        except Exception as e:
+            logger.debug("WeightLearner: DuckDB decision lookup failed: %s", e)
+        try:
+            from app.core.metrics import counter_inc
+            counter_inc("learner_decision_match", {"source": "failed"})
+        except Exception:
+            pass
+        return None, "failed"
 
     def _validate_learner_input(
         self,
@@ -374,29 +485,12 @@ class WeightLearner:
             logger.debug("WeightLearner: outcome censored, skipping weight update for %s", symbol)
             return self._weights
 
-        # Phase C: Match by trade_id first (unique), then outcome_id, fall back to symbol match
-        matched = None
-        if trade_id:
-            for d in reversed(self._decision_history):
-                if d.get("trade_id") == trade_id:
-                    matched = d
-                    break
-        if not matched and outcome_id:
-            # Callers may pass trade_id as outcome_id — check both fields
-            for d in reversed(self._decision_history):
-                if d.get("trade_id") == outcome_id or d.get("outcome_id") == outcome_id:
-                    matched = d
-                    break
-        if not matched:
-            sym_upper = symbol.strip().upper()
-            for d in reversed(self._decision_history):
-                if d["symbol"].strip().upper() == sym_upper:
-                    matched = d
-                    break
-
+        # Match decision: in-memory first (fast), then DuckDB fallback (full history)
+        matched, match_source = self._find_matching_decision(trade_id, outcome_id, symbol)
         if not matched:
             logger.debug(
-                "WeightLearner: no decision history for %s, skipping", symbol
+                "WeightLearner: no decision history for %s (trade_id=%s), skipping",
+                symbol, trade_id or outcome_id,
             )
             return self._weights
 

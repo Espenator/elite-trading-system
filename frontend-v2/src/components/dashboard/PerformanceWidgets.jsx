@@ -126,7 +126,7 @@ function heatmapCellStyle(value) {
   return             { bg: 'rgba(239,68,68,0.42)',  text: '#f87171', label: `${value.toFixed(1)}%` };
 }
 
-export function ReturnsHeatmapCalendar({ data = [], className = '' }) {
+export function ReturnsHeatmapCalendar({ data = [], className = '', onCellClick }) {
   // Build lookup: { year: { month: return_pct } }
   const lookup = {};
   const yearsSet = new Set();
@@ -183,7 +183,11 @@ export function ReturnsHeatmapCalendar({ data = [], className = '' }) {
               return (
                 <div
                   key={month}
-                  className="flex items-center justify-center rounded-sm"
+                  role={onCellClick ? 'button' : undefined}
+                  tabIndex={onCellClick ? 0 : undefined}
+                  onClick={onCellClick ? () => onCellClick(year, month) : undefined}
+                  onKeyDown={onCellClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onCellClick(year, month); } : undefined}
+                  className={`flex items-center justify-center rounded-sm ${onCellClick ? 'cursor-pointer hover:ring-1 hover:ring-cyan-500/50' : ''}`}
                   style={{
                     backgroundColor: bg,
                     color: text,
@@ -192,7 +196,7 @@ export function ReturnsHeatmapCalendar({ data = [], className = '' }) {
                     lineHeight: 1,
                     transition: 'background-color 0.2s ease',
                   }}
-                  title={`${year} ${MONTH_ABBRS[mIdx]}: ${val !== null ? `${val > 0 ? '+' : ''}${val.toFixed(2)}%` : 'No data'}`}
+                  title={`${year} ${MONTH_ABBRS[mIdx]}: ${val !== null ? `${val > 0 ? '+' : ''}${val.toFixed(2)}%` : 'No data'}${onCellClick ? ' — Click for day\'s trades' : ''}`}
                 >
                   {label}
                 </div>

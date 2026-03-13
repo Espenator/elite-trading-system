@@ -311,6 +311,47 @@ async def session_scanner_status():
 
 
 # ---------------------------------------------------------------------------
+# /swarm-status  — Data swarm session + which sources are firing (post-market check)
+# ---------------------------------------------------------------------------
+@router.get("/swarm-status")
+async def swarm_status():
+    """
+    Return current trading session and which data sources should be firing.
+    Use this to confirm post-market (4 PM–8 PM ET): Alpaca, UW (no flow), FinViz all active.
+    """
+    import os
+    try:
+        from app.services.data_swarm import get_session_clock, get_health_monitor
+        clock = get_session_clock()
+        session = clock.get_current_session()
+        active = clock.get_active_sources()
+        health = get_health_monitor()
+        session_value = session.value if hasattr(session, "value") else str(session)
+        firing = [k for k, v in active.items() if v]
+        not_firing = [k for k, v in active.items() if not v]
+        return {
+            "session": session_value,
+            "active_sources": active,
+            "sources_firing": firing,
+            "sources_idle": not_firing,
+            "collector_health": health.get_status(),
+            "data_freshness_symbols": list(health.get_freshness().keys())[:20],
+            "swarm_enabled": os.getenv("DATA_SWARM_ENABLED", "").lower() in ("1", "true", "yes"),
+            "message": f"Session={session_value}. Firing: {len(firing)} sources.",
+        }
+    except Exception as e:
+        log.debug("swarm-status failed: %s", e)
+        return {
+            "session": "unknown",
+            "active_sources": {},
+            "sources_firing": [],
+            "sources_idle": [],
+            "swarm_enabled": False,
+            "error": str(e),
+        }
+
+
+# ---------------------------------------------------------------------------
 # /device  — Device identity for multi-PC setups
 # ---------------------------------------------------------------------------
 @router.get("/device")

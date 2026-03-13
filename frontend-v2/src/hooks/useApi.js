@@ -207,6 +207,17 @@ export function useApi(endpoint, options = {}) {
     return () => clearInterval(id);
   }, [enabled, pollIntervalMs, fetchData]);
 
+  // 24/7 recovery: when API was down (error set) and we use polling, retry every 5s until back up
+  const RECOVERY_RETRY_MS = 5000;
+  useEffect(() => {
+    if (!enabled || !error || pollIntervalMs <= 0) return;
+    const id = setInterval(() => {
+      if (!visibleRef.current) return;
+      fetchData(abortRef.current?.signal);
+    }, RECOVERY_RETRY_MS);
+    return () => clearInterval(id);
+  }, [enabled, error, pollIntervalMs, fetchData]);
+
   const refetch = useCallback(() => {
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();

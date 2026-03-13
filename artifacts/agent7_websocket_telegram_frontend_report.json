@@ -1,0 +1,21 @@
+{
+  "agent": "websocket_telegram_frontend",
+  "ws_connects": false,
+  "ws_receives_verdict": false,
+  "ws_verdict_schema_valid": true,
+  "ws_verdict_latency_ms": 0,
+  "ws_circuit_breaker_message": true,
+  "telegram_bot_alive": false,
+  "telegram_message_sent": false,
+  "telegram_trade_alerts_wired": false,
+  "api_council_status": true,
+  "api_positions": true,
+  "api_performance": true,
+  "api_agent_health": true,
+  "api_agent_weights": true,
+  "blackboard_read_only_for_ui": true,
+  "decision_ttl_expires_at_30s": true,
+  "errors": [
+    "telegram: TELEGRAM_BOT_TOKEN not set (skip getMe/sendMessage)"
+  ]
+}

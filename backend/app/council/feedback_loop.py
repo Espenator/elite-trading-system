@@ -9,9 +9,10 @@ Flow:
   3. update_agent_weights() — recomputes weights from accuracy history
   4. get_agent_performance() — returns per-agent accuracy stats
 
-The feedback loop updates the 'council' settings category in the settings
-service, so weight changes persist and take effect on the next evaluation.
+Decision store: in-memory rolling window (500) for speed; DuckDB council_decisions
+is the canonical full history so outcomes can match decisions from long-lived trades.
 """
+import json
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
@@ -27,7 +28,56 @@ CONFIG_KEY = "council_feedback"
 #   "agent_stats": { agent_name: { correct: N, incorrect: N, total: N, accuracy: float } },
 # }
 
-MAX_DECISIONS = 500  # Rolling window
+MAX_DECISIONS = 500  # Rolling window (DuckDB has full history for fallback)
+
+
+def _get_decision_from_duckdb(trade_id: Optional[str], symbol: str) -> Optional[Dict[str, Any]]:
+    """Look up a council decision from DuckDB (canonical store). Used when in-memory list truncated."""
+    if not trade_id and not (symbol and symbol.strip()):
+        return None
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        cur = duckdb_store.get_thread_cursor()
+        row = None
+        if trade_id:
+            cur.execute(
+                "SELECT * FROM council_decisions WHERE decision_id = ? LIMIT 1",
+                [trade_id],
+            )
+            row = cur.fetchone()
+        if not row and symbol and symbol.strip():
+            cur.execute(
+                "SELECT * FROM council_decisions WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1",
+                [symbol.strip().upper()],
+            )
+            row = cur.fetchone()
+        if not row or not cur.description:
+            return None
+        cols = [d[0] for d in cur.description]
+        raw = dict(zip(cols, row))
+        agent_votes_raw = raw.get("agent_votes")
+        votes = []
+        if agent_votes_raw:
+            try:
+                parsed = json.loads(agent_votes_raw) if isinstance(agent_votes_raw, str) else agent_votes_raw
+                for v in parsed:
+                    votes.append({
+                        "agent": v.get("agent", v.get("agent_name", "")),
+                        "direction": v.get("vote", v.get("direction", "hold")),
+                        "confidence": v.get("confidence", 0.5),
+                    })
+            except (TypeError, ValueError):
+                pass
+        return {
+            "symbol": (raw.get("symbol") or symbol or "").upper(),
+            "timestamp": raw.get("timestamp"),
+            "final_direction": raw.get("final_verdict", raw.get("final_direction", "hold")),
+            "trade_id": raw.get("decision_id"),
+            "votes": votes,
+        }
+    except Exception as e:
+        logger.debug("Feedback loop: DuckDB decision lookup failed: %s", e)
+        return None
 
 
 def _get_store() -> Dict[str, Any]:
@@ -47,6 +97,7 @@ def record_decision(
     final_direction: str,
     votes: List[Dict[str, Any]],
     trade_id: Optional[str] = None,
+    council_decision_id: Optional[str] = None,
 ) -> None:
     """Record a council decision for later feedback matching.
 
@@ -55,6 +106,7 @@ def record_decision(
         final_direction: Council's final direction ("buy"/"sell"/"hold")
         votes: List of vote dicts with {agent_name, direction, confidence, weight}
         trade_id: Optional trade ID for matching to outcome
+        council_decision_id: Council decision ID for LLM calibration outcome matching
     """
     store = _get_store()
     decisions = store.get("decisions", [])
@@ -64,6 +116,7 @@ def record_decision(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "final_direction": final_direction,
         "trade_id": trade_id,
+        "council_decision_id": council_decision_id,
         "votes": [
             {
                 "agent": v.get("agent_name", v.get("agent", "")),
@@ -110,22 +163,35 @@ def record_outcome(
     })
     store["outcomes"] = outcomes[-MAX_DECISIONS:]
 
-    # Find the matching decision — prefer exact trade_id match
+    # Find the matching decision: in-memory first, then DuckDB (full history)
     decisions = store.get("decisions", [])
     matching = None
     for d in reversed(decisions):
         if trade_id and d.get("trade_id") == trade_id:
             matching = d
             break
-    # Fallback: match by symbol only if no trade_id provided
     if not matching and not trade_id:
         for d in reversed(decisions):
             if d.get("symbol") == symbol.upper() and d.get("final_direction") != "hold":
                 matching = d
                 break
+    if not matching:
+        matching = _get_decision_from_duckdb(trade_id, symbol)
 
     if matching:
         _update_agent_stats(store, matching, outcome)
+        # LLM calibration: match outcome to hypothesis prediction and update tier accuracy
+        try:
+            from app.services.llm_calibration import record_llm_outcome
+            record_llm_outcome(
+                trade_id=trade_id,
+                council_decision_id=matching.get("council_decision_id"),
+                symbol=symbol.upper(),
+                outcome_direction=outcome,
+                r_multiple=r_multiple,
+            )
+        except Exception as e:
+            logger.debug("LLM calibration record_llm_outcome failed: %s", e)
         logger.info(
             "Feedback loop: %s %s -> %s (R=%.2f). Agent stats updated.",
             symbol, matching["final_direction"], outcome, r_multiple,
@@ -210,6 +276,7 @@ def update_agent_weights(
                     pnl=pnl,
                     r_multiple=r_multiple,
                     confidence=confidence,
+                    trade_id=trade_id,
                     outcome_id=trade_id,
                 )
                 logger.info(

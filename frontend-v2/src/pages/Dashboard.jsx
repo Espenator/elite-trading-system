@@ -1,15 +1,15 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import log from "@/utils/logger";
-import { useApi } from "../hooks/useApi";
+import { useApi, fetchCouncilEvaluate, useCouncilLatest } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
 
-// --- TOP TICKER STRIP (scrolling market tickers) ---
-const TickerStrip = ({ indices, signals }) => {
+// --- TOP TICKER STRIP (scrolling market tickers); click symbol to select ---
+const TickerStrip = ({ indices, signals, onSelectSymbol }) => {
   // indices is normalized in Dashboard to a symbol-keyed map: { SPX: { value, change }, ... }
   const tickers = useMemo(() => {
     const items = [];
@@ -40,14 +40,16 @@ const TickerStrip = ({ indices, signals }) => {
         });
       }
     });
-    // Add top signals as tickers if not already present
+    // Add top signals as tickers if not already present (use null so UI shows — when no data)
     if (signals?.length) {
       signals.slice(0, 12).forEach((sig) => {
         if (!items.find((t) => t.symbol === sig.symbol)) {
+          const entry = sig.entry ?? sig.price ?? null;
+          const ch = sig.momentum ?? sig.changePct ?? null;
           items.push({
             symbol: sig.symbol,
-            price: sig.entry ?? sig.price ?? null,
-            change: sig.momentum ?? sig.changePct ?? 0,
+            price: entry != null && entry !== "" ? Number(entry) : null,
+            change: ch != null && ch !== "" ? Number(ch) : null,
           });
         }
       });
@@ -69,9 +71,11 @@ const TickerStrip = ({ indices, signals }) => {
                 ? "text-[#10b981]"
                 : "text-[#ef4444]";
           return (
-            <span
+            <button
               key={`${t.symbol}-${i}`}
-              className="inline-flex items-center gap-1.5 text-[10px] font-mono"
+              type="button"
+              onClick={() => onSelectSymbol?.(t.symbol)}
+              className="inline-flex items-center gap-1.5 text-[10px] font-mono hover:bg-white/5 rounded px-1 py-0.5 transition-colors cursor-pointer"
             >
               <span className="text-[#94a3b8] font-bold">{t.symbol}</span>
               <span className="text-white">
@@ -89,7 +93,7 @@ const TickerStrip = ({ indices, signals }) => {
                   ? `${isPositive ? "+" : ""}${typeof t.change === "number" ? t.change.toFixed(2) : t.change}%`
                   : "\u2014"}
               </span>
-            </span>
+            </button>
           );
         })}
       </div>
@@ -371,35 +375,54 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
 
 
 
-// --- MINI EQUITY CURVE (SVG Sparkline) ---
+// --- SKELETON LOADER (no mock data) ---
+const Skeleton = ({ className = "" }) => (
+  <div className={`animate-pulse bg-[#1e293b] rounded ${className}`} />
+);
+
+// --- MINI EQUITY CURVE (SVG Sparkline, memoized by values) ---
 const MiniEquityCurve = ({ points }) => {
   const pad = 4;
   const w = 280;
   const h = 40;
-  const values = (points || []).map((p) => Number(p?.value ?? p?.equity ?? p?.y ?? 0)).filter((v) => !Number.isNaN(v));
+  const values = useMemo(() => (points || []).map((p) => Number(p?.value ?? p?.equity ?? p?.y ?? 0)).filter((v) => !Number.isNaN(v)), [points]);
+  const { coords, minV, maxV, range, first, last, change, color } = useMemo(() => {
+    if (!values.length || values.length < 2)
+      return { coords: null, minV: 0, maxV: 0, range: 1, first: null, last: null, change: null, color: "#10b981" };
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const range = maxV - minV || 1;
+    const coords = values.map((v, i) => {
+      const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
+      const y = pad + (1 - (v - minV) / range) * (h - 2 * pad);
+      return `${x},${y}`;
+    });
+    const last = values[values.length - 1];
+    const first = values[0];
+    const change = last - first;
+    return { coords, minV, maxV, range, first, last, change, color: change >= 0 ? "#10b981" : "#ef4444" };
+  }, [values]);
+
   if (!values.length || values.length < 2) {
-    const initEquity = points?.[0]?.value ?? points?.[0]?.equity ?? 100000;
+    const initEquity = points?.[0]?.value ?? points?.[0]?.equity ?? null;
+    if (initEquity == null && (!points || points.length === 0))
+      return (
+        <div className="space-y-1">
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      );
     return (
       <div>
-        <div className="text-[8px] text-[#64748b] text-center font-mono mb-1">Initial: ${Number(initEquity).toLocaleString()}</div>
+        <div className="text-[8px] text-[#64748b] text-center font-mono mb-1">
+          {initEquity != null ? `Initial: $${Number(initEquity).toLocaleString()}` : "\u2014"}
+        </div>
         <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="w-full">
           <line x1={pad} y1={h / 2} x2={w - pad} y2={h / 2} stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 2" />
         </svg>
       </div>
     );
   }
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const range = maxV - minV || 1;
-  const coords = values.map((v, i) => {
-    const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
-    const y = pad + (1 - (v - minV) / range) * (h - 2 * pad);
-    return `${x},${y}`;
-  });
-  const last = values[values.length - 1];
-  const first = values[0];
-  const change = last - first;
-  const color = change >= 0 ? "#10b981" : "#ef4444";
   return (
     <div>
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="w-full">
@@ -423,18 +446,14 @@ const MiniEquityCurve = ({ points }) => {
         />
       </svg>
       <div className="flex justify-between text-[8px] font-mono px-1 mt-0.5">
-        <span className="text-[#94a3b8]">
+        <span className="text-[#94a3b8] kpi-num">
           ${first.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </span>
-        <span
-          className={
-            change >= 0 ? "text-green-400 font-bold" : "text-red-400 font-bold"
-          }
-        >
+        <span className={change >= 0 ? "text-green-400 font-bold kpi-num" : "text-red-400 font-bold kpi-num"}>
           {change >= 0 ? "+" : ""}
           {change.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </span>
-        <span className="text-white">
+        <span className="text-white kpi-num">
           ${last.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </span>
       </div>
@@ -565,10 +584,11 @@ const FlywheelPipeline = ({ flywheel }) => {
     { label: "Predict", key: "accuracy30d", icon: "\u26a1", color: "#f59e0b" },
     { label: "Evaluate", key: "accuracy90d", icon: "\u2714", color: "#10b981" },
   ];
-  const acc30 = flywheel?.accuracy30d ?? flywheel?.accuracy ?? 0;
-  const acc90 = flywheel?.accuracy90d ?? 0;
+  // accuracy30d/90d are 0–1; accuracy from API is already 0–100
+  const acc30Pct = flywheel?.accuracy30d != null ? Number(flywheel.accuracy30d) * 100 : (flywheel?.accuracy != null ? Number(flywheel.accuracy) : null);
+  const acc90Pct = flywheel?.accuracy90d != null ? Number(flywheel.accuracy90d) * 100 : null;
   const resolved = flywheel?.resolvedSignals ?? 0;
-  const isActive = acc30 > 0 || resolved > 0;
+  const isActive = (acc30Pct != null && acc30Pct > 0) || resolved > 0;
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -601,14 +621,14 @@ const FlywheelPipeline = ({ flywheel }) => {
           <span className="text-[#94a3b8]">30d Acc</span>
           <br />
           <span className="text-[#00D9FF] font-bold">
-            {acc30 ? `${(acc30 * 100).toFixed(1)}%` : "\u2014"}
+            {acc30Pct != null ? `${Number(acc30Pct).toFixed(1)}%` : "\u2014"}
           </span>
         </div>
         <div>
           <span className="text-[#94a3b8]">90d Acc</span>
           <br />
           <span className="text-[#00D9FF] font-bold">
-            {acc90 ? `${(acc90 * 100).toFixed(1)}%` : "\u2014"}
+            {acc90Pct != null ? `${Number(acc90Pct).toFixed(1)}%` : "\u2014"}
           </span>
         </div>
         <div>
@@ -655,11 +675,10 @@ const HeatmapGrid = ({ signals }) => {
 
   if (!signals || !signals.length) return null;
 
-  // Color interpolation: score 0-100 maps to red(0) -> yellow(50) -> green(100)
+  // Color interpolation: score 0-100; red minimum brightness #ef4444 (239,68,68)
   const getHeatColor = (score) => {
     const s = Math.min(100, Math.max(0, score || 0));
     if (s >= 70) {
-      // green range: interpolate from yellow to bright green
       const t = (s - 70) / 30;
       const r = Math.round(245 * (1 - t));
       const g = Math.round(158 + 97 * t);
@@ -667,18 +686,17 @@ const HeatmapGrid = ({ signals }) => {
       return `rgb(${r},${g},${b})`;
     }
     if (s >= 40) {
-      // yellow range
       const t = (s - 40) / 30;
       const r = Math.round(239 + 6 * t);
       const g = Math.round(68 + 90 * t);
       const b = Math.round(68 - 57 * t);
       return `rgb(${r},${g},${b})`;
     }
-    // red range
+    // red range: min brightness #ef4444
     const t = s / 40;
-    const r = Math.round(127 + 112 * t);
+    const r = Math.round(239);
     const g = Math.round(29 + 39 * t);
-    const b = Math.round(29 + 39 * t);
+    const b = Math.round(68);
     return `rgb(${r},${g},${b})`;
   };
 
@@ -734,11 +752,11 @@ const HeatmapGrid = ({ signals }) => {
                   }}
                   title={`${sig.symbol}: Score ${sig.score}, ${sig.direction}`}
                 >
-                  <span className="text-[7px] font-mono font-bold text-white leading-none">
+                  <span className="text-[7px] font-mono font-bold text-white leading-none heatmap-text">
                     {sig.symbol}
                   </span>
                   <span
-                    className="text-[7px] font-mono font-bold leading-none"
+                    className="text-[7px] font-mono font-bold leading-none heatmap-text"
                     style={{ color: getHeatColor(sig.score) }}
                   >
                     {sig.score}
@@ -773,13 +791,76 @@ const SORT_PILLS = [
 ];
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 
+const SCORE_FILTERS = [
+  { id: "all", label: "All", min: 0, max: 100 },
+  { id: "85+", label: "85+", min: 85, max: 100 },
+  { id: "70+", label: "70+", min: 70, max: 100 },
+  { id: "50+", label: "50+", min: 50, max: 100 },
+  { id: "<50", label: "<50", min: 0, max: 49 },
+];
+
+// Column header key -> sort pill key for table sort
+const TABLE_SORT_COLUMNS = [
+  { label: "Sym", sortKey: null },
+  { label: "Dir", sortKey: null },
+  { label: "Score", sortKey: "Composite Score" },
+  { label: "Regime", sortKey: null },
+  { label: "ML", sortKey: "ML Probability" },
+  { label: "Sent", sortKey: "Sentiment" },
+  { label: "Tech", sortKey: "Technical Rank" },
+  { label: "Agent", sortKey: null },
+  { label: "Swarm", sortKey: "Swarm Leader" },
+  { label: "SHAP", sortKey: "SHAP Impact" },
+  { label: "Kelly", sortKey: "Kelly Optimal" },
+  { label: "Entry", sortKey: null },
+  { label: "Tgt", sortKey: null },
+  { label: "Stop", sortKey: null },
+  { label: "R-Mult", sortKey: "Risk-Reward" },
+  { label: "P&L", sortKey: null },
+  { label: "Sec", sortKey: "Sector Rotation" },
+  { label: "Mom", sortKey: "Momentum" },
+  { label: "Vol", sortKey: "Volume Surge" },
+  { label: "News", sortKey: null },
+  { label: "Pat", sortKey: null },
+];
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   // --- STATE ---
   const [activeSortKey, setActiveSortKey] = useState("Composite Score");
-  const [selectedSymbol, setSelectedSymbol] = useState("SPY"); // default so Price Action chart loads
+  const [selectedSymbol, setSelectedSymbol] = useState(() => {
+    const q = searchParams.get("symbol");
+    return (q && q.trim().toUpperCase()) || null;
+  });
+  const [symbolSearch, setSymbolSearch] = useState(""); // user-typed symbol for search box
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
+  const [scoreFilter, setScoreFilter] = useState("all"); // all | 85+ | 70+ | 50+ | <50
+  const [councilVerdictSymbol, setCouncilVerdictSymbol] = useState(null); // cyan glow row
+  const councilGlowRef = useRef(null);
+
+  // Sync selected symbol from URL (?symbol=XXX) when navigating from Header search
+  useEffect(() => {
+    const q = searchParams.get("symbol");
+    const sym = q?.trim().toUpperCase();
+    if (sym && sym !== selectedSymbol) setSelectedSymbol(sym);
+  }, [searchParams]);
+
+  // Metrics (must be declared before any effect that uses metricsData)
+  const { data: metricsData, refetch: refetchMetrics } = useApi("metrics", { pollIntervalMs: 15000 });
+
+  // Sync auto-execute (Manual vs Automated) from backend metrics
+  useEffect(() => {
+    const oe = metricsData?.order_executor;
+    if (oe && typeof oe.auto_execute === "boolean") setAutoExec(oe.auto_execute);
+  }, [metricsData?.order_executor?.auto_execute]);
+
+  const setSelectedSymbolAndUrl = useCallback((sym) => {
+    const s = (sym && sym.trim().toUpperCase()) || "";
+    if (!s) return;
+    navigate(`/symbol/${encodeURIComponent(s)}`);
+  }, [navigate]);
 
   // --- WebSocket connection (Layout handles this now, but keep as safety net) ---
   useEffect(() => {
@@ -788,39 +869,42 @@ export default function Dashboard() {
   }, []);
 
   // --- API HOOKS (Real-time polling) ---
-  // Intervals tuned to prevent request flooding (max ~2 req/s combined)
+  const { data: apiStatusData, error: apiStatusError, refetch: refetchStatus } = useApi("status", { pollIntervalMs: 10000 });
+
   const {
     data: signalsData,
     loading: sigLoading,
     error: sigErr,
     isStale: sigStale,
+    refetch: refetchSignals,
   } = useApi("signals", {
     pollIntervalMs: 15000,
     endpoint: `/signals/?timeframe=${encodeURIComponent(activeTimeframe)}`,
   });
-  const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 });
-  const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 15000 });
-  const { data: indicesData, error: indicesErr } = useApi("marketIndices", {
+  const { data: kellyData, error: kellyErr, refetch: refetchKelly } = useApi("kellyRanked", { pollIntervalMs: 30000 });
+  const { data: portfolioData, error: portfolioErr, refetch: refetchPortfolio } = useApi("portfolio", { pollIntervalMs: 15000 });
+  const { data: indicesData, error: indicesErr, refetch: refetchIndices } = useApi("marketIndices", {
     pollIntervalMs: 15000,
   });
-  const { data: openclawData, error: openclawErr } = useApi("openclaw", { pollIntervalMs: 30000 });
-  const { data: performanceData } = useApi("performance", {
+  const { data: openclawData, error: openclawErr, refetch: refetchOpenclaw } = useApi("openclaw", { pollIntervalMs: 30000 });
+  const { data: performanceData, refetch: refetchPerformance } = useApi("performance", {
     pollIntervalMs: 60000,
   });
   const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
-  const { data: consensusData } = useApi("agentConsensus", { pollIntervalMs: 20000 });
-  const { data: performanceEquityData } = useApi("performanceEquity", { pollIntervalMs: 30000 });
-  const { data: riskScoreData } = useApi("riskScore", {
+  const { data: consensusData, refetch: refetchConsensus } = useApi("agentConsensus", { pollIntervalMs: 20000 });
+  const { data: performanceEquityData, refetch: refetchPerformanceEquity } = useApi("performanceEquity", { pollIntervalMs: 30000 });
+  const { data: riskScoreData, refetch: refetchRiskScore } = useApi("riskScore", {
     pollIntervalMs: 30000,
   });
-  const { data: alertsData } = useApi("systemAlerts", {
+  const { data: alertsData, refetch: refetchAlerts } = useApi("systemAlerts", {
     pollIntervalMs: 30000,
   });
-  const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 60000 });
-  const { data: sentimentData } = useApi("sentiment", {
+  const { data: flywheelData, refetch: refetchFlywheel } = useApi("flywheel", { pollIntervalMs: 60000 });
+  const { data: sentimentData, refetch: refetchSentiment } = useApi("sentiment", {
     pollIntervalMs: 30000,
   });
-  const { data: cognitiveData } = useApi("cognitiveDashboard", { pollIntervalMs: 30000 });
+  const { data: cognitiveData, refetch: refetchCognitive } = useApi("cognitiveDashboard", { pollIntervalMs: 30000 });
+  const { data: councilLatestData } = useCouncilLatest(15000);
 
   // Right Panel specific APIs based on selectedSymbol
   const { data: techsData } = useApi("signals", {
@@ -831,18 +915,22 @@ export default function Dashboard() {
     endpoint: `/agents/swarm-topology/${selectedSymbol}`,
     enabled: !!selectedSymbol,
   });
-  const { data: dataSourcesData } = useApi("dataSources", {
+  const { data: dataSourcesData, loading: dataSourcesLoading, refetch: refetchDataSources } = useApi("dataSources", {
     pollIntervalMs: 60000,
   });
-  const { data: riskData } = useApi("risk", {
+  const { data: riskData, refetch: refetchRisk } = useApi("risk", {
     endpoint: `/risk/proposal/${selectedSymbol}`,
     enabled: !!selectedSymbol,
   });
-  const { data: quotesData } = useApi("quotes", {
+  const { data: quotesData, refetch: refetchQuotes } = useApi("quotes", {
     endpoint: `/quotes/${selectedSymbol}/book`,
     pollIntervalMs: 10000,
     enabled: !!selectedSymbol,
   });
+
+  // API online: status check passed OR any data endpoint has returned (so we don't show "offline" once data flows)
+  const apiOnline = Boolean(apiStatusData) || !apiStatusError ||
+    Boolean(signalsData || portfolioData || indicesData || dataSourcesData);
 
   // --- SORT MAP (all 15 pills) ---
   const SORT_MAP = useMemo(
@@ -890,19 +978,26 @@ export default function Dashboard() {
     return merged.sort(sortFn);
   }, [signalsData, kellyData, activeSortKey, SORT_MAP]);
 
-  // Auto-select first symbol on load
+  const scoreFilterSpec = useMemo(() => SCORE_FILTERS.find((f) => f.id === scoreFilter) || SCORE_FILTERS[0], [scoreFilter]);
+  const displayedSignals = useMemo(() => {
+    if (scoreFilter === "all") return processedSignals;
+    return processedSignals.filter((s) => {
+      const sc = s.score ?? s.confidence ?? 0;
+      return sc >= scoreFilterSpec.min && sc <= scoreFilterSpec.max;
+    });
+  }, [processedSignals, scoreFilter, scoreFilterSpec]);
+
+  // Auto-select first symbol for right panel only when none selected — stay on dashboard (do not navigate)
   useEffect(() => {
     if (processedSignals.length > 0 && !selectedSymbol) {
       setSelectedSymbol(processedSignals[0].symbol);
     }
   }, [processedSignals, selectedSymbol]);
 
-  const selectedSignal = useMemo(
-    () =>
-      processedSignals.find((s) => s.symbol === selectedSymbol) ||
-      processedSignals[0],
-    [processedSignals, selectedSymbol],
-  );
+  const selectedSignal = useMemo(() => {
+    const fromTable = processedSignals.find((s) => s.symbol === selectedSymbol) || processedSignals[0];
+    return fromTable || null;
+  }, [processedSignals, selectedSymbol]);
 
   // --- EXECUTION HANDLER ---
   const handleExecute = useCallback(
@@ -949,7 +1044,10 @@ export default function Dashboard() {
   // --- ACTION HANDLERS ---
   const handleRunScan = useCallback(async () => {
     try {
-      const res = await fetch(getApiUrl("signals"), { method: "POST", headers: getAuthHeaders() });
+      const res = await fetch(getApiUrl("signals"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
         const msg = detail?.detail || detail?.message || `HTTP ${res.status}`;
@@ -964,7 +1062,7 @@ export default function Dashboard() {
     }
   }, []);
   const handleExecTop5 = useCallback(async () => {
-    const top5 = processedSignals.slice(0, 5);
+    const top5 = displayedSignals.slice(0, 5);
     if (!top5.length) { toast.warn("No signals to execute"); return; }
     const names = top5.map((s) => `${s.symbol} ${s.direction || "LONG"}`).join(", ");
     if (!window.confirm(`Execute top 5: ${names}?`)) return;
@@ -982,38 +1080,75 @@ export default function Dashboard() {
             qty: "100",
           }),
         });
-        if (res.ok) ok++;
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        ok++;
       } catch (e) {
-        log.error(e);
+        log.error("Exec top 5 item failed:", e);
       }
     }
     toast.info(`Exec Top 5: ${ok}/${top5.length} orders sent`);
-  }, [processedSignals]);
+  }, [displayedSignals]);
   const handleFlatten = useCallback(async () => {
     if (!window.confirm("Flatten ALL positions? This cannot be undone.")) return;
     try {
-      const res = await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) { toast.error(`Flatten failed: HTTP ${res.status}`); return; }
+      const res = await fetch(getApiUrl("orders/flatten-all"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        log.error("Flatten failed:", res.status, err?.detail ?? err);
+        toast.error(`Flatten failed: ${err?.detail?.message ?? err?.detail ?? res.statusText}`);
+        return;
+      }
       toast.success("All positions flattened");
     } catch (e) {
       log.error(e);
-      toast.error(`Flatten error: ${e.message}`);
+      toast.error(`Flatten failed: ${e?.message ?? "network error"}`);
     }
   }, []);
   const handleEmergencyStop = useCallback(async () => {
     if (!window.confirm("EMERGENCY STOP: Cancel all orders and close all positions?")) return;
     try {
-      const res = await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) { toast.error(`Emergency stop failed: HTTP ${res.status}`); return; }
+      const res = await fetch(getApiUrl("orders/emergency-stop"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        log.error("Emergency stop failed:", res.status, err?.detail ?? err);
+        toast.error(`Emergency stop failed: ${err?.detail?.message ?? err?.detail ?? res.statusText}`);
+        return;
+      }
       toast.success("Emergency stop executed");
     } catch (e) {
       log.error(e);
-      toast.error(`Emergency stop error: ${e.message}`);
+      toast.error(`Emergency stop failed: ${e?.message ?? "network error"}`);
     }
   }, []);
 
+  // Toggle Manual (shadow) vs Automated (AI/Embodier buys and sells) trading mode
+  const handleSetAutoExecute = useCallback(async (enabled) => {
+    try {
+      const res = await fetch(getApiUrl("metricsSetAutoExecute"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = res.ok ? await res.json().catch(() => ({})) : null;
+      if (!res.ok) {
+        log.error("Set auto-execute failed:", res.status, data?.detail ?? data?.error);
+        return;
+      }
+      setAutoExec(!!enabled);
+      refetchMetrics();
+    } catch (e) {
+      log.error("Set auto-execute error:", e);
+    }
+  }, [refetchMetrics]);
+
   const handleExportCSV = useCallback(() => {
-    const data = processedSignals;
+    const data = displayedSignals;
     if (!data.length) { toast.warn("No signals to export"); return; }
     const headers = ["symbol","direction","score","entry","target","stop","rMultiple","kellyPercent"];
     const rows = data.map(s => headers.map(h => `"${s[h] ?? ""}"`).join(","));
@@ -1024,11 +1159,56 @@ export default function Dashboard() {
     const a = document.createElement("a"); a.href = url; a.download = fname; a.click();
     URL.revokeObjectURL(url);
     toast.success(`Exported ${data.length} signals`);
-  }, [processedSignals]);
+  }, [displayedSignals]);
 
   const handleSpawnAgent = useCallback(() => {
     navigate("/agents");
   }, []);
+
+  const handleRefreshAll = useCallback(() => {
+    refetchStatus();
+    refetchSignals();
+    refetchKelly();
+    refetchPortfolio();
+    refetchIndices();
+    refetchOpenclaw();
+    refetchPerformance();
+    refetchPerformanceEquity();
+    refetchConsensus();
+    refetchRiskScore();
+    refetchAlerts();
+    refetchFlywheel();
+    refetchSentiment();
+    refetchCognitive();
+    refetchDataSources();
+    refetchMetrics();
+    if (selectedSymbol) {
+      refetchRisk();
+      refetchQuotes();
+    }
+  }, [
+    refetchStatus, refetchSignals, refetchKelly, refetchPortfolio, refetchIndices,
+    refetchOpenclaw, refetchPerformance, refetchPerformanceEquity, refetchConsensus,
+    refetchRiskScore, refetchAlerts, refetchFlywheel, refetchSentiment, refetchCognitive,
+    refetchDataSources, refetchMetrics, refetchRisk, refetchQuotes, selectedSymbol,
+  ]);
+
+  // Council verdict highlight: show cyan glow on row for 1.5s when verdict matches symbol
+  useEffect(() => {
+    const verdict = councilLatestData?.verdict ?? councilLatestData?.decision ?? councilLatestData;
+    const symbol = verdict?.symbol ?? verdict?.ticker ?? councilLatestData?.symbol;
+    if (symbol) {
+      setCouncilVerdictSymbol(String(symbol).toUpperCase());
+      if (councilGlowRef.current) clearTimeout(councilGlowRef.current);
+      councilGlowRef.current = setTimeout(() => {
+        setCouncilVerdictSymbol(null);
+        councilGlowRef.current = null;
+      }, 1500);
+    }
+    return () => {
+      if (councilGlowRef.current) clearTimeout(councilGlowRef.current);
+    };
+  }, [councilLatestData]);
 
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
@@ -1075,20 +1255,40 @@ export default function Dashboard() {
     }
     return rawIndices;
   }, [rawIndices]);
-  const openclaw = openclawData?.openclaw || openclawData || {};
+  const openclaw = useMemo(() => {
+    const raw = openclawData?.openclaw || openclawData || {};
+    const regime = raw.regime === "UNKNOWN" || !raw.regime ? "NEUTRAL" : raw.regime;
+    return { ...raw, regime, compositeScore: raw.compositeScore ?? null };
+  }, [openclawData]);
   const performance = useMemo(() => {
     const p = performanceData?.performance || performanceData || {};
     const equityCurve = performanceEquityData?.equity_curve ?? performanceEquityData?.equity ?? p.equityCurve ?? [];
     return {
       ...p,
-      sharpe: p.sharpe ?? p.sharpeRatio ?? 0,
-      alpha: p.alpha ?? 0,
-      winRate: p.winRate ?? p.win_rate ?? 0,
-      maxDrawdown: p.maxDrawdown ?? p.max_drawdown ?? 0,
+      sharpe: p.sharpe ?? p.sharpeRatio ?? null,
+      alpha: p.alpha ?? null,
+      winRate: p.winRate ?? p.win_rate ?? null,
+      maxDrawdown: p.maxDrawdown ?? p.max_drawdown ?? null,
       equityCurve: Array.isArray(equityCurve) ? equityCurve : [],
     };
   }, [performanceData, performanceEquityData]);
-  const techs = techsData?.technicals || techsData || {};
+  const techs = useMemo(() => {
+    const raw = techsData?.technicals || techsData?.indicators || techsData || {};
+    const ind = techsData?.indicators || {};
+    return {
+      rsi: raw.rsi ?? ind.rsi ?? null,
+      macd: raw.macd ?? ind.macd ?? null,
+      bb: raw.bb ?? ind.bb ?? null,
+      vwap: raw.vwap ?? ind.vwap ?? null,
+      ema20: raw.ema20 ?? (ind.ma_20_dist != null ? `MA20 ${Number(ind.ma_20_dist).toFixed(2)}` : null),
+      sma50: raw.sma50 ?? ind.sma50 ?? null,
+      adx: raw.adx ?? ind.adx ?? null,
+      stoch: raw.stoch ?? ind.stoch ?? null,
+      driftScore: raw.driftScore ?? raw.drift ?? null,
+      shapFeatures: raw.shapFeatures ?? techsData?.shapFeatures ?? [],
+      ...raw,
+    };
+  }, [techsData]);
   const swarm = swarmData?.swarmTopology || swarmData || {};
   const consensus = consensusData?.votes ?? consensusData?.agents ?? swarm?.agents ?? [];
   const consensusVerdict = consensusData?.verdict ?? consensusData?.consensus ?? swarm?.consensus;
@@ -1101,15 +1301,46 @@ export default function Dashboard() {
     })) : swarm?.agents ?? [],
     consensus: consensusData?.agreement_percent ?? consensusData?.agreement ?? swarm?.consensus,
   }), [swarm, consensus, consensusData]);
-  const sources = dataSourcesData?.dataSources || dataSourcesData || {};
-  const risk = riskData?.proposal || riskData || {};
-  const quotes = quotesData?.book || quotesData || {};
+  const sourcesList = useMemo(() => {
+    const raw = dataSourcesData?.dataSources ?? dataSourcesData?.sources ?? dataSourcesData;
+    return Array.isArray(raw) ? raw : (raw && typeof raw === "object" ? Object.values(raw) : []);
+  }, [dataSourcesData]);
+  const sourcesConnected = useMemo(
+    () => sourcesList.filter((s) => (s?.status === "healthy" || s?.status === "active")).length,
+    [sourcesList]
+  );
+  const risk = useMemo(() => {
+    const r = riskData?.proposal || riskData || {};
+    return {
+      limitPrice: r.limitPrice ?? r.limit_price ?? 0,
+      shares: r.shares ?? r.proposedSize ?? r.maxShares ?? 0,
+      notional: r.notional ?? r.maxNotional ?? 0,
+      stopLoss: r.stopLoss ?? r.stop_loss ?? 0,
+      target1: r.target1 ?? r.takeProfit ?? r.target ?? 0,
+      rr: r.rr ?? r.rMultiple ?? "0",
+      ...r,
+    };
+  }, [riskData]);
+  const quotes = useMemo(() => {
+    const q = quotesData?.book || quotesData || {};
+    const bids = Array.isArray(q.bids) ? q.bids : [];
+    const asks = Array.isArray(q.asks) ? q.asks : [];
+    const spread = q.spread ?? (asks[0]?.price != null && bids[0]?.price != null ? Number(asks[0].price) - Number(bids[0].price) : 0);
+    return {
+      bids,
+      asks,
+      spread: spread != null ? Number(spread) : 0,
+      ...q,
+    };
+  }, [quotesData]);
   const agents = agentsData?.agents || agentsData || {};
   const riskScore = useMemo(() => {
     const r = riskScoreData?.riskScore || riskScoreData || {};
+    const score = r.score ?? r.risk_score ?? riskScoreData?.score ?? null;
     return {
       ...r,
-      score: r.score ?? r.risk_score,
+      score: typeof score === "number" ? score : null,
+      risk_score: r.risk_score ?? score,
       dailyVaR: r.dailyVaR ?? r.riskScore?.dailyVaR,
       correlation: r.correlation ?? r.riskScore?.correlation,
       positionLimit: r.positionLimit ?? r.riskScore?.positionLimit,
@@ -1117,8 +1348,12 @@ export default function Dashboard() {
     };
   }, [riskScoreData]);
   const alerts = alertsData?.alerts || alertsData?.systemAlerts || [];
-  const flywheel = flywheelData?.flywheel || flywheelData || {};
-  const globalSentiment = sentimentData?.sentiment || sentimentData || {};
+  const flywheel = useMemo(() => flywheelData?.flywheel || flywheelData || {}, [flywheelData]);
+  const globalSentiment = useMemo(() => {
+    const s = sentimentData?.sentiment || sentimentData || {};
+    const score = s.score ?? s.global_score ?? s.sentiment ?? null;
+    return { ...s, score: score != null ? Number(score) : null };
+  }, [sentimentData]);
 
   // --- LOADING / ERROR STATES ---
   // Only show boot screen on very first load (no data AND no error yet)
@@ -1131,21 +1366,31 @@ export default function Dashboard() {
   /* sigErr no longer blocks the entire page — we show a banner instead
      so that non-signal panels (portfolio, risk, etc.) remain usable. */
 
-  // Aggregate critical API errors for visibility
-  const criticalErrors = [
-    portfolioErr && 'Portfolio',
-    sigErr && 'Signals',
-    indicesErr && 'Market Data',
-    openclawErr && 'OpenClaw',
+  // Only show "API OFFLINE" when the API server is unreachable (status check failed)
+  const showApiOffline = !apiOnline && apiStatusError;
+  const endpointIssues = [
+    portfolioErr && "Portfolio",
+    sigErr && "Signals",
+    indicesErr && "Market Data",
+    openclawErr && "OpenClaw",
   ].filter(Boolean);
 
   return (
-    <div className="-m-6 -mb-10 flex flex-col h-[calc(100%+3.5rem)] w-[calc(100%+3rem)] bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
-      {/* API ERROR BANNER */}
-      {criticalErrors.length > 0 && (
-        <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0">
-          <span className="font-bold">API OFFLINE:</span>
-          <span>{criticalErrors.join(', ')} — data may be stale or unavailable</span>
+    <div className="-m-6 -mb-10 flex flex-col h-[calc(100%+3.5rem)] w-[calc(100%+3rem)] bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
+      {/* API OFFLINE — only when backend is unreachable (status check failed) */}
+      {showApiOffline && (
+        <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0 flex-wrap">
+          <span className="font-bold">API OFFLINE</span>
+          <span>— Backend unreachable. From repo root run:</span>
+          <code className="bg-black/30 px-1 rounded">.\scripts\run_all_autorestart.ps1</code>
+          <span className="text-red-300/80">or</span>
+          <code className="bg-black/30 px-1 rounded">cd backend && .\scripts\run_backend_autorestart.ps1</code>
+        </div>
+      )}
+      {/* Some endpoints unavailable (API is online but a few failed) */}
+      {apiOnline && endpointIssues.length > 0 && (
+        <div className="px-4 py-1 bg-amber-500/10 border-b border-amber-500/20 text-amber-400 text-[9px] shrink-0">
+          <span className="font-bold">Partial:</span> {endpointIssues.join(", ")} — data may be stale
         </div>
       )}
       {/* TOP HEADER BAR */}
@@ -1157,6 +1402,35 @@ export default function Dashboard() {
               EMBODIER TRADER
             </h1>
           </div>
+          <button
+            type="button"
+            onClick={handleRefreshAll}
+            className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/50 hover:bg-[#00D9FF]/30 transition-colors"
+          >
+            Refresh All
+          </button>
+          {/* Manual vs Automated trading — lever on landing page */}
+          <div className="flex items-center gap-0 rounded border border-[rgba(42,52,68,0.5)] bg-[#0f172a]/80 overflow-hidden">
+            <span className="px-2 py-0.5 text-[9px] text-slate-500 font-bold uppercase tracking-wider border-r border-[rgba(42,52,68,0.5)]">
+              Trading
+            </span>
+            <button
+              type="button"
+              onClick={() => handleSetAutoExecute(false)}
+              className={`px-2.5 py-0.5 text-[9px] font-mono font-bold transition-colors ${!autoExec ? "bg-amber-500/25 text-amber-300 border-amber-500/50" : "text-slate-400 hover:bg-white/5 hover:text-slate-300"}`}
+              title="You place all trades manually; council runs in shadow (no orders sent)"
+            >
+              Manual
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetAutoExecute(true)}
+              className={`px-2.5 py-0.5 text-[9px] font-mono font-bold transition-colors ${autoExec ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/50" : "text-slate-400 hover:bg-white/5 hover:text-slate-300"}`}
+              title="AI and Embodier Trader buy and sell automatically from council verdicts (paper/live)"
+            >
+              Automated
+            </button>
+          </div>
           {/* Regime Badges */}
           <div
             className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === "BEAR" ? "bg-red-500/20 text-red-400 border border-red-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
@@ -1165,7 +1439,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[#94a3b8]">SCORE</span>
-            <div className="w-6 h-6 rounded-full border-2 border-green-400 flex items-center justify-center text-[10px] font-mono text-green-400">
+            <div className="w-6 h-6 rounded-full border-2 border-green-400 flex items-center justify-center text-[10px] font-mono text-green-400 kpi-num">
               {openclaw.compositeScore != null && openclaw.compositeScore !== "" ? openclaw.compositeScore : "\u2014"}
             </div>
           </div>
@@ -1181,26 +1455,34 @@ export default function Dashboard() {
           >
             SENT {globalSentiment.score ?? globalSentiment.value ?? "\u2014"}
           </div>
+          {/* Data Sources — flows from GET /api/v1/data-sources/ */}
+          <button
+            type="button"
+            onClick={() => navigate("/data-sources")}
+            className="px-2 py-0.5 rounded font-bold bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/40 hover:bg-[#00D9FF]/30 transition-colors"
+          >
+            SOURCES {sourcesConnected}/{sourcesList.length || "\u2014"}
+          </button>
         </div>
         {/* KPIs */}
         <div className="flex items-center gap-4 font-mono text-[10px]">
           <div className="flex gap-3 text-[#94a3b8]">
             <span>
               SPX{" "}
-              <span className="text-green-400">
-                +{indices.SPX?.change || "\u2014"}%
+              <span className={indices.SPX?.change != null && indices.SPX.change >= 0 ? "text-green-400" : indices.SPX?.change != null ? "text-red-400" : "text-slate-500"}>
+                {indices.SPX?.change != null ? `${indices.SPX.change >= 0 ? "+" : ""}${Number(indices.SPX.change).toFixed(2)}%` : "\u2014"}
               </span>
             </span>
             <span>
               NDAQ{" "}
-              <span className="text-red-400">
-                {indices.NDAQ?.change || "\u2014"}%
+              <span className={indices.NDAQ?.change != null && indices.NDAQ.change >= 0 ? "text-green-400" : indices.NDAQ?.change != null ? "text-red-400" : "text-slate-500"}>
+                {indices.NDAQ?.change != null ? `${indices.NDAQ.change >= 0 ? "+" : ""}${Number(indices.NDAQ.change).toFixed(2)}%` : "\u2014"}
               </span>
             </span>
             <span>
               BTC{" "}
-              <span className="text-green-400">
-                +{indices.BTC?.change || "\u2014"}%
+              <span className={indices.BTC?.change != null && indices.BTC.change >= 0 ? "text-green-400" : indices.BTC?.change != null ? "text-red-400" : "text-slate-500"}>
+                {indices.BTC?.change != null ? `${indices.BTC.change >= 0 ? "+" : ""}${Number(indices.BTC.change).toFixed(2)}%` : "\u2014"}
               </span>
             </span>
           </div>
@@ -1208,44 +1490,44 @@ export default function Dashboard() {
           <div className="flex gap-4">
             <span>
               Equity{" "}
-              <span className="text-white font-mono">
-                ${Number(portfolio.totalEquity ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              <span className="text-white font-mono kpi-num">
+                {portfolio.totalEquity != null ? `$${Number(portfolio.totalEquity).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "\u2014"}
               </span>
             </span>
             <span>
               P&L{" "}
-              <span className={`font-mono ${Number(portfolio.dayPnL ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
-                {Number(portfolio.dayPnL ?? 0) >= 0 ? "+" : ""}${Number(portfolio.dayPnL ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              <span className={`font-mono kpi-num ${portfolio.dayPnL != null ? (Number(portfolio.dayPnL) >= 0 ? "text-green-400" : "text-red-400") : "text-slate-500"}`}>
+                {portfolio.dayPnL != null ? `${Number(portfolio.dayPnL) >= 0 ? "+" : ""}$${Number(portfolio.dayPnL).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "\u2014"}
               </span>
             </span>
             <span>
               Deployed{" "}
-              <span className="text-[#00D9FF] font-mono">
-                {Number(portfolio.deployedPercent ?? 0).toFixed(1)}%
+              <span className="text-[#00D9FF] font-mono kpi-num">
+                {portfolio.deployedPercent != null ? `${Number(portfolio.deployedPercent).toFixed(1)}%` : "\u2014"}
               </span>
             </span>
             <span>
               Sharpe{" "}
-              <span className="text-[#00D9FF] font-mono">
-                {performance.sharpe != null && performance.sharpe !== "" ? Number(performance.sharpe) : "0"}
+              <span className="text-[#00D9FF] font-mono kpi-num">
+                {performance.sharpe != null && performance.sharpe !== "" ? Number(performance.sharpe) : "\u2014"}
               </span>
             </span>
             <span>
               Alpha{" "}
-              <span className="text-green-400 font-mono">
-                +{performance.alpha != null && performance.alpha !== "" ? Number(performance.alpha) : "0"}%
+              <span className="text-green-400 font-mono kpi-num">
+                {performance.alpha != null && performance.alpha !== "" ? `+${Number(performance.alpha)}%` : "\u2014"}
               </span>
             </span>
             <span>
               Win{" "}
-              <span className="text-green-400 font-mono">
-                {performance.winRate != null && performance.winRate !== "" ? Number(performance.winRate) : "0"}%
+              <span className="text-green-400 font-mono kpi-num">
+                {performance.winRate != null && performance.winRate !== "" ? `${Number(performance.winRate)}%` : "\u2014"}
               </span>
             </span>
             <span>
               MaxDD{" "}
-              <span className="text-red-400 font-mono">
-                {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? Number(performance.maxDrawdown) : "0"}%
+              <span className="text-red-400 font-mono kpi-num">
+                {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? `${Number(performance.maxDrawdown)}%` : "\u2014"}
               </span>
             </span>
           </div>
@@ -1253,21 +1535,61 @@ export default function Dashboard() {
       </header>
 
       {/* SCROLLING TICKER STRIP */}
-      <TickerStrip indices={indices} signals={processedSignals} />
+      <TickerStrip indices={indices} signals={processedSignals} onSelectSymbol={setSelectedSymbol} />
 
-      {/* Signal-error banner (non-blocking) */}
+      {/* Data Sources strip — API /api/v1/data-sources/ flowing through landing page */}
+      {(dataSourcesLoading || sourcesList.length > 0) && (
+        <div className="px-4 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827]/80 shrink-0 flex items-center gap-4 flex-wrap">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 font-mono">Data Sources</span>
+          {dataSourcesLoading && sourcesList.length === 0 ? (
+            <span className="text-[9px] text-slate-500 font-mono">Loading…</span>
+          ) : (
+          <div className="flex items-center gap-3 flex-wrap">
+            {sourcesList.slice(0, 12).map((s, i) => {
+              const ok = s?.status === "healthy" || s?.status === "active";
+              return (
+                <button
+                  key={s?.id || s?.name || `ds-${i}`}
+                  type="button"
+                  onClick={() => navigate("/data-sources")}
+                  className="inline-flex items-center gap-1.5 text-[9px] font-mono hover:text-[#00D9FF] transition-colors"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ok ? "bg-emerald-400" : "bg-slate-500"}`} />
+                  <span className="text-slate-300">{s?.name || s?.id || "—"}</span>
+                </button>
+              );
+            })}
+          </div>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/data-sources")}
+            className="text-[9px] font-mono text-[#00D9FF] hover:text-white transition-colors ml-auto"
+          >
+            View all →
+          </button>
+        </div>
+      )}
+
+      {/* Signal error card with Retry (refetch all) */}
       {sigErr && (
-        <div className="mx-4 mt-1 px-3 py-1 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono flex items-center gap-2 shrink-0">
-          <span className="font-bold">SIGNAL API OFFLINE</span>
-          <span className="text-red-400/70">{sigErr.message}</span>
+        <div className="mx-4 mt-1 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono flex items-center justify-between gap-2 shrink-0">
+          <span className="font-bold">SIGNAL API ERROR</span>
+          <span className="text-red-400/70 flex-1 truncate">{sigErr.message}</span>
+          <button
+            type="button"
+            onClick={handleRefreshAll}
+            className="px-2.5 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-white font-bold border border-red-500/50 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
 
       {/* MAIN CONTENT AREA: Center Table + Right Panel */}
       <main className="flex flex-1 overflow-hidden">
-
-        {/* CENTER COLUMN: Sort Pills + Table (dominant area) */}
-        <section className="flex flex-col flex-1 min-w-0 border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
+        {/* CENTER COLUMN: Sort Pills + Table (dominant area); amber top-border when stale */}
+        <section className={`flex flex-col flex-1 min-w-0 border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14] ${sigStale ? "border-t-2 border-amber-500" : ""}`}>
           {/* Sort Pills Row */}
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 overflow-x-auto no-scrollbar">
             {SORT_PILLS.map((pill) => (
@@ -1297,7 +1619,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-3 text-[8px]">
               <button
-                onClick={() => setAutoExec(!autoExec)}
+                onClick={() => handleSetAutoExecute(!autoExec)}
                 className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors"
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${autoExec ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
@@ -1306,7 +1628,7 @@ export default function Dashboard() {
               <span className="flex items-center gap-1">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> LIVE
               </span>
-              <span>Flywheel: {flywheel.accuracy ?? (flywheel.accuracy30d != null ? Math.round(Number(flywheel.accuracy30d) * 100) : 0)}%</span>
+              <span>Flywheel: {flywheel.accuracy != null ? `${Number(flywheel.accuracy)}%` : flywheel.accuracy30d != null ? `${Math.round(Number(flywheel.accuracy30d) * 100)}%` : "\u2014"}</span>
             </div>
           </div>
 
@@ -1315,47 +1637,38 @@ export default function Dashboard() {
             <table className="w-full text-left font-mono whitespace-nowrap">
               <thead className="sticky top-0 bg-[#111827] text-[10px] uppercase text-slate-500 border-b border-[rgba(42,52,68,0.5)] shadow-md z-10">
                 <tr>
-                  <th className="px-1.5 py-1 font-semibold">Sym</th>
-                  <th className="px-1.5 py-1 font-semibold">Dir</th>
-                  <th className="px-1.5 py-1 font-semibold">Score</th>
-                  <th className="px-1.5 py-1 font-semibold">Regime</th>
-                  <th className="px-1.5 py-1 font-semibold">ML</th>
-                  <th className="px-1.5 py-1 font-semibold">Sent</th>
-                  <th className="px-1.5 py-1 font-semibold">Tech</th>
-                  <th className="px-1.5 py-1 font-semibold">Agent</th>
-                  <th className="px-1.5 py-1 font-semibold">Swarm</th>
-                  <th className="px-1.5 py-1 font-semibold">SHAP</th>
-                  <th className="px-1.5 py-1 font-semibold">Kelly</th>
-                  <th className="px-1.5 py-1 font-semibold">Entry</th>
-                  <th className="px-1.5 py-1 font-semibold">Tgt</th>
-                  <th className="px-1.5 py-1 font-semibold">Stop</th>
-                  <th className="px-1.5 py-1 font-semibold">R-Mult</th>
-                  <th className="px-1.5 py-1 font-semibold">P&L</th>
-                  <th className="px-1.5 py-1 font-semibold">Sec</th>
-                  <th className="px-1.5 py-1 font-semibold">Mom</th>
-                  <th className="px-1.5 py-1 font-semibold">Vol</th>
-                  <th className="px-1.5 py-1 font-semibold">News</th>
-                  <th className="px-1.5 py-1 font-semibold">Pat</th>
+                  {TABLE_SORT_COLUMNS.map((col, i) => (
+                    <th
+                      key={i}
+                      className={`px-1.5 py-1 font-semibold ${col.sortKey ? "cursor-pointer hover:text-[#00D9FF] hover:bg-[#1e293b]/50 transition-colors" : ""}`}
+                      onClick={col.sortKey ? () => setActiveSortKey(col.sortKey) : undefined}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                  <th className="px-1.5 py-1 font-semibold w-20">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e293b]/50">
-                {processedSignals.map((sig, idx) => {
+                {displayedSignals.map((sig, idx) => {
                   const isSelected = selectedSymbol === sig.symbol;
                   const isLong = sig.direction === "LONG";
                   const dirColor = isLong ? "text-green-400" : "text-red-400";
+                  const hasCouncilGlow = councilVerdictSymbol === sig.symbol;
                   return (
                     <tr
                       key={sig.symbol + idx}
-                      onClick={() => setSelectedSymbol(sig.symbol)}
-                      className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? "bg-[#164e63]/30 border-l-2 border-[#00D9FF]" : "border-l-2 border-transparent"}`}
+                      onClick={() => navigate(`/symbol/${encodeURIComponent(sig.symbol)}`)}
+                      className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? "bg-[#164e63]/30 border-l-2 border-[#00D9FF]" : "border-l-2 border-transparent"} ${hasCouncilGlow ? "animate-cyan-glow" : ""}`}
+                      style={hasCouncilGlow ? { boxShadow: "inset 0 0 12px rgba(0,217,255,0.4)" } : undefined}
                     >
                       <td className="px-1.5 py-1 text-[0.65rem] text-white font-bold font-mono">{sig.symbol}</td>
                       <td className={`px-1.5 py-1 text-[0.65rem] font-mono ${dirColor}`}>{isLong ? "L" : "S"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem]">
                         <div className="flex items-center gap-1">
-                          <span className={`font-mono ${sig.score >= 90 ? "text-green-400" : "text-[#00D9FF]"}`}>{sig.score}</span>
+                          <span className={`font-mono kpi-num ${(sig.score ?? 0) >= 90 ? "text-green-400" : "text-[#00D9FF]"}`}>{sig.score ?? "\u2014"}</span>
                           <div className="w-12 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${sig.score}%`, backgroundColor: sig.score >= 85 ? "#10b981" : sig.score >= 70 ? "#00D9FF" : sig.score >= 50 ? "#f59e0b" : "#ef4444" }} />
+                            <div className="h-full rounded-full transition-all duration-200" style={{ width: `${sig.score ?? 0}%`, backgroundColor: (sig.score ?? 0) >= 85 ? "#10b981" : (sig.score ?? 0) >= 70 ? "#00D9FF" : (sig.score ?? 0) >= 50 ? "#f59e0b" : "#ef4444" }} />
                           </div>
                         </div>
                       </td>
@@ -1366,17 +1679,26 @@ export default function Dashboard() {
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[80px] font-mono">{sig.leadAgent || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.swarmVote || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[60px] font-mono">{sig.topShap || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.kellyPercent ?? 0}%</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.kellyPercent != null ? `${sig.kellyPercent}%` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-red-400 font-mono">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-white font-mono">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] font-mono">{sig.sector?.substring(0, 3) || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">+{sig.momentum || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.volSpike || "\u2014"}x</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[50px] font-mono">{sig.newsImpact || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[60px] font-mono">{sig.pattern || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.momentum != null ? `+${sig.momentum}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.volSpike != null ? `${sig.volSpike}x` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[50px] font-mono">{sig.newsImpact ?? "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[60px] font-mono">{sig.pattern ?? "\u2014"}</td>
+                      <td className="px-1.5 py-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => fetchCouncilEvaluate(sig.symbol, "15m", {}).then(() => {}).catch((err) => log.error("Council evaluate failed", err))}
+                          className="px-1.5 py-0.5 rounded text-[7px] font-mono font-bold bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/50 hover:bg-[#00D9FF]/30 transition-colors"
+                        >
+                          Send to Council
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -1396,7 +1718,9 @@ export default function Dashboard() {
               Exec Top 5
             </button>
             <div className="flex-1" />
-            <span className="text-[8px] font-mono text-[#64748b]">{processedSignals.length} signals</span>
+            <span className="text-[8px] font-mono text-[#64748b]">
+              {displayedSignals.length} signals{scoreFilter !== "all" ? ` (${scoreFilter})` : ""}
+            </span>
           </div>
 
           {/* Alerts Bar */}
@@ -1412,8 +1736,35 @@ export default function Dashboard() {
           )}
         </section>
 
-        {/* RIGHT COLUMN: Intelligence Panel (~32%) */}
-        <section className="flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar">
+        {/* RIGHT COLUMN: Intelligence Panel (~32%); amber top-border when stale */}
+        <section className={`flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar ${sigStale ? "border-t-2 border-amber-500" : ""}`}>
+          {/* Symbol search: type ticker and Go to load right-panel data */}
+          <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[rgba(42,52,68,0.5)]">
+            <input
+              type="text"
+              placeholder="Symbol (e.g. AAPL)"
+              value={symbolSearch}
+              onChange={(e) => setSymbolSearch(e.target.value || "")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const sym = (symbolSearch || "").trim().toUpperCase();
+                  if (sym) { setSelectedSymbol(sym); setSymbolSearch(""); }
+                }
+              }}
+              className="flex-1 min-w-0 px-2 py-1.5 rounded bg-[#0B0E14] border border-[#374151] text-white text-[10px] font-mono placeholder:text-[#64748b] focus:border-[#00D9FF] focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const sym = (symbolSearch || "").trim().toUpperCase();
+                if (sym) { setSelectedSymbol(sym); setSymbolSearch(""); }
+              }}
+              className="px-2.5 py-1.5 rounded bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/50 text-[10px] font-mono font-bold hover:bg-[#00D9FF]/30 transition-colors"
+            >
+              Go
+            </button>
+          </div>
           {/* Swarm Consensus Bars (prominent at top per mockup) — GET /api/v1/agents/consensus */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">SWARM CONSENSUS</h3>
@@ -1432,10 +1783,26 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Signal Strength Bar Chart */}
+          {/* Signal Strength Bar Chart + filter pills */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              {SCORE_FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setScoreFilter(f.id)}
+                  className={`px-2 py-0.5 rounded text-[8px] font-mono font-bold border transition-colors ${
+                    scoreFilter === f.id
+                      ? "bg-[#00D9FF]/20 text-[#00D9FF] border-[#00D9FF]/50"
+                      : "bg-[#1e293b]/50 text-[#64748b] border-[#374151] hover:border-[#64748b] hover:text-[#94a3b8]"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
             <SignalBarChart
-              signals={processedSignals.slice(0, 20)}
+              signals={displayedSignals.slice(0, 20)}
               selectedSymbol={selectedSymbol}
               onSelect={setSelectedSymbol}
             />
@@ -1457,56 +1824,64 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Selected Symbol Detail Panel */}
-          {selectedSignal && (
+          {/* Selected Symbol Detail Panel (skeleton when no selection) */}
+          {selectedSignal ? (
             <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
-              {/* Symbol Header */}
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-1">
                 <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
                   {selectedSignal.symbol}
                   <span className={selectedSignal.direction === "LONG" ? "text-green-400 text-[10px]" : "text-red-400 text-[10px]"}>
                     {selectedSignal.direction || "LONG"}
                   </span>
                 </h2>
-                <span className="text-lg font-mono font-bold text-[#00D9FF]">{selectedSignal.score || "\u2014"}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSymbolAndUrl(selectedSignal.symbol)}
+                    className="text-[10px] font-mono text-[#00D9FF] hover:text-cyan-300 underline"
+                  >
+                    Open full page
+                  </button>
+                  <span className="text-lg font-mono font-bold text-[#00D9FF]">{selectedSignal.score ?? 0}</span>
+                </div>
               </div>
 
               {/* Composite Breakdown Bars */}
               <div className="space-y-1 font-mono text-[8px]">
                 {[
-                  { label: "Overall Score", val: `${selectedSignal.score || 0}/100`, pct: selectedSignal.score || 0 },
-                  { label: "Technical Rank", val: `${selectedSignal.scores?.technical || "\u2014"}`, pct: selectedSignal.scores?.technical || 0 },
-                  { label: "ML Probability", val: `${selectedSignal.scores?.ml || "\u2014"}%`, pct: selectedSignal.scores?.ml || 0 },
-                  { label: "Sentiment Pulse", val: `${selectedSignal.scores?.sentiment || "\u2014"}`, pct: selectedSignal.scores?.sentiment || 0 },
-                  { label: "Swarm Consensus", val: `${swarmForConsensus.consensus ?? swarm.consensus ?? "\u2014"}%`, pct: swarmForConsensus.consensus ?? swarm.consensus ?? 0 },
+                  { label: "Overall Score", val: `${selectedSignal.score ?? 0}/100`, pct: selectedSignal.score ?? 0 },
+                  { label: "Technical Rank", val: String(selectedSignal.scores?.technical ?? 0), pct: selectedSignal.scores?.technical ?? 0 },
+                  { label: "ML Probability", val: `${selectedSignal.scores?.ml ?? 0}%`, pct: selectedSignal.scores?.ml ?? 0 },
+                  { label: "Sentiment Pulse", val: String(selectedSignal.scores?.sentiment ?? 0), pct: selectedSignal.scores?.sentiment ?? 0 },
+                  { label: "Swarm Consensus", val: `${swarmForConsensus.consensus ?? swarm?.consensus ?? 0}%`, pct: swarmForConsensus.consensus ?? swarm?.consensus ?? 0 },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-[#94a3b8] w-24">{item.label}</span>
                     <div className="flex-1 mx-2 h-1.5 bg-[#1e293b] rounded-full">
-                      <div className="h-full bg-[#00D9FF] rounded-full transition-all" style={{ width: `${item.pct}%` }} />
+                      <div className="h-full bg-[#00D9FF] rounded-full transition-all" style={{ width: `${Number(item.pct) || 0}%` }} />
                     </div>
                     <span className="text-white w-10 text-right">{item.val}</span>
                   </div>
                 ))}
               </div>
 
-              {/* Technical Analysis Grid */}
+              {/* Technical Analysis Grid (— when null, no mock) */}
               <div className="grid grid-cols-2 gap-1 font-mono text-[8px] bg-[#0B0E14] rounded p-1.5 border border-[rgba(42,52,68,0.3)]">
-                <div><span className="text-[#64748b]">RSI:</span> <span className="text-green-400">{techs.rsi || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">MACD:</span> <span className="text-green-400">{techs.macd || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">BB:</span> <span className="text-white">{techs.bb || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">VWAP:</span> <span className="text-[#00D9FF]">{techs.vwap || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">20 EMA:</span> <span className="text-white">{techs.ema20 || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">50 SMA:</span> <span className="text-green-400">{techs.sma50 || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">ADX:</span> <span className="text-white">{techs.adx || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">Stoch:</span> <span className="text-green-400">{techs.stoch || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">RSI:</span> <span className="text-green-400">{techs.rsi != null ? techs.rsi : "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">MACD:</span> <span className="text-green-400">{techs.macd != null ? techs.macd : "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">BB:</span> <span className="text-white">{techs.bb != null && techs.bb !== "" ? techs.bb : "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">VWAP:</span> <span className="text-[#00D9FF]">{techs.vwap != null ? techs.vwap : "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">20 EMA:</span> <span className="text-white">{techs.ema20 != null && techs.ema20 !== "" ? techs.ema20 : "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">50 SMA:</span> <span className="text-green-400">{techs.sma50 != null ? techs.sma50 : "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">ADX:</span> <span className="text-white">{techs.adx != null ? techs.adx : "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">Stoch:</span> <span className="text-green-400">{techs.stoch != null ? techs.stoch : "\u2014"}</span></div>
               </div>
 
               {/* SHAP Drivers */}
               <div className="font-mono text-[8px]">
                 <div className="flex justify-between mb-1 text-[#64748b]">
-                  <span>ML Prob: <span className="text-green-400 font-bold">{selectedSignal.scores?.ml || "\u2014"}%</span></span>
-                  <span>Drift: <span className="text-green-400">{techs.driftScore || "\u2014"}</span></span>
+                  <span>ML Prob: <span className="text-green-400 font-bold">{selectedSignal.scores?.ml ?? 0}%</span></span>
+                  <span>Drift: <span className="text-green-400">{techs.driftScore != null ? techs.driftScore : "\u2014"}</span></span>
                 </div>
                 <div className="space-y-0.5">
                   {(techs.shapFeatures || selectedSignal.shapFeatures || []).slice(0, 5).map((s) => {
@@ -1532,6 +1907,12 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
           )}
 
           {/* Risk & Order Proposal */}
@@ -1540,15 +1921,15 @@ export default function Dashboard() {
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">RISK & ORDER PROPOSAL</h3>
               <div className="font-mono text-[8px]">
                 <div className="grid grid-cols-2 gap-1 mb-1.5 pb-1.5 border-b border-[rgba(42,52,68,0.3)]">
-                  <span className="text-[#94a3b8]">Action: <span className="text-white">{selectedSignal?.direction === 'SHORT' ? 'Limit Sell' : 'Limit Buy'} {risk.limitPrice || "\u2014"}</span></span>
-                  <span className="text-[#94a3b8]">Size: <span className="text-white">{risk.shares || "\u2014"} shs (${risk.notional || "\u2014"})</span></span>
-                  <span className="text-[#94a3b8]">Stop Loss: <span className="text-red-400">{risk.stopLoss || "\u2014"}</span></span>
-                  <span className="text-[#94a3b8]">Target 1: <span className="text-green-400">{risk.target1 || "\u2014"}</span></span>
-                  <span className="text-[#94a3b8]">R:R Ratio: <span className="text-[#00D9FF]">{risk.rr || "\u2014"}</span></span>
-                  <span className="text-[#94a3b8]">Kelly: <span className="text-white">{selectedSignal.kellyPercent ?? 0}%</span></span>
+                  <span className="text-[#94a3b8]">Action: <span className="text-white">{selectedSignal?.direction === "SHORT" ? "Limit Sell" : "Limit Buy"} {risk.limitPrice ?? 0}</span></span>
+                  <span className="text-[#94a3b8]">Size: <span className="text-white">{risk.shares ?? 0} shs (${risk.notional ?? 0})</span></span>
+                  <span className="text-[#94a3b8]">Stop Loss: <span className="text-red-400">{risk.stopLoss ?? 0}</span></span>
+                  <span className="text-[#94a3b8]">Target 1: <span className="text-green-400">{risk.target1 ?? 0}</span></span>
+                  <span className="text-[#94a3b8]">R:R Ratio: <span className="text-[#00D9FF]">{risk.rr ?? "0"}</span></span>
+                  <span className="text-[#94a3b8]">Kelly: <span className="text-white">{selectedSignal.kellyPercent != null ? `${selectedSignal.kellyPercent}%` : "\u2014"}</span></span>
                 </div>
                 {/* L2 Order Book */}
-                <div className="text-[#64748b] mb-1">L2 BOOK (Spread: ${quotes.spread != null ? Number(quotes.spread).toFixed(2) : "\u2014"})</div>
+                <div className="text-[#64748b] mb-1">L2 BOOK (Spread: ${Number(quotes.spread ?? 0).toFixed(2)})</div>
                 <div className="flex flex-col gap-[1px]">
                   {quotes.asks?.slice(0, 3).reverse().map((ask, i) => (
                     <div key={"ask" + i} className="flex items-center text-[7px]">
@@ -1624,10 +2005,10 @@ export default function Dashboard() {
             const metrics = cog.metrics || {};
             const recentSnaps = cog.recent_snapshots || [];
             const lastSnap = recentSnaps.length > 0 ? recentSnaps[recentSnaps.length - 1] : {};
-            const mode = (lastSnap.mode || Object.keys(cog.mode_distribution || {})[0] || "—").toUpperCase();
-            const diversity = metrics.avg_hypothesis_diversity;
-            const agreement = metrics.avg_agent_agreement;
-            const memPrec = metrics.avg_memory_precision;
+            const mode = (lastSnap.mode || Object.keys(cog.mode_distribution || {})[0] || "exploit").toString().toUpperCase();
+            const diversity = metrics.avg_hypothesis_diversity ?? 0;
+            const agreement = metrics.avg_agent_agreement ?? 0;
+            const memPrec = metrics.avg_memory_precision ?? 0;
             const latencyMs = metrics.avg_latency_ms;
             const circuitOk = latencyMs == null || latencyMs < 800;
             const modeColor = mode === "EXPLOIT" ? "text-green-400" : mode === "EXPLORE" ? "text-amber-400" : mode === "DEFENSIVE" ? "text-red-400" : "text-[#94a3b8]";
@@ -1649,18 +2030,18 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[#64748b]">Diversity:</span>
-                    <span className="text-white">{diversity != null ? Number(diversity).toFixed(2) : "—"}</span>
+                    <span className="text-white">{Number(diversity).toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[#64748b]">Agreement:</span>
-                    <span className="text-white">{agreement != null ? `${(Number(agreement) * 100).toFixed(0)}%` : "—"}</span>
+                    <span className="text-white">{(Number(agreement) * 100).toFixed(0)}%</span>
                   </div>
                   <div className="flex items-center gap-1.5 col-span-2">
                     <span className="text-[#64748b]">Memory Precision:</span>
                     <div className="flex-1 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#00D9FF] rounded-full transition-all" style={{ width: `${(memPrec ?? 0) * 100}%` }} />
+                      <div className="h-full bg-[#00D9FF] rounded-full transition-all" style={{ width: `${(Number(memPrec) || 0) * 100}%` }} />
                     </div>
-                    <span className="text-white w-8 text-right">{memPrec != null ? `${(Number(memPrec) * 100).toFixed(0)}%` : "—"}</span>
+                    <span className="text-white w-8 text-right">{(Number(memPrec) * 100).toFixed(0)}%</span>
                   </div>
                 </div>
               </div>
@@ -1716,6 +2097,10 @@ export default function Dashboard() {
         .ticker-strip:hover { animation-play-state: paused; }
         @keyframes ticker-glow { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
         .ticker-glow { animation: ticker-glow 2s ease-in-out infinite; }
+        .kpi-num { transition: opacity 200ms ease-out, color 200ms ease-out; }
+        .heatmap-text { text-shadow: 0 0 2px rgba(0,0,0,0.8); }
+        @keyframes cyan-glow { 0% { box-shadow: inset 0 0 16px rgba(0,217,255,0.5); } 100% { box-shadow: inset 0 0 4px rgba(0,217,255,0.2); } }
+        .animate-cyan-glow { animation: cyan-glow 1.5s ease-out forwards; }
       `,
         }}
       />

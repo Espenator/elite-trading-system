@@ -104,14 +104,23 @@ class EmbeddingEngine:
         """Hash-based pseudo-embeddings when sentence-transformers unavailable."""
         import hashlib
         dim = 384  # same as MiniLM
+        byte_len = dim * 4  # float32
         embeddings = []
         for text in texts:
             h = hashlib.sha256(text.encode()).digest()
-            # Extend hash to fill dimension
-            extended = h * (dim // len(h) + 1)
-            vec = np.frombuffer(extended[:dim * 4], dtype=np.float32)[:dim]
-            vec = vec / (np.linalg.norm(vec) + 1e-8)
-            embeddings.append(vec)
+            # Extend hash to at least byte_len bytes so we get 384 float32s
+            n = (byte_len // len(h)) + 1
+            extended = (h * n)[:byte_len]
+            vec = np.frombuffer(extended, dtype=np.float32).copy()
+            if len(vec) < dim:
+                vec = np.resize(vec, dim).astype(np.float32)
+            norm = np.linalg.norm(vec)
+            if norm < 1e-8:
+                vec = np.zeros(dim, dtype=np.float32)
+                vec[0] = 1.0  # ensure non-zero for normalization
+            else:
+                vec = vec / norm
+            embeddings.append(vec.astype(np.float32))
         return np.array(embeddings, dtype=np.float32)
 
 

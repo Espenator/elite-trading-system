@@ -399,7 +399,7 @@ docker-compose up -d
 cd backend && python -m pytest --tb=short -q
 ```
 
-Or from repo root: `.\start-embodier.ps1` (launcher derives paths from script location).
+Or from repo root: `.\start-embodier.ps1` (launcher derives paths from script location). The launcher uses **port fallback**: if 8000 or 5173 is stuck (e.g. TIME_WAIT), it uses the next free port (8001–8010, 5174–5183) and writes chosen ports to `.embodier-ports.json`. Backend reads `PORT` from env; frontend gets `VITE_PORT` and `VITE_BACKEND_URL`.
 
 ## 15. Current TODO — Enhancement Plan
 

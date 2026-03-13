@@ -10,45 +10,38 @@ from app.council.self_awareness import (
 
 
 class TestBayesianWeights:
-    @patch("app.council.self_awareness.db_service")
-    def test_default_weight(self, mock_db):
-        mock_db.get_config.return_value = None
-        w = BayesianAgentWeights()
-        assert w.get_weight("unknown_agent") == 0.5  # Beta(2,2) = 0.5
+    """BayesianAgentWeights delegates to WeightLearner (single source of truth)."""
 
     @patch("app.council.self_awareness.db_service")
-    def test_update_profitable(self, mock_db):
+    @patch("app.council.weight_learner.get_weight_learner")
+    def test_get_weight_delegates_to_learner(self, mock_wl, mock_db):
         mock_db.get_config.return_value = None
+        mock_learner = MagicMock()
+        mock_learner.get_weight.return_value = 1.2
+        mock_wl.return_value = mock_learner
         w = BayesianAgentWeights()
-        w.update("test_agent", True)  # alpha: 2->3, beta: 2
-        assert w.get_weight("test_agent") == 3.0 / 5.0  # 0.6
+        assert w.get_weight("risk") == 1.2
+        mock_learner.get_weight.assert_called_once_with("risk")
 
     @patch("app.council.self_awareness.db_service")
-    def test_update_loss(self, mock_db):
+    @patch("app.council.weight_learner.get_weight_learner")
+    def test_get_weight_fallback_when_learner_unavailable(self, mock_wl, mock_db):
         mock_db.get_config.return_value = None
+        mock_wl.side_effect = RuntimeError("no learner")
         w = BayesianAgentWeights()
-        w.update("test_agent", False)  # alpha: 2, beta: 2->3
-        assert w.get_weight("test_agent") == 2.0 / 5.0  # 0.4
+        assert w.get_weight("any_agent") == 1.0
 
     @patch("app.council.self_awareness.db_service")
-    def test_multiple_updates(self, mock_db):
+    @patch("app.council.weight_learner.get_weight_learner")
+    def test_get_distribution(self, mock_wl, mock_db):
         mock_db.get_config.return_value = None
-        w = BayesianAgentWeights()
-        for _ in range(8):
-            w.update("good_agent", True)
-        for _ in range(2):
-            w.update("good_agent", False)
-        # alpha=10, beta=4 -> 10/14 = 0.714
-        assert abs(w.get_weight("good_agent") - 10.0 / 14.0) < 0.01
-
-    @patch("app.council.self_awareness.db_service")
-    def test_get_distribution(self, mock_db):
-        mock_db.get_config.return_value = None
+        mock_learner = MagicMock()
+        mock_learner.get_weight.return_value = 0.8
+        mock_wl.return_value = mock_learner
         w = BayesianAgentWeights()
         d = w.get_distribution("new_agent")
-        assert d["alpha"] == 2.0
-        assert d["beta"] == 2.0
-        assert d["mean"] == 0.5
+        assert d["mean"] == 0.8
+        assert d["source"] == "weight_learner"
 
 
 class TestStreakDetector:
@@ -83,6 +76,31 @@ class TestStreakDetector:
         for _ in range(4):
             s.record_outcome("agent", False)
         s.record_outcome("agent", True)
+        assert s.get_status("agent") == "ACTIVE"
+
+    @patch("app.council.self_awareness.db_service")
+    def test_recovery_3_wins_after_probation_to_active(self, mock_db):
+        mock_db.get_config.return_value = None
+        s = StreakDetector()
+        for _ in range(5):
+            s.record_outcome("agent", False)
+        assert s.get_status("agent") == "PROBATION"
+        for _ in range(3):
+            s.record_outcome("agent", True)
+        assert s.get_status("agent") == "ACTIVE"
+
+    @patch("app.council.self_awareness.db_service")
+    def test_recovery_5_wins_from_hibernation_to_probation_then_3_to_active(self, mock_db):
+        mock_db.get_config.return_value = None
+        s = StreakDetector()
+        for _ in range(10):
+            s.record_outcome("agent", False)
+        assert s.get_status("agent") == "HIBERNATION"
+        for _ in range(5):
+            s.record_outcome("agent", True)
+        assert s.get_status("agent") == "PROBATION"
+        for _ in range(3):
+            s.record_outcome("agent", True)
         assert s.get_status("agent") == "ACTIVE"
 
     @patch("app.council.self_awareness.db_service")
@@ -123,18 +141,27 @@ class TestAgentHealthMonitor:
 
 class TestSelfAwareness:
     @patch("app.council.self_awareness.db_service")
-    def test_effective_weight(self, mock_db):
+    @patch("app.council.weight_learner.get_weight_learner")
+    def test_effective_weight(self, mock_wl, mock_db):
         mock_db.get_config.return_value = None
+        mock_learner = MagicMock()
+        mock_learner.get_weight.return_value = 1.0
+        mock_wl.return_value = mock_learner
         sa = SelfAwareness()
-        # Default: Bayesian 0.5 * streak 1.0 = 0.5
-        assert sa.get_effective_weight("agent") == 0.5
+        # WeightLearner 1.0 * streak 1.0 = 1.0
+        assert sa.get_effective_weight("agent") == 1.0
 
     @patch("app.council.self_awareness.db_service")
-    def test_record_trade_outcome(self, mock_db):
+    @patch("app.council.weight_learner.get_weight_learner")
+    def test_record_trade_outcome(self, mock_wl, mock_db):
         mock_db.get_config.return_value = None
+        mock_learner = MagicMock()
+        mock_learner.get_weight.return_value = 1.0
+        mock_learner.get_weights.return_value = {}
+        mock_wl.return_value = mock_learner
         sa = SelfAwareness()
         sa.record_trade_outcome("agent", True)
-        assert sa.weights.get_weight("agent") > 0.5
+        assert sa.streaks.get_streak_info("agent")["win_streak"] == 1
         assert sa.streaks.get_status("agent") == "ACTIVE"
 
     @patch("app.council.self_awareness.db_service")

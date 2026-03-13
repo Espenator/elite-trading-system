@@ -158,6 +158,31 @@ async def get_signals(as_of: date | None = None):
     except Exception as e:
         logger.warning("TurboScanner signals unavailable: %s", e)
 
+    # When no ML and no TurboScanner signals, return minimal placeholder so Dashboard shows data flow
+    if not dashboard_signals:
+        for sym in ("SPY", "QQQ", "AAPL"):
+            dashboard_signals.append({
+                "symbol": sym,
+                "direction": "LONG",
+                "score": 50,
+                "scores": {"technical": 50, "ml": 0, "sentiment": 0, "regime": 0, "breakout": 0, "rebound": 0, "meanReversion": 0},
+                "entry": 0,
+                "target": 0,
+                "stop": 0,
+                "rMultiple": 1.5,
+                "kellyPercent": 10,
+                "momentum": 0,
+                "volSpike": 0,
+                "sector": "",
+                "pattern": "placeholder",
+                "leadAgent": "system",
+                "swarmVote": "LONG",
+                "topShap": "Waiting for live scan",
+                "newsImpact": "",
+                "expPnL": 0,
+                "detected_at": "",
+            })
+
     # Sort by score descending
     dashboard_signals.sort(key=lambda x: x.get("score", 0), reverse=True)
     result = {"as_of": str(as_of), "signals": dashboard_signals}
@@ -175,54 +200,49 @@ async def get_technicals(symbol: str, as_of: date | None = None):
     """Technical indicators for a symbol (Dashboard). Stub when no features; real when available."""
     symbol = symbol.upper().strip() if symbol else ""
     raw_signals, feats = _get_raw_signals_and_feats(as_of)
-    if feats is None or feats.empty or "symbol" not in feats.columns:
+    def _stub_technicals(sym: str, ind: dict | None = None):
+        ind = ind or {}
+        ma20 = ind.get("ma_20_dist")
+        ema20_val = ind.get("ema20") or (f"{float(ma20):.2f}" if ma20 is not None else "0")
+        # Always return displayable values for Dashboard (no None so UI shows 0 or placeholder)
         return {
-            "symbol": symbol or "?",
-            "indicators": {},
-            "score": 0,
+            "symbol": sym or "?",
+            "indicators": ind,
+            "technicals": {
+                "rsi": ind.get("rsi") if ind.get("rsi") is not None else 0,
+                "macd": ind.get("macd") if ind.get("macd") is not None else 0,
+                "bb": ind.get("bb") if ind.get("bb") is not None else "0",
+                "vwap": ind.get("vwap") if ind.get("vwap") is not None else 0,
+                "ema20": ema20_val,
+                "sma50": ind.get("sma50") if ind.get("sma50") is not None else 0,
+                "adx": ind.get("adx") if ind.get("adx") is not None else 0,
+                "stoch": ind.get("stoch") if ind.get("stoch") is not None else 0,
+                "driftScore": ind.get("driftScore") if ind.get("driftScore") is not None else 0,
+            },
+            "score": 50 if ind else 0,
             "momentum": "neutral",
             "breakout": 0,
             "meanReversion": 0,
             "volume": 0,
         }
+
+    if feats is None or feats.empty or "symbol" not in feats.columns:
+        return _stub_technicals(symbol or "?")
     syms = feats["symbol"].astype(str).str.upper().tolist()
     if symbol and symbol not in syms:
-        return {
-            "symbol": symbol,
-            "indicators": {},
-            "score": 0,
-            "momentum": "neutral",
-            "breakout": 0,
-            "meanReversion": 0,
-            "volume": 0,
-        }
+        return _stub_technicals(symbol)
     try:
         row = feats[feats["symbol"].astype(str).str.upper() == symbol].iloc[-1]
-        return {
-            "symbol": symbol,
-            "indicators": {
-                "ma_10_dist": float(row.get("ma_10_dist", 0)),
-                "ma_20_dist": float(row.get("ma_20_dist", 0)),
-                "vol_20": float(row.get("vol_20", 0)),
-                "vol_rel": float(row.get("vol_rel", 0)),
-                "return_1d": float(row.get("return_1d", 0)),
-            },
-            "score": 50,
-            "momentum": "neutral",
-            "breakout": 0,
-            "meanReversion": 0,
-            "volume": 0,
+        ind = {
+            "ma_10_dist": float(row.get("ma_10_dist", 0)),
+            "ma_20_dist": float(row.get("ma_20_dist", 0)),
+            "vol_20": float(row.get("vol_20", 0)),
+            "vol_rel": float(row.get("vol_rel", 0)),
+            "return_1d": float(row.get("return_1d", 0)),
         }
+        return _stub_technicals(symbol, ind)
     except Exception:
-        return {
-            "symbol": symbol,
-            "indicators": {},
-            "score": 0,
-            "momentum": "neutral",
-            "breakout": 0,
-            "meanReversion": 0,
-            "volume": 0,
-        }
+        return _stub_technicals(symbol)
 
 
 @router.get("/active/{symbol}", response_model=ActiveSignalResponse)

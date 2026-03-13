@@ -13,6 +13,7 @@ import asyncio
 import concurrent.futures
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -83,6 +84,8 @@ from app.api.v1 import (
     triage,
     webhooks,
     metrics_api,
+    briefing,
+    tradingview,
 )
 from app.api import ingestion
 from app.api.v1 import ingestion_firehose
@@ -397,6 +400,13 @@ async def _start_event_driven_pipeline():
     await _idea_triage.start()
     log.info("\u2705 IdeaTriageService started (base_threshold=40, routes swarm.idea → triage.escalated)")
 
+    # 2c2. DiscoverySignalBridge — triage.escalated → signal.generated so scout discoveries reach council
+    from app.services.discovery_signal_bridge import get_discovery_signal_bridge
+    _discovery_bridge = get_discovery_signal_bridge()
+    _discovery_bridge._bus = _message_bus
+    await _discovery_bridge.start()
+    log.info("\u2705 DiscoverySignalBridge started (triage.escalated → signal.generated)")
+
     # 2d. ScoutRegistry — E2: 12 dedicated continuous scout agents.
     # Started here (adjacent to E1/E3) so all three discovery-pipeline stages
     # are live before any downstream consumers (SwarmSpawner, HyperSwarm) start.
@@ -424,7 +434,7 @@ async def _start_event_driven_pipeline():
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
         await _council_gate.start()
-        log.info("\u2705 CouncilGate started (13-agent council controls trading)")
+        log.info("\u2705 CouncilGate started (33-agent council controls trading)")
     else:
         log.info("\u26a0 CouncilGate DISABLED -- routing signals directly to OrderExecutor")
         # BUG FIX: When council is off, route signals directly as verdicts.
@@ -513,7 +523,17 @@ async def _start_event_driven_pipeline():
     async def _bridge_council_to_ws(verdict_data):
         try:
             from app.websocket_manager import broadcast_ws
-            await broadcast_ws("council", {"type": "council_verdict", "verdict": verdict_data})
+            # Channel "council": symbol, direction, confidence, council_decision_id for frontend (SwarmOverviewTab, etc.)
+            await broadcast_ws("council", {
+                "type": "council_verdict",
+                "symbol": verdict_data.get("symbol"),
+                "direction": verdict_data.get("final_direction"),
+                "confidence": verdict_data.get("final_confidence"),
+                "council_decision_id": verdict_data.get("council_decision_id"),
+                "verdict": verdict_data,
+            })
+            # Channel "council_verdict" so frontend TradeExecution (WS_CHANNELS.council_verdict) receives updates
+            await broadcast_ws("council_verdict", {"type": "council_verdict", "verdict": verdict_data})
         except Exception as e:
             log.debug("WS council broadcast failed: %s", e)
 
@@ -724,6 +744,15 @@ async def _start_event_driven_pipeline():
 
     await _message_bus.subscribe("swarm.result", _bridge_swarm_to_ws)
 
+    async def _bridge_swarm_idea_to_ws(idea_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("swarm", {"type": "swarm_idea", "idea": idea_data})
+        except Exception as e:
+            log.debug("WS swarm.idea broadcast failed: %s", e)
+
+    await _message_bus.subscribe("swarm.idea", _bridge_swarm_idea_to_ws)
+
     async def _bridge_macro_to_ws(event_data):
         try:
             from app.websocket_manager import broadcast_ws
@@ -827,6 +856,16 @@ async def _start_event_driven_pipeline():
                 log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
             except Exception as e:
                 log.warning("DiscordSwarmBridge failed to start: %s", e)
+
+        # 20. Data swarm (24/7 collectors: Alpaca, UW, FinViz) — opt-in via DATA_SWARM_ENABLED=true
+        if os.getenv("DATA_SWARM_ENABLED", "").lower() in ("1", "true", "yes"):
+            try:
+                from app.services.data_swarm import get_swarm_orchestrator
+                _data_swarm = get_swarm_orchestrator()
+                asyncio.create_task(_data_swarm.run())
+                log.info("\u2705 Data swarm orchestrator started (session-aware collectors)")
+            except Exception as e:
+                log.warning("Data swarm orchestrator failed to start: %s", e)
 
         await asyncio.sleep(2)
 
@@ -965,56 +1004,15 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
              _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
 
-    # 24b. outcome.resolved subscribers — close the feedback loop (Audit Bug #12)
+    # 24b. outcome.resolved subscribers — single path: OutcomeTracker already updates
+    #      WeightLearner + SelfAwareness streaks before publishing. No duplicate updates
+    #      (dopamine loop fix: one source of truth, no double-counting).
     async def _on_outcome_resolved(outcome_data):
-        """Feed resolved outcomes to WeightLearner and SelfAwareness.
-        Censored outcomes are passed through with is_censored flag — WeightLearner
-        defends itself (skips weight updates for censored). This preserves monitoring
-        data and respects mark_to_market policy where timeouts carry valid PnL."""
-        is_censored = outcome_data.get("is_censored", False)
-        if is_censored:
-            log.info(
-                "⚠️ Censored outcome for %s (reason: %s) — passing to WeightLearner with is_censored=True",
-                outcome_data.get("symbol", "?"),
-                outcome_data.get("close_reason", "unknown"),
-            )
-        try:
-            from app.council.weight_learner import get_weight_learner
-            learner = get_weight_learner()
-            learner.update_from_outcome(
-                symbol=outcome_data.get("symbol", ""),
-                outcome_direction="win" if outcome_data.get("pnl_pct", 0) > 0.001 else "loss",
-                pnl=outcome_data.get("pnl", 0.0),
-                r_multiple=outcome_data.get("r_multiple", 0.0),
-                is_censored=is_censored,
-            )
-        except Exception as e:
-            log.debug("WeightLearner outcome update failed: %s", e)
-
-        if is_censored:
-            # SelfAwareness should NOT learn from censored outcomes
-            return
-
-        try:
-            from app.council.self_awareness import get_self_awareness
-            sa = get_self_awareness()
-            profitable = outcome_data.get("pnl_pct", 0) > 0.001
-            agent_votes = outcome_data.get("agent_votes", {}) or {}
-            if agent_votes:
-                for agent_name in agent_votes:
-                    sa.record_trade_outcome(agent_name, profitable)
-            else:
-                for agent_name in [
-                    "market_perception", "flow_perception", "regime", "intermarket",
-                    "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
-                    "hypothesis", "strategy", "risk", "execution",
-                ]:
-                    sa.record_trade_outcome(agent_name, profitable)
-        except Exception as e:
-            log.debug("SelfAwareness outcome update failed: %s", e)
+        """OutcomeTracker is the single path for weight/streak updates. Subscriber reserved for other side effects."""
+        pass
 
     await _message_bus.subscribe("outcome.resolved", _on_outcome_resolved)
-    log.info("\u2705 outcome.resolved subscriber active (WeightLearner + SelfAwareness)")
+    log.info("\u2705 outcome.resolved subscriber active (weights/streaks updated by OutcomeTracker only)")
 
     # 24c. PriceCacheService — caches last price per symbol from market_data.bar/quote
     global _price_cache, _channels_orch, _ml_pub
@@ -1296,6 +1294,11 @@ async def _stop_event_driven_pipeline():
     except Exception:
         pass
     try:
+        from app.services.discovery_signal_bridge import get_discovery_signal_bridge
+        await get_discovery_signal_bridge().stop()
+    except Exception:
+        pass
+    try:
         from app.services.idea_triage import get_idea_triage_service
         await get_idea_triage_service().stop()
     except Exception:
@@ -1369,11 +1372,13 @@ async def lifespan(app: FastAPI):
         )
     except Exception as e:
         err_msg = str(e).lower()
-        if "already open" in err_msg or "file is already open" in err_msg:
+        if ("already open" in err_msg or "file is already open" in err_msg or "being used by another process" in err_msg):
             log.warning(
                 "DuckDB init skipped (file in use by another process). "
-                "Close any other Embodier Trader window or Python process using this repo, then restart."
+                "Only one backend instance per data directory. Exiting to stop window loop."
             )
+            # os._exit cannot be caught; ensures duplicate process dies immediately
+            os._exit(2)  # EXIT_DUPLICATE_INSTANCE — autorestart script will wait instead of quick-restart
         else:
             log.warning("DuckDB init skipped: %s", e)
 
@@ -1503,12 +1508,24 @@ async def lifespan(app: FastAPI):
     # 30. Wire critical PUBLISH_ONLY subscribers (Audit Item 2)
     # These events were published into the void — now they have handlers.
     async def _on_hitl_approval_needed(data):
-        """Log HITL requests and alert operator — human must approve before trade."""
+        """Log HITL requests, broadcast to frontend for approval dialog, and alert dashboard."""
         log.warning(
             "🛑 HITL APPROVAL NEEDED: %s %s confidence=%.1f — awaiting human decision",
             data.get("symbol", "?"), data.get("direction", "?"),
             data.get("confidence", 0),
         )
+        # Broadcast to frontend so approval dialog can be shown (prevents trades hanging)
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("agents", {
+                "type": "hitl_approval_needed",
+                "symbol": data.get("symbol"),
+                "direction": data.get("direction"),
+                "confidence": data.get("confidence"),
+                "data": data,
+            })
+        except Exception as e:
+            log.debug("HITL WebSocket broadcast failed: %s", e)
         # Forward to alert.health for dashboard visibility
         try:
             await _message_bus.publish("alert.health", {
@@ -1521,12 +1538,25 @@ async def lifespan(app: FastAPI):
             pass
 
     async def _on_position_closed(data):
-        """Track closed positions for portfolio analytics and risk recalculation."""
+        """Track closed positions, feed feedback_loop for weight learning, and log."""
+        symbol = data.get("symbol", "?")
+        pnl = data.get("pnl", 0)
+        pnl_pct = data.get("pnl_pct", 0) or (pnl / (data.get("entry_price", 1) * data.get("qty", 1)) if data.get("entry_price") and data.get("qty") else 0)
+        reason = data.get("reason") or data.get("close_reason", "?")
         log.info(
             "📊 Position CLOSED: %s pnl=%.2f (%.2f%%) reason=%s",
-            data.get("symbol", "?"), data.get("pnl", 0),
-            data.get("pnl_pct", 0) * 100, data.get("close_reason", "?"),
+            symbol, pnl, pnl_pct * 100, reason,
         )
+        # CRITICAL: Feed feedback_loop so weight_learner learns from this trade
+        try:
+            from app.council.feedback_loop import record_outcome
+            trade_id = data.get("council_decision_id") or data.get("order_id") or ""
+            outcome = "win" if pnl > 0 else "loss" if pnl < 0 else "scratch"
+            entry = data.get("entry_price") or 1.0
+            r_multiple = (pnl / (entry * data.get("qty", 1))) if entry and data.get("qty") else 0.0
+            record_outcome(trade_id=trade_id, symbol=symbol, outcome=outcome, r_multiple=r_multiple)
+        except Exception as e:
+            log.debug("Feedback loop record_outcome failed: %s", e)
 
     async def _on_position_partial_exit(data):
         """Log partial exits for position tracking."""
@@ -1548,6 +1578,50 @@ async def lifespan(app: FastAPI):
     await _message_bus.subscribe("position.partial_exit", _on_position_partial_exit)
     await _message_bus.subscribe("symbol.prep.ready", _on_symbol_prep_ready)
     log.info("✅ 4 critical PUBLISH_ONLY subscribers wired (hitl, position.closed/partial, symbol.prep.ready)")
+
+    # 31. Sensory store — wire orphan perception/macro/signal topics so council agents can read them
+    from app.core.sensory_store import update as sensory_update
+    _SENSORY_TOPICS = (
+        "perception.finviz.screener",
+        "perception.macro",
+        "perception.edgar",
+        "perception.gex",
+        "perception.insider",
+        "perception.squeezemetrics",
+        "perception.earnings",
+        "perception.congressional",
+        "macro.fred",
+        "perception.flow.uw_analysis",
+        "signal.external",
+        "knowledge.ingested",
+    )
+    for _topic in _SENSORY_TOPICS:
+        async def _handler(payload, t=_topic):
+            try:
+                sensory_update(t, payload)
+            except Exception as e:
+                log.debug("Sensory store update failed for %s: %s", t, e)
+        await _message_bus.subscribe(_topic, _handler)
+
+    # alert.health → homeostasis + dashboard WebSocket
+    async def _on_alert_health(data):
+        try:
+            sensory_update("alert.health", data)
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("health", {"type": "alert", "data": data})
+        except Exception as e:
+            log.debug("Alert health handler failed: %s", e)
+    await _message_bus.subscribe("alert.health", _on_alert_health)
+
+    # position.partial_exit → sensory store (portfolio_optimizer_agent can read from blackboard)
+    async def _on_position_partial_exit_sensory(data):
+        try:
+            sensory_update("position.partial_exit", data)
+        except Exception:
+            pass
+    await _message_bus.subscribe("position.partial_exit", _on_position_partial_exit_sensory)
+
+    log.info("✅ Sensory store + alert.health subscribers wired (%d perception/macro/signal topics)", len(_SENSORY_TOPICS) + 2)
 
     _heartbeat_interval = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "30"))
 
@@ -1728,14 +1802,13 @@ app.include_router(awareness.router, prefix="/api/v1", tags=["awareness"])
 app.include_router(blackboard_routes.router, prefix="/api/v1/blackboard", tags=["blackboard"])
 app.include_router(triage.router, prefix="/api/v1/triage", tags=["triage"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+app.include_router(briefing.router, prefix="/api/v1/briefing", tags=["briefing"])
+app.include_router(tradingview.router, prefix="/api/v1/tradingview", tags=["tradingview"])
 app.include_router(metrics_api.router, tags=["metrics"])
 
-# Unified health monitoring endpoint
-try:
-    from app.api.v1 import health as health_api
-    app.include_router(health_api.router, tags=["health"])
-except Exception as _e:
-    log.warning("Health API router failed to register: %s", _e)
+# Unified health monitoring endpoint (required for Startup Health page and 7-phase check)
+from app.api.v1 import health as health_api
+app.include_router(health_api.router, tags=["health"])
 
 
 @app.get("/api/v1/ws/registry", tags=["websocket"])
@@ -1772,12 +1845,13 @@ async def consensus_alias():
 
 
 # --- Valid WebSocket channels (server-side only publishing) ---
-# Must include every channel the frontend subscribes to (WS_CHANNELS in config/api.js)
+# Must match WS_ALLOWED_CHANNELS in websocket_manager.py and frontend WS_CHANNELS (config/api.js)
 _VALID_WS_CHANNELS = frozenset({
     "signal", "signals", "order", "council", "council_verdict",
     "risk", "swarm", "kelly", "market", "macro", "blackboard",
-    "alerts", "performance", "agents", "data_sources", "trades",
-    "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
+    "alerts", "performance", "agents", "data_sources", "datasources",
+    "trades", "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
+    "health", "market_data", "outcomes", "system", "briefing",
 })
 
 # --- WebSocket rate limiting (Audit Task 15) ---

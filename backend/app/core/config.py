@@ -370,9 +370,10 @@ class Settings(BaseSettings):
     # ── API Auth Token ──────────────────────────────────────
     # (moved up for clarity but kept here as well for reference)
 
-    # ── TradingView ────────────────────────────────────────
+    # ── TradingView / TradersPost (outbound webhook bridge) ──
     TRADINGVIEW_WEBHOOK_SECRET: str = ""
     TRADINGVIEW_WEBHOOK_URL: str = ""
+    TRADERSPOST_WEBHOOK_URL: str = ""
 
     # ── WebSocket ──────────────────────────────────────────
     WS_HEARTBEAT_INTERVAL: int = 30

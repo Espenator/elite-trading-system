@@ -67,6 +67,11 @@ EXPECTED_FRONTEND_ENDPOINTS = [
     "/api/v1/signals/kelly-ranked",
     "/api/v1/strategy/pre-trade-check/{symbol}",  # path param
     "/api/v1/agents/swarm-topology",
+    "/api/v1/agents/spawn",
+    "/api/v1/agents/clone",
+    "/api/v1/agents/swarm/spawn",
+    "/api/v1/agents/swarm/templates",
+    "/api/v1/agents/kill-all",
     "/api/v1/agents/conference",
     "/api/v1/agents/teams",
     "/api/v1/agents/drift",

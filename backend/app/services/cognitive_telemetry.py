@@ -128,8 +128,13 @@ def get_cognitive_dashboard() -> Dict[str, Any]:
     if not snapshots:
         return {
             "total_evaluations": 0,
-            "metrics": {},
-            "mode_distribution": {},
+            "metrics": {
+                "avg_hypothesis_diversity": 0,
+                "avg_agent_agreement": 0,
+                "avg_memory_precision": 0,
+                "avg_latency_ms": None,
+            },
+            "mode_distribution": {"exploit": 1.0},
             "latency_profile": {},
             "calibration": {},
             "exploration_outcomes": {},
