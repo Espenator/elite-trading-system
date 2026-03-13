@@ -2,6 +2,7 @@ import React, { useEffect, useCallback, useRef, useState } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
 import { getApiUrl, getAuthHeaders, WS_CHANNELS } from '../config/api';
 import { useApi } from '../hooks/useApi';
+import { toast } from 'react-toastify';
 import ws from '../services/websocket';
 import clsx from 'clsx';
 import { Minus, Plus } from 'lucide-react';
@@ -65,7 +66,7 @@ const FormInput = ({ value, onChange, type = 'text', step, readOnly, className, 
 export default function TradeExecution() {
   const {
     portfolio, priceLadder, orderBook, positions, newsFeed, systemStatus,
-    selectedRow, setSelectedRow, orderForm, updateOrderForm, loading,
+    selectedRow, setSelectedRow, orderForm, updateOrderForm, loading, connected,
     executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell,
     executeStopLoss, executeAdvancedOrder, closePosition, adjustPosition,
     refresh: refreshTradeData,
@@ -115,6 +116,8 @@ export default function TradeExecution() {
   const chartInstanceRef = useRef(null);
   const [chartTimeframe, setChartTimeframe] = useState('1M');
   const [builderTab, setBuilderTab] = useState('Advanced');
+  const [positionsTab, setPositionsTab] = useState('positions'); // 'positions' | 'history'
+  const [orderHistory, setOrderHistory] = useState([]);
 
   /* -- Chart init -- */
   useEffect(() => {
@@ -298,6 +301,15 @@ export default function TradeExecution() {
         </div>
       </div>
 
+      {/* ═══════ CONNECTION BANNER ═══════ */}
+      {!connected && (
+        <div className="bg-red-900/60 border-b border-red-700/50 px-4 py-1.5 flex items-center gap-2 shrink-0">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="font-mono text-[10px] text-red-300">Backend disconnected — retrying with backoff...</span>
+          <button onClick={refreshTradeData} className="ml-auto font-mono text-[9px] text-red-200 hover:text-white underline">Retry Now</button>
+        </div>
+      )}
+
       {/* ═══════ QUICK EXECUTION BAR ═══════ */}
       <div className="h-10 bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)] flex items-center px-4 gap-2 shrink-0">
         <span className="font-mono text-[9px] text-gray-500 uppercase tracking-[1px] mr-2">Quick Execution</span>
@@ -419,6 +431,7 @@ export default function TradeExecution() {
               ))}
             </div>
 
+            {builderTab === 'Advanced' && (<>
             <FormField label="Symbol:">
               <FormSelect value={orderForm.symbol} onChange={e => updateOrderForm({ symbol: e.target.value })}>
                 {symbols.map(s => <option key={s} value={s}>{s}</option>)}
@@ -469,6 +482,32 @@ export default function TradeExecution() {
               disabled={loading}
               className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-wait shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)] flex items-center justify-center gap-2"
             >{loading ? 'Executing...' : <>Execute Order <span className="text-[9px] bg-black/25 px-[4px] py-px rounded-sm">E</span></>}</button>
+            </>)}
+
+            {builderTab === 'Strategy' && (
+              <div className="text-[10px] text-gray-400 font-mono space-y-2">
+                <p className="text-gray-500 mb-3">Pre-built strategy templates:</p>
+                {STRATEGIES.map(s => (
+                  <button key={s} onClick={() => { updateOrderForm({ strategy: s }); setBuilderTab('Advanced'); }}
+                    className={clsx('block w-full text-left px-3 py-2 rounded border transition-colors', orderForm.strategy === s ? 'border-[#00D9FF] bg-[#00D9FF]/10 text-[#00D9FF]' : 'border-[rgba(42,52,68,0.5)] hover:border-[#00D9FF]/50 text-gray-400')}
+                  >{s}</button>
+                ))}
+              </div>
+            )}
+
+            {builderTab === 'News' && (
+              <div className="text-[10px] text-gray-400 font-mono space-y-1.5">
+                <p className="text-gray-500 mb-2">Recent market headlines:</p>
+                {displayNews.length === 0 ? (
+                  <p className="text-gray-600 italic">No news available</p>
+                ) : displayNews.slice(0, 8).map((item, i) => (
+                  <div key={i} className="py-1 border-b border-[rgba(26,39,68,0.3)] text-[9px]">
+                    <span className="text-gray-500 mr-2">{item.time}</span>
+                    <span className="text-slate-300">{item.text || item.title || item.headline}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}
@@ -580,10 +619,11 @@ export default function TradeExecution() {
         {/* ═══ BOTTOM LEFT (cols 1-3): LIVE POSITIONS ═══ */}
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ gridColumn: '1 / 4' }}>
           <div className="flex gap-0 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] shrink-0">
-            <button className="px-3.5 py-1.5 font-mono text-[9px] text-[#00D9FF] border-b-2 border-[#00D9FF] cursor-pointer">Live Positions</button>
-            <button className="px-3.5 py-1.5 font-mono text-[9px] text-gray-500 border-b-2 border-transparent cursor-pointer hover:text-[#c8d6e5]">Order History</button>
+            <button onClick={() => setPositionsTab('positions')} className={clsx('px-3.5 py-1.5 font-mono text-[9px] border-b-2 cursor-pointer', positionsTab === 'positions' ? 'text-[#00D9FF] border-[#00D9FF]' : 'text-gray-500 border-transparent hover:text-[#c8d6e5]')}>Live Positions</button>
+            <button onClick={() => setPositionsTab('history')} className={clsx('px-3.5 py-1.5 font-mono text-[9px] border-b-2 cursor-pointer', positionsTab === 'history' ? 'text-[#00D9FF] border-[#00D9FF]' : 'text-gray-500 border-transparent hover:text-[#c8d6e5]')}>Order History</button>
           </div>
           <div className="flex-1 overflow-y-auto">
+            {positionsTab === 'positions' ? (
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -616,6 +656,32 @@ export default function TradeExecution() {
                 })}
               </tbody>
             </table>
+            ) : (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  {['Time', 'Symbol', 'Side', 'Type', 'Qty', 'Price', 'Status'].map(h => (
+                    <th key={h} className="px-2 py-1.5 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827]/80 z-[2]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {orderHistory.length === 0 ? (
+                  <tr><td colSpan={7} className="px-2 py-4 font-mono text-[9px] text-gray-500 text-center">No orders placed this session</td></tr>
+                ) : orderHistory.map((o, i) => (
+                  <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
+                    <td className="px-2 py-1 font-mono text-[9px] text-gray-500 border-b border-[rgba(26,39,68,0.3)]">{o.time}</td>
+                    <td className="px-2 py-1 font-mono text-[9px] text-[#00D9FF] border-b border-[rgba(26,39,68,0.3)]">{o.symbol}</td>
+                    <td className={clsx('px-2 py-1 font-mono text-[9px] font-semibold border-b border-[rgba(26,39,68,0.3)]', o.side === 'buy' ? 'text-[#00e676]' : 'text-[#ff3860]')}>{o.side?.toUpperCase()}</td>
+                    <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{o.type}</td>
+                    <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{o.qty}</td>
+                    <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{o.price ? fmtUsd(o.price) : 'MKT'}</td>
+                    <td className={clsx('px-2 py-1 font-mono text-[9px] font-semibold border-b border-[rgba(26,39,68,0.3)]', o.status === 'filled' ? 'text-[#00e676]' : o.status === 'failed' ? 'text-[#ff3860]' : 'text-[#ffab00]')}>{o.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            )}
           </div>
         </div>
 
@@ -650,9 +716,18 @@ export default function TradeExecution() {
       {/* ═══ COUNCIL DECISION PANEL ═══ */}
       <div className="shrink-0 border-t border-[rgba(42,52,68,0.5)] bg-[#111827]/80 p-3">
         <CouncilDecisionPanel
-          onExecute={(data) => { console.log('Execute:', data); }}
-          onOverride={() => { console.log('Override'); }}
-          onDismiss={() => { console.log('Dismiss'); }}
+          onExecute={() => {
+            toast.info('Executing council-recommended trade...');
+            withPreflight('buy', executeAdvancedOrder);
+          }}
+          onOverride={() => {
+            if (!window.confirm('Override council recommendation and execute opposite trade?')) return;
+            toast.warn('Overriding council — executing manually');
+            executeAdvancedOrder();
+          }}
+          onDismiss={() => {
+            toast.info('Council decision dismissed');
+          }}
         />
       </div>
     </div>

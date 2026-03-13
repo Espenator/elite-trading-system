@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import tradeExecutionService from '../services/tradeExecutionService';
+import { toast } from 'react-toastify';
 import log from "@/utils/logger";
 
-const POLL_INTERVAL = 10000; // 10s — was 2s, caused browser connection exhaustion
+const BASE_POLL_INTERVAL = 10000; // 10s normal polling
+const MAX_POLL_INTERVAL = 120000; // 2min max backoff
+const MAX_CONSECUTIVE_FAILURES = 5; // show disconnected banner after this many
 
 // ─── Default State (empty — real data loaded from API) ─────
 const defaultPortfolio = { value: 0, dailyPnl: 0, dailyPnlPct: 0, status: 'OFFLINE', latency: 0 };
@@ -24,6 +27,11 @@ export default function useTradeExecution() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [connected, setConnected] = useState(true);
+
+  // ─── Backoff tracking ────────────────────────────────────
+  const failedCountRef = useRef(0);
+  const currentIntervalRef = useRef(BASE_POLL_INTERVAL);
 
   // ─── Order Form State ──────────────────────────────────
   const [orderForm, setOrderForm] = useState({
@@ -40,7 +48,7 @@ export default function useTradeExecution() {
   const wsRef = useRef(null);
   const pollRef = useRef(null);
 
-  // ─── Fetch All Data ────────────────────────────────────
+  // ─── Fetch All Data (with exponential backoff) ─────────
   const fetchAll = useCallback(async () => {
     try {
       const [portfolioRes, positionsRes, orderBookRes, ladderRes, newsRes, statusRes] = await Promise.allSettled([
@@ -52,6 +60,10 @@ export default function useTradeExecution() {
         tradeExecutionService.getSystemStatus(),
       ]);
 
+      // Count how many settled as rejected (503s, network errors, etc.)
+      const results = [portfolioRes, positionsRes, orderBookRes, ladderRes, newsRes, statusRes];
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
       if (portfolioRes.status === 'fulfilled') setPortfolio(portfolioRes.value);
       if (positionsRes.status === 'fulfilled') setPositions(positionsRes.value);
       if (orderBookRes.status === 'fulfilled') setOrderBook(orderBookRes.value);
@@ -59,8 +71,37 @@ export default function useTradeExecution() {
       if (newsRes.status === 'fulfilled') setNewsFeed(newsRes.value);
       if (statusRes.status === 'fulfilled') setSystemStatus(statusRes.value);
       setLastUpdate(new Date());
+
+      if (failCount >= 4) {
+        // Most/all endpoints failed — increase backoff
+        failedCountRef.current += 1;
+        currentIntervalRef.current = Math.min(
+          BASE_POLL_INTERVAL * Math.pow(2, failedCountRef.current),
+          MAX_POLL_INTERVAL
+        );
+        if (failedCountRef.current >= MAX_CONSECUTIVE_FAILURES) {
+          setConnected(false);
+        }
+        log.warn(`[useTradeExecution] ${failCount}/6 fetches failed, backoff ${currentIntervalRef.current / 1000}s (fail #${failedCountRef.current})`);
+      } else {
+        // Success or partial success — reset backoff
+        if (failedCountRef.current > 0) {
+          log.info('[useTradeExecution] Connection restored');
+        }
+        failedCountRef.current = 0;
+        currentIntervalRef.current = BASE_POLL_INTERVAL;
+        setConnected(true);
+      }
     } catch (err) {
-      log.warn('[useTradeExecution] Fetch error, using defaults:', err.message);
+      failedCountRef.current += 1;
+      currentIntervalRef.current = Math.min(
+        BASE_POLL_INTERVAL * Math.pow(2, failedCountRef.current),
+        MAX_POLL_INTERVAL
+      );
+      if (failedCountRef.current >= MAX_CONSECUTIVE_FAILURES) {
+        setConnected(false);
+      }
+      log.warn(`[useTradeExecution] Fetch error (fail #${failedCountRef.current}):`, err.message);
     }
   }, [orderForm.symbol]);
 
@@ -96,8 +137,9 @@ export default function useTradeExecution() {
     setLastUpdate(new Date());
   }, []);
 
-  // ─── Init: Fetch + WS + Polling ────────────────────────
+  // ─── Init: Fetch + WS + Adaptive Polling ───────────────
   useEffect(() => {
+    let cancelled = false;
     fetchAll();
 
     try {
@@ -106,11 +148,20 @@ export default function useTradeExecution() {
       log.warn('[useTradeExecution] WS unavailable, polling only');
     }
 
-    pollRef.current = setInterval(fetchAll, POLL_INTERVAL);
+    // Adaptive polling: uses currentIntervalRef (grows on failure, resets on success)
+    const schedulePoll = () => {
+      if (cancelled) return;
+      pollRef.current = setTimeout(async () => {
+        await fetchAll();
+        schedulePoll();
+      }, currentIntervalRef.current);
+    };
+    schedulePoll();
 
     return () => {
+      cancelled = true;
       if (wsRef.current) wsRef.current.close();
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, [fetchAll, handleWsMessage]);
 
@@ -120,12 +171,15 @@ export default function useTradeExecution() {
     setError(null);
     try {
       const result = await tradeExecutionService.marketBuy(orderForm.symbol, orderForm.quantity);
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Market Buy executed: ${orderForm.symbol} x${orderForm.quantity}`, type: 'success' }, ...prev]);
+      const msg = `Market Buy executed: ${orderForm.symbol} x${orderForm.quantity}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
       return result;
     } catch (err) {
       setError(err.message);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Order failed: ${err.message}`, type: 'error' }, ...prev]);
+      toast.error(`Market Buy failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -136,60 +190,84 @@ export default function useTradeExecution() {
     setError(null);
     try {
       const result = await tradeExecutionService.marketSell(orderForm.symbol, orderForm.quantity);
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Market Sell executed: ${orderForm.symbol} x${orderForm.quantity}`, type: 'success' }, ...prev]);
+      const msg = `Market Sell executed: ${orderForm.symbol} x${orderForm.quantity}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
       return result;
     } catch (err) {
       setError(err.message);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Order failed: ${err.message}`, type: 'error' }, ...prev]);
+      toast.error(`Market Sell failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
   }, [orderForm, fetchAll]);
 
   const executeLimitBuy = useCallback(async () => {
+    if (!orderForm.limitPrice || orderForm.limitPrice <= 0) {
+      toast.warn('Set a limit price before placing a Limit Buy');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const result = await tradeExecutionService.limitBuy(orderForm.symbol, orderForm.quantity, orderForm.limitPrice);
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Limit Buy placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.limitPrice}`, type: 'success' }, ...prev]);
+      const msg = `Limit Buy placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.limitPrice}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
       return result;
     } catch (err) {
       setError(err.message);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Order failed: ${err.message}`, type: 'error' }, ...prev]);
+      toast.error(`Limit Buy failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
   }, [orderForm, fetchAll]);
 
   const executeLimitSell = useCallback(async () => {
+    if (!orderForm.limitPrice || orderForm.limitPrice <= 0) {
+      toast.warn('Set a limit price before placing a Limit Sell');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const result = await tradeExecutionService.limitSell(orderForm.symbol, orderForm.quantity, orderForm.limitPrice);
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Limit Sell placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.limitPrice}`, type: 'success' }, ...prev]);
+      const msg = `Limit Sell placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.limitPrice}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
       return result;
     } catch (err) {
       setError(err.message);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Order failed: ${err.message}`, type: 'error' }, ...prev]);
+      toast.error(`Limit Sell failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
   }, [orderForm, fetchAll]);
 
   const executeStopLoss = useCallback(async () => {
+    if (!orderForm.stopPrice || orderForm.stopPrice <= 0) {
+      toast.warn('Set a stop price before placing a Stop Loss');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const result = await tradeExecutionService.stopLoss(orderForm.symbol, orderForm.quantity, orderForm.stopPrice);
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Stop Loss placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.stopPrice}`, type: 'success' }, ...prev]);
+      const msg = `Stop Loss placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.stopPrice}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
       return result;
     } catch (err) {
       setError(err.message);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Order failed: ${err.message}`, type: 'error' }, ...prev]);
+      toast.error(`Stop Loss failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -208,12 +286,15 @@ export default function useTradeExecution() {
         limitPrice: orderForm.limitPrice,
         stopPrice: orderForm.stopPrice,
       });
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `${orderForm.strategy} executed: ${orderForm.symbol} x${orderForm.quantity}`, type: 'success' }, ...prev]);
+      const msg = `${orderForm.strategy} executed: ${orderForm.symbol} x${orderForm.quantity}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
       return result;
     } catch (err) {
       setError(err.message);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Advanced order failed: ${err.message}`, type: 'error' }, ...prev]);
+      toast.error(`Advanced order failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -267,6 +348,7 @@ export default function useTradeExecution() {
     loading,
     error,
     lastUpdate,
+    connected,
     executeMarketBuy,
     executeMarketSell,
     executeLimitBuy,

@@ -143,7 +143,7 @@ const API_CONFIG = {
     featuresCompute:  "/features/compute",
 
     // ---- TRAINING ----
-    training:         "/training/",
+    training:         "/training",
 
     // ---- DEVICE & SYSTEM ----
     "system/health":  "/system",

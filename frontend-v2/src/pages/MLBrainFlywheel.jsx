@@ -3,6 +3,7 @@ import { createChart } from 'lightweight-charts';
 import { AreaChart, Area, LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl, getAuthHeaders } from '../config/api';
+import { toast } from 'react-toastify';
 import log from "@/utils/logger";
 import {
   Brain, Activity, Zap, RotateCcw, Server, TrendingUp, BarChart3, Radio,
@@ -295,13 +296,16 @@ export default function MLBrainFlywheel() {
   const handleRetrain = async () => {
     setIsRetraining(true);
     try {
-      await fetch(getApiUrl('training') + '/runs', {
+      const res = await fetch(getApiUrl('training') + '/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ type: 'retrain' })
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success('Retrain pipeline started');
     } catch (e) {
       log.error("Retrain failed", e);
+      toast.error(`Retrain failed: ${e.message}`);
     }
     setTimeout(() => setIsRetraining(false), 2000);
   };
@@ -319,7 +323,14 @@ export default function MLBrainFlywheel() {
     },
     {
       label: 'Walk-Forward Accuracy',
-      val: kpis.walk_forward ?? kpis.walkForwardAcc ? `${kpis.walk_forward ?? kpis.walkForwardAcc}%` : '91.4%',
+      val: (() => {
+        const wf = kpis.walk_forward ?? kpis.walkForwardAcc ?? 0;
+        const raw = typeof wf === 'string' ? parseFloat(wf) : wf;
+        if (raw > 0) return raw > 1 ? `${raw.toFixed(1)}%` : `${(raw * 100).toFixed(1)}%`;
+        const baseline = apiBrain?.drift_monitor?.baseline_accuracy ?? 0;
+        if (baseline > 0) return `${(baseline * 100).toFixed(1)}%`;
+        return '0%';
+      })(),
       sub: '252-day Rolling Window',
       color: 'text-emerald-400',
       iconColor: '#10b981',
@@ -439,7 +450,7 @@ export default function MLBrainFlywheel() {
                   <div className="w-8 h-0.5 rounded-full" style={{ backgroundColor: '#8B5CF6' }} />
                   <span className="text-[10px] text-gray-400 font-mono">Random Forest Ensemble (Val)</span>
                 </div>
-                <button className="px-2 py-1 bg-[#00D9FF]/10 border border-[#00D9FF]/30 text-[#00D9FF] text-[9px] font-bold rounded hover:bg-[#00D9FF]/20 transition-colors">
+                <button onClick={() => toast.info('Model Matrix — coming soon')} className="px-2 py-1 bg-[#00D9FF]/10 border border-[#00D9FF]/30 text-[#00D9FF] text-[9px] font-bold rounded hover:bg-[#00D9FF]/20 transition-colors">
                   Model Matrix
                 </button>
               </div>
@@ -448,11 +459,11 @@ export default function MLBrainFlywheel() {
               <div className="absolute top-3 left-4 text-[9px] font-mono text-gray-500 z-10 uppercase tracking-wider">
                 252-Day Walk-Forward Accuracy • XGBoost vs Ensemble
               </div>
-              {performanceData && Array.isArray(performanceData) && performanceData.length > 0 ? (
+              {performanceData && Array.isArray(performanceData) && performanceData.length > 0 && performanceData.some(d => (d.value ?? d.accuracy ?? d.score ?? 0) > 0) ? (
                 <ModelPerformanceLC data={performanceData} />
               ) : (
                 <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-xs font-mono">
-                  Awaiting performance data...
+                  {performanceData?.length > 0 ? 'No performance history yet — run a training cycle to begin tracking' : 'Awaiting performance data...'}
                 </div>
               )}
             </div>
@@ -465,7 +476,7 @@ export default function MLBrainFlywheel() {
                 <div className="w-1 h-4 bg-amber-500 rounded-full" />
                 <h3 className="text-sm font-semibold text-white">Stage 4: ML Probability Ranking</h3>
               </div>
-              <button className="px-2 py-1 bg-gray-800 border border-gray-700 text-gray-400 text-[9px] font-bold rounded hover:border-gray-600 transition-colors">
+              <button onClick={() => toast.info('Signal filters — coming soon')} className="px-2 py-1 bg-gray-800 border border-gray-700 text-gray-400 text-[9px] font-bold rounded hover:border-gray-600 transition-colors">
                 Filter ↓
               </button>
             </div>
@@ -482,7 +493,9 @@ export default function MLBrainFlywheel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/20">
-                  {displaySignals.map((row, idx) => (
+                  {displaySignals.length === 0 ? (
+                    <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-500 text-[10px] font-mono">No staged signals — models need training data to generate probability rankings</td></tr>
+                  ) : displaySignals.map((row, idx) => (
                     <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-3 py-1.5 text-white font-bold text-[11px]">{row.symbol}</td>
                       <td className="px-2 py-1.5">
@@ -515,6 +528,9 @@ export default function MLBrainFlywheel() {
               <span className="text-gray-500 text-xs font-normal">(TimescaleDB Connected)</span>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto p-3">
+              {displayModels.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-500 text-[10px] font-mono">No deployed models — run a training cycle to deploy inference fleet</div>
+              ) : (
               <div className="grid grid-cols-3 gap-3">
                 {displayModels.map((model, idx) => (
                   <div
@@ -565,6 +581,7 @@ export default function MLBrainFlywheel() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           </div>
 

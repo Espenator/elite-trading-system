@@ -553,13 +553,16 @@ export function CouncilDecisionPanel({
 
   const d = data;
 
-  /* Format timestamp */
+  /* Format timestamp — guard against undefined/null/invalid */
   const fmtTs = (ts) => {
+    if (!ts) return '—';
     try {
-      return new Date(ts).toLocaleTimeString('en-US', {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleTimeString('en-US', {
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
       });
-    } catch { return ts; }
+    } catch { return '—'; }
   };
 
   const dirColor =
