@@ -28,6 +28,7 @@ load_dotenv(_env_path, override=True)
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware import Middleware as _StarletteMiddleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -90,6 +91,34 @@ from app.api.v1 import (
 )
 from app.api import ingestion
 from app.api.v1 import ingestion_firehose
+
+
+def _patch_starlette_middleware_iter_for_fastapi_compat() -> None:
+    """Normalize Middleware iteration for FastAPI builds expecting 2 values.
+
+    In this environment, Starlette Middleware.__iter__ yields
+    (cls, args, kwargs) while FastAPI's build_middleware_stack unpacks
+    only (cls, options), causing runtime ValueError on every request.
+    """
+    if getattr(_StarletteMiddleware, "_embodier_iter_patch", False):
+        return
+
+    def _iter_two_values(self):
+        args = tuple(getattr(self, "args", ()) or ())
+        kwargs = dict(getattr(self, "kwargs", {}) or {})
+        if args:
+            # FastAPI's middleware builder only supports kwargs expansion.
+            # Keep behavior explicit if positional args are ever introduced.
+            raise RuntimeError(
+                f"Middleware positional args unsupported in compatibility mode: {self.cls.__name__}"
+            )
+        return iter((self.cls, kwargs))
+
+    _StarletteMiddleware.__iter__ = _iter_two_values
+    _StarletteMiddleware._embodier_iter_patch = True
+
+
+_patch_starlette_middleware_iter_for_fastapi_compat()
 
 # Configure structured logging (JSON in production, human-readable in dev)
 from app.core.logging_config import setup_logging, correlation_id, generate_correlation_id
@@ -1789,6 +1818,53 @@ async def add_security_and_correlation_headers(request, call_next):
     finally:
         correlation_id.reset(token)
 
+
+class _CompatMiddlewareEntry:
+    """Compatibility wrapper for FastAPI expecting (cls, kwargs) middleware iteration.
+
+    Some Starlette versions expose Middleware.__iter__ as (cls, args, kwargs),
+    while this FastAPI build unpacks only two values.
+    """
+
+    def __init__(self, cls, kwargs):
+        self.cls = cls
+        self.kwargs = kwargs
+
+    def __iter__(self):
+        yield self.cls
+        yield self.kwargs
+
+
+def _normalize_user_middleware_for_fastapi_compat() -> None:
+    normalized = []
+    for middleware in app.user_middleware:
+        # Starlette Middleware object: has cls/args/kwargs attributes.
+        if hasattr(middleware, "cls") and hasattr(middleware, "kwargs"):
+            args = tuple(getattr(middleware, "args", ()) or ())
+            if args:
+                log.warning(
+                    "Dropping positional middleware args for compatibility: %s",
+                    middleware.cls.__name__,
+                )
+            normalized.append(
+                _CompatMiddlewareEntry(
+                    middleware.cls,
+                    dict(middleware.kwargs or {}),
+                )
+            )
+            continue
+
+        # Already tuple-like from older stacks.
+        try:
+            cls, kwargs = middleware
+            normalized.append(_CompatMiddlewareEntry(cls, dict(kwargs or {})))
+        except Exception:
+            normalized.append(middleware)
+
+    app.user_middleware = normalized
+
+
+_normalize_user_middleware_for_fastapi_compat()
 
 # --- API Routers ---
 app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["stocks"])
