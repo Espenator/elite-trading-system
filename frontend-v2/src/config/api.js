@@ -37,7 +37,7 @@ const API_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_URL ?? import.meta.env.VITE_BACKEND_URL ?? _DEFAULT_BACKEND,
   API_PREFIX: "/api/v1",
   // WS base; fallback to hardcoded so WebSocket reconnects to backend automatically.
-  WS_URL: import.meta.env.VITE_WS_URL ?? _deriveWsFromBackend(import.meta.env.VITE_BACKEND_URL ?? "") || _DEFAULT_WS,
+  WS_URL: import.meta.env.VITE_WS_URL ?? (_deriveWsFromBackend(import.meta.env.VITE_BACKEND_URL ?? "") || _DEFAULT_WS),
 
   endpoints: {
     // ---- CORE DATA ----

@@ -2,7 +2,7 @@
 // Market Regime — AI Brain's Macro Intelligence Center (Page 10/15)
 // Route: /market-regime
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import clsx from "clsx";
 import { format } from "date-fns";
+import { toast } from "react-toastify";
 import {
   useRegimeState,
   useMacroState,
@@ -136,8 +137,10 @@ function KpiCard({ label, value, unit, color, alert }) {
 // ============================================================
 // REGIME BADGE
 // ============================================================
-function RegimeBadge({ state, confidence }) {
+function RegimeBadge({ state, confidence, details }) {
   const rc = REGIME_COLORS[state] || REGIME_COLORS.YELLOW;
+  // FIX #7: Don't show confidence for UNKNOWN when details is null
+  const showConfidence = confidence != null && !(state === "UNKNOWN" && !details);
   return (
     <span
       className={clsx(
@@ -146,7 +149,7 @@ function RegimeBadge({ state, confidence }) {
       )}
     >
       {state}
-      {confidence != null && (
+      {showConfidence && (
         <span className="text-xs font-mono opacity-90">
           {(confidence * 100).toFixed(0)}%
         </span>
@@ -158,7 +161,7 @@ function RegimeBadge({ state, confidence }) {
 // ============================================================
 // REGIME STATE MACHINE — cells clickable to show details for that regime period
 // ============================================================
-function RegimeStateMachine({ currentState, regimeData, selectedState, onSelectState }) {
+function RegimeStateMachine({ currentState, regimeData, selectedState, onSelectState, manualOverride, onForceRegime }) {
   const states = ["GREEN", "YELLOW", "RED", "RED_RECOVERY"];
 
   return (
@@ -173,13 +176,18 @@ function RegimeStateMachine({ currentState, regimeData, selectedState, onSelectS
               <button
                 type="button"
                 key={s}
-                onClick={() => onSelectState?.(s)}
+                onClick={() => {
+                  onSelectState?.(s);
+                  // FIX #9: If manual override is ON, clicking forces regime to that state
+                  if (manualOverride && onForceRegime) onForceRegime(s);
+                }}
                 className={clsx(
                   "rounded-lg px-2 py-3 border text-center transition-all cursor-pointer hover:opacity-90",
                   isCurrent
-                    ? clsx(rc.bg, "text-white border-transparent")
+                    ? clsx(rc.bg, "text-white border-transparent shadow-lg")
                     : "border-gray-700/30 bg-gray-800/30 text-gray-500",
-                  selectedState === s && "ring-2 ring-cyan-400 ring-offset-1 ring-offset-[#111827]",
+                  isCurrent && `shadow-[0_0_12px_${rc.hex}40]`,
+                  selectedState === s && !isCurrent && "ring-2 ring-cyan-400 ring-offset-1 ring-offset-[#111827]",
                 )}
               >
                 <div className="text-[10px] font-bold font-mono leading-tight">
@@ -193,10 +201,19 @@ function RegimeStateMachine({ currentState, regimeData, selectedState, onSelectS
                     s
                   )}
                 </div>
+                {isCurrent && (
+                  <div className="text-[7px] mt-0.5 opacity-70">CURRENT</div>
+                )}
               </button>
             );
           })}
         </div>
+        {/* FIX #9: Show UNKNOWN state if current */}
+        {!states.includes(currentState) && currentState && (
+          <div className="mt-1.5 text-center text-[9px] text-gray-400 bg-gray-800/50 rounded px-2 py-1 border border-gray-700/30">
+            Current: <span className="text-amber-400 font-bold">{currentState}</span>
+          </div>
+        )}
         <div className="flex items-center justify-center gap-0.5 mt-2 text-gray-600">
           <span className="text-[10px]">{"\u2193"}</span>
           <span className="text-[10px]">{"\u2191"}</span>
@@ -342,7 +359,7 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
 // ============================================================
 // REGIME PARAMETER PANEL
 // ============================================================
-function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
+function RegimeParamPanel({ paramsData, regimeState, onOverride, onManualToggle }) {
   const [editMode, setEditMode] = useState(false);
   const [localParams, setLocalParams] = useState({});
   const [overrideState, setOverrideState] = useState("AUTO");
@@ -354,17 +371,15 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
   const handleSaveParams = async () => {
     setSaving(true);
     setSaveStatus(null);
+    // FIX #2: Ensure numeric values (not NaN/strings), use correct field names
+    const toNum = (v, fallback) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
     const payload = {
       regime: regimeState,
-      risk_pct:
-        localParams.risk_pct ?? paramsData?.risk_pct,
-      max_positions:
-        localParams.max_positions ?? paramsData?.max_positions,
-      kelly_mult:
-        localParams.kelly_mult ?? paramsData?.kelly_mult,
-      signal_mult:
-        localParams.signal_mult ?? paramsData?.signal_mult,
-      override: overrideState !== "AUTO",
+      risk_pct: toNum(localParams.risk_pct ?? paramsData?.risk_pct, 1.0),
+      max_positions: Math.round(toNum(localParams.max_positions ?? paramsData?.max_positions, 5)),
+      kelly_mult: toNum(localParams.kelly_mult ?? paramsData?.kelly_mult, 1.0),
+      signal_mult: toNum(localParams.signal_mult ?? paramsData?.signal_mult, 1.0),
+      is_override: overrideState !== "AUTO",
     };
     try {
       const res = await fetch(getApiUrl("strategy/regime-params"), {
@@ -372,12 +387,17 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}${errBody ? `: ${errBody.slice(0, 100)}` : ""}`);
+      }
       setSaveStatus("ok");
+      toast.success("Regime parameters saved");
       if (onOverride) onOverride(payload);
       log.info("Regime params saved", payload);
     } catch (e) {
       setSaveStatus("err");
+      toast.error(`Failed to save params: ${e.message}`);
       log.error("Failed to save regime params:", e);
     } finally {
       setSaving(false);
@@ -410,6 +430,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
               onClick={() => {
                 setOverrideState(m === "MAN" ? regimeState : "AUTO");
                 setEditMode(m === "MAN");
+                onManualToggle?.(m === "MAN");
               }}
               className={clsx(
                 "px-2 py-0.5 text-[9px] font-bold",
@@ -552,48 +573,60 @@ function PerformanceMatrix({ backtestData }) {
     return "text-gray-300";
   };
 
+  // FIX #4: Check if any regime has actual data
+  const hasData = regimes.some((r) =>
+    metrics.some((m) => backtestData?.[r]?.[m.key] != null)
+  );
+
   return (
     <Panel className="h-full">
       <PanelTitle>Performance Matrix</PanelTitle>
-      <table className="w-full text-[10px]">
-        <thead>
-          <tr className="border-b border-gray-700/30">
-            <th className="text-left text-gray-500 pb-1" />
-            {regimes.map((r) => (
-              <th
-                key={r}
-                className={clsx(
-                  "text-right pb-1 font-bold",
-                  REGIME_COLORS[r].text,
-                )}
-              >
-                {r}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {metrics.map((m) => (
-            <tr key={m.key} className="border-b border-gray-800/30">
-              <td className="text-gray-500 py-1 pr-2">{m.label}</td>
-              {regimes.map((r) => {
-                const val = backtestData?.[r]?.[m.key];
-                return (
-                  <td
-                    key={r}
-                    className={clsx(
-                      "text-right font-mono py-1",
-                      getColor(m.key, val),
-                    )}
-                  >
-                    {val != null ? m.fmt(val) : "\u2014"}
-                  </td>
-                );
-              })}
+      {hasData ? (
+        <table className="w-full text-[10px]">
+          <thead>
+            <tr className="border-b border-gray-700/30">
+              <th className="text-left text-gray-500 pb-1" />
+              {regimes.map((r) => (
+                <th
+                  key={r}
+                  className={clsx(
+                    "text-right pb-1 font-bold",
+                    REGIME_COLORS[r].text,
+                  )}
+                >
+                  {r}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {metrics.map((m) => (
+              <tr key={m.key} className="border-b border-gray-800/30">
+                <td className="text-gray-500 py-1 pr-2">{m.label}</td>
+                {regimes.map((r) => {
+                  const val = backtestData?.[r]?.[m.key];
+                  return (
+                    <td
+                      key={r}
+                      className={clsx(
+                        "text-right font-mono py-1",
+                        getColor(m.key, val),
+                      )}
+                    >
+                      {val != null ? m.fmt(val) : "\u2014"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-4 text-gray-500">
+          <div className="text-[10px]">No per-regime performance data</div>
+          <div className="text-[9px] mt-0.5 text-gray-600">Run backtests to populate</div>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -811,7 +844,10 @@ function SectorRotation({ sectorsData, selectedSector, onSelectSector }) {
             </span>
           </button>
         )) : (
-          <div className="text-[10px] text-gray-500 py-2">No sector data</div>
+          <div className="flex flex-col items-center justify-center py-6 text-gray-500">
+            <div className="text-[10px]">No sector rotation data available</div>
+            <div className="text-[9px] mt-0.5 text-gray-600">Sector analysis pending</div>
+          </div>
         )}
       </div>
       {selectedSector && (
@@ -859,9 +895,12 @@ function CrashProtocol({ macroData }) {
   const armedCount = Object.values(armed).filter(Boolean).length;
   const isTriggered = triggers.some((t) => t.active && armed[t.key]);
 
+  // FIX #5: Toggle individual triggers with toast feedback
   const handleToggle = async (key) => {
     const updated = { ...armed, [key]: !armed[key] };
     setArmed(updated);
+    const label = triggers.find((t) => t.key === key)?.label || key;
+    toast.info(`${label}: ${updated[key] ? "Armed" : "Disarmed"}`);
     try {
       const res = await fetch(getApiUrl("risk/config"), {
         method: "PUT",
@@ -871,12 +910,43 @@ function CrashProtocol({ macroData }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     } catch (e) {
       log.error("Failed to update crash trigger config:", e);
+      toast.error("Failed to save trigger config");
+    }
+  };
+
+  // FIX #5: Clear all triggers at once
+  const handleClearAll = async () => {
+    if (!window.confirm("Disarm ALL crash protocol triggers?")) return;
+    const cleared = Object.fromEntries(Object.keys(armed).map((k) => [k, false]));
+    setArmed(cleared);
+    toast.info("All crash triggers disarmed");
+    try {
+      const res = await fetch(getApiUrl("risk/config"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ crash_triggers: cleared }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      log.error("Failed to clear triggers:", e);
+      toast.error("Failed to save trigger config");
     }
   };
 
   return (
     <Panel className="h-full">
-      <PanelTitle>Crash Protocol</PanelTitle>
+      <PanelTitle
+        right={
+          <button
+            onClick={handleClearAll}
+            className="text-[8px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-600/50 transition-colors"
+          >
+            DISARM ALL
+          </button>
+        }
+      >
+        Crash Protocol
+      </PanelTitle>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[9px] text-gray-500">
           {armedCount} armed triggers
@@ -951,9 +1021,13 @@ function CrashProtocol({ macroData }) {
 // ============================================================
 // AGENT CONSENSUS — from useMemoryIntelligence
 // ============================================================
-function AgentConsensus({ memoryData, regimeState }) {
+function AgentConsensus({ memoryData, regimeState, councilData }) {
+  // FIX #6: Try multiple data sources for agent consensus
   const raw =
-    memoryData?.data?.agent_rankings || memoryData?.agent_rankings || [];
+    councilData?.votes ||
+    memoryData?.data?.agent_rankings ||
+    memoryData?.agent_rankings ||
+    [];
   const agents = raw.slice(0, 8);
   const memoryIq = memoryData?.data?.memory_iq ?? memoryData?.memory_iq;
 
@@ -981,7 +1055,10 @@ function AgentConsensus({ memoryData, regimeState }) {
             </span>
           </div>
         )) : (
-          <div className="text-[10px] text-gray-500 py-1">No agent data</div>
+          <div className="flex flex-col items-center py-3 text-gray-500">
+            <div className="text-[10px]">No agent consensus data</div>
+            <div className="text-[9px] mt-0.5 text-gray-600">Awaiting council evaluation</div>
+          </div>
         )}
       </div>
       <div className="mt-2 pt-1.5 border-t border-gray-700/30 text-[10px] text-gray-500">
@@ -1092,17 +1169,20 @@ export default function MarketRegime() {
 
   // --- Additional ---
   const { data: scanData } = useApi("openclaw/scan", { pollIntervalMs: 30000 });
-  const { data: marketData, refetch: refetchMarket } = useApi("market", { pollIntervalMs: 5000 });
+  // FIX #1: Reduce market polling from 5s to 15s to prevent storm; use marketIndices (returns 200)
+  const { data: marketData } = useApi("marketIndices", { pollIntervalMs: 15000 });
   const { data: riskScore } = useApi("risk/risk-score", { pollIntervalMs: 15000 });
+  // FIX #6: Fetch council data for agent consensus
+  const { data: councilData } = useApi("councilLatest", { pollIntervalMs: 30000 });
 
   // --- WebSocket live updates for regime changes ---
+  // FIX #1: Removed WS-triggered refetchMarket to prevent cascading requests on every WS message
   useEffect(() => {
     const unsubs = [
       ws.on(WS_CHANNELS.macro, () => { refetchRegime(); refetchMacro(); }),
-      ws.on(WS_CHANNELS.market, () => refetchMarket()),
     ];
     return () => unsubs.forEach((fn) => fn());
-  }, [refetchRegime, refetchMacro, refetchMarket]);
+  }, [refetchRegime, refetchMacro]);
 
   // --- Local State ---
   const [timeframe, setTimeframe] = useState("1D");
@@ -1112,6 +1192,7 @@ export default function MarketRegime() {
   const [overrideActive, setOverrideActive] = useState(false);
   const [overrideExpiresAt, setOverrideExpiresAt] = useState(null);
   const [overrideCountdown, setOverrideCountdown] = useState(null);
+  const [manualOverride, setManualOverride] = useState(false);
 
   useEffect(() => {
     if (!overrideExpiresAt) {
@@ -1144,6 +1225,25 @@ export default function MarketRegime() {
       log.error("Failed to POST bias override:", e);
     }
   }, []);
+
+  // FIX #9: Force regime to a specific state via API when manual override is ON
+  const handleForceRegime = useCallback(async (state) => {
+    if (!window.confirm(`Force regime to ${state}?`)) return;
+    try {
+      const res = await fetch(getApiUrl("openclaw/macro/override"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ regime: state }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success(`Regime forced to ${state}`);
+      refetchRegime();
+      refetchParams();
+    } catch (e) {
+      toast.error(`Failed to force regime: ${e.message}`);
+      log.error("Force regime failed:", e);
+    }
+  }, [refetchRegime, refetchParams]);
 
   // Risk score calculations
   const riskScoreVal = riskScore?.score || 0;
@@ -1198,15 +1298,19 @@ export default function MarketRegime() {
                   ? "bg-[#CC3333]"
                   : currentRegime === "RED_RECOVERY"
                     ? "bg-orange-600"
-                    : "bg-amber-600",
+                    : currentRegime === "UNKNOWN"
+                      ? "bg-gray-600"
+                      : "bg-amber-600",
             )}
           >
             {currentRegime}
-            <span className="text-xs font-mono opacity-90">
-              {regimeData?.hmm_confidence != null
-                ? `${(regimeData.hmm_confidence * 100).toFixed(0)}%`
-                : "\u2014"}
-            </span>
+            {/* FIX #7: Don't show confidence for UNKNOWN with no details */}
+            {regimeData?.hmm_confidence != null &&
+             !(currentRegime === "UNKNOWN" && !regimeData?.details) && (
+              <span className="text-xs font-mono opacity-90">
+                {(regimeData.hmm_confidence * 100).toFixed(0)}%
+              </span>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-3 flex-1 justify-end">
@@ -1395,11 +1499,14 @@ export default function MarketRegime() {
               regimeData={regimeData}
               selectedState={selectedState}
               onSelectState={setSelectedState}
+              manualOverride={manualOverride}
+              onForceRegime={handleForceRegime}
             />
             <RegimeParamPanel
               paramsData={paramsData}
               regimeState={currentRegime}
               onOverride={() => refetchParams()}
+              onManualToggle={setManualOverride}
             />
           </div>
           {/* CENTER (40%): VIX Chart, Regime Flow, Transition History */}
@@ -1430,6 +1537,7 @@ export default function MarketRegime() {
             <AgentConsensus
               memoryData={memoryData}
               regimeState={currentRegime}
+              councilData={councilData}
             />
           </div>
         </div>
