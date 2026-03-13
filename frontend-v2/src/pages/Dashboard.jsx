@@ -948,8 +948,9 @@ export default function Dashboard() {
 
   // --- ACTION HANDLERS ---
   const handleRunScan = useCallback(async () => {
+    toast.info("Running scan...");
     try {
-      const res = await fetch(getApiUrl("signals"), { method: "POST", headers: getAuthHeaders() });
+      const res = await fetch(getApiUrl("signals"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() } });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
         const msg = detail?.detail || detail?.message || `HTTP ${res.status}`;
@@ -957,10 +958,12 @@ export default function Dashboard() {
         toast?.error?.(`Scan failed: ${msg}`);
         return;
       }
-      toast?.success?.("Scan complete");
+      const data = await res.json().catch(() => ({}));
+      const count = data?.signals?.length ?? data?.count ?? "?";
+      toast.success(`Scan complete — ${count} signals found`);
     } catch (e) {
       log.error("Scan error:", e);
-      toast?.error?.(`Scan error: ${e?.message || "network error"}`);
+      toast.error(`Scan error: ${e?.message || "network error"}`);
     }
   }, []);
   const handleExecTop5 = useCallback(async () => {
@@ -968,26 +971,29 @@ export default function Dashboard() {
     if (!top5.length) { toast.warn("No signals to execute"); return; }
     const names = top5.map((s) => `${s.symbol} ${s.direction || "LONG"}`).join(", ");
     if (!window.confirm(`Execute top 5: ${names}?`)) return;
-    let ok = 0;
-    for (const sig of top5) {
-      try {
-        const res = await fetch(getApiUrl("orders/advanced"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-          body: JSON.stringify({
-            symbol: sig.symbol,
-            side: sig.direction === "LONG" ? "buy" : "sell",
-            type: "market",
-            time_in_force: "day",
-            qty: "100",
-          }),
-        });
-        if (res.ok) ok++;
-      } catch (e) {
-        log.error(e);
-      }
+    toast.info("Executing top 5 signals...");
+    const results = await Promise.allSettled(top5.map(sig =>
+      fetch(getApiUrl("orders/advanced"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          symbol: sig.symbol,
+          side: sig.direction === "LONG" ? "buy" : "sell",
+          type: "market",
+          time_in_force: "day",
+          qty: "100",
+        }),
+      }).then(r => { if (!r.ok) throw new Error(`${sig.symbol}: HTTP ${r.status}`); return r; })
+    ));
+    const ok = results.filter(r => r.status === "fulfilled").length;
+    const failed = results.filter(r => r.status === "rejected").length;
+    if (failed === 0) {
+      toast.success(`Top 5: all ${ok} orders placed`);
+    } else if (ok === 0) {
+      toast.error(`Top 5: all ${top5.length} orders failed`);
+    } else {
+      toast.warning(`Top 5: ${ok} placed, ${failed} failed`);
     }
-    toast.info(`Exec Top 5: ${ok}/${top5.length} orders sent`);
   }, [processedSignals]);
   const handleFlatten = useCallback(async () => {
     if (!window.confirm("Flatten ALL positions? This cannot be undone.")) return;
@@ -1088,19 +1094,40 @@ export default function Dashboard() {
       equityCurve: Array.isArray(equityCurve) ? equityCurve : [],
     };
   }, [performanceData, performanceEquityData]);
-  const techs = techsData?.technicals || techsData || {};
+  const techs = useMemo(() => {
+    const raw = techsData?.technicals || techsData || {};
+    // Backend returns { indicators: { rsi, macd, ... } } — flatten for display
+    const ind = raw.indicators || {};
+    return { ...raw, ...ind };
+  }, [techsData]);
   const swarm = swarmData?.swarmTopology || swarmData || {};
   const consensus = consensusData?.votes ?? consensusData?.agents ?? swarm?.agents ?? [];
   const consensusVerdict = consensusData?.verdict ?? consensusData?.consensus ?? swarm?.consensus;
-  const swarmForConsensus = useMemo(() => ({
-    ...swarm,
-    agents: Array.isArray(consensus) && consensus.length > 0 ? consensus.map((v) => ({
-      name: v.name ?? v.agent_name ?? v.agent,
-      vote: v.vote ?? v.verdict,
-      confidence: v.confidence ?? v.agreement ?? 50,
-    })) : swarm?.agents ?? [],
-    consensus: consensusData?.agreement_percent ?? consensusData?.agreement ?? swarm?.consensus,
-  }), [swarm, consensus, consensusData]);
+  const swarmForConsensus = useMemo(() => {
+    // Prefer council consensus votes, fall back to swarm topology nodes
+    let agentList = [];
+    if (Array.isArray(consensus) && consensus.length > 0) {
+      agentList = consensus.map((v) => ({
+        name: v.name ?? v.agent_name ?? v.agent,
+        vote: v.vote ?? v.verdict,
+        confidence: v.confidence ?? v.agreement ?? 50,
+      }));
+    } else if (Array.isArray(swarm?.agents) && swarm.agents.length > 0) {
+      agentList = swarm.agents;
+    } else if (Array.isArray(swarm?.nodes) && swarm.nodes.length > 0) {
+      // Swarm topology returns { nodes: [...] } — show running agents
+      agentList = swarm.nodes.filter(n => n.status === "running").map(n => ({
+        name: n.name,
+        vote: "ACTIVE",
+        confidence: n.win_pct ?? 50,
+      }));
+    }
+    return {
+      ...swarm,
+      agents: agentList,
+      consensus: consensusData?.agreement_percent ?? consensusData?.agreement ?? swarm?.consensus,
+    };
+  }, [swarm, consensus, consensusData]);
   const sources = dataSourcesData?.dataSources || dataSourcesData || {};
   const risk = riskData?.proposal || riskData || {};
   const quotes = quotesData?.book || quotesData || {};
@@ -1367,9 +1394,9 @@ export default function Dashboard() {
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.swarmVote || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[60px] font-mono">{sig.topShap || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.kellyPercent ?? 0}%</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-red-400 font-mono">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.entry && Number(sig.entry) > 0 ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.target && Number(sig.target) > 0 ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-red-400 font-mono">{sig.stop && Number(sig.stop) > 0 ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-white font-mono">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] font-mono">{sig.sector?.substring(0, 3) || "\u2014"}</td>
@@ -1579,41 +1606,47 @@ export default function Dashboard() {
               </div>
               <div className="grid grid-cols-3 gap-1">
                 <button onClick={() => {
+                  const limitPrice = selectedSignal?.entry ?? selectedSignal?.price ?? riskData?.proposal?.limitPrice ?? 0;
+                  if (!limitPrice || Number(limitPrice) <= 0) { toast.warn("No valid limit price available for this signal"); return; }
                   const body = {
                     symbol: selectedSymbol,
                     side: selectedSignal?.direction === "SHORT" ? "sell" : "buy",
                     type: "limit",
                     time_in_force: "day",
                     qty: String(riskData?.proposal?.proposedSize || 100),
-                    limit_price: String(selectedSignal?.entry ?? selectedSignal?.price ?? riskData?.proposal?.limitPrice ?? 0),
+                    limit_price: String(limitPrice),
                   };
                   fetch(getApiUrl("orders/advanced"), {
                     method: "POST",
                     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
                     body: JSON.stringify(body),
                   }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-                    .then(() => alert(`Limit order placed: ${selectedSymbol}`))
-                    .catch(e => alert(`Limit order failed: ${e.message}`));
+                    .then(() => toast.success(`Limit order placed: ${selectedSymbol} @ $${limitPrice}`))
+                    .catch(e => toast.error(`Limit order failed: ${e.message}`));
                 }} className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Limit</button>
                 <button onClick={() => {
+                  const limitPrice = selectedSignal?.entry ?? selectedSignal?.price ?? riskData?.proposal?.limitPrice ?? 0;
+                  const stopPrice = selectedSignal?.stop ?? riskData?.proposal?.stopLoss ?? 0;
+                  if (!limitPrice || Number(limitPrice) <= 0) { toast.warn("No valid limit price for stop-limit order"); return; }
+                  if (!stopPrice || Number(stopPrice) <= 0) { toast.warn("No valid stop price for stop-limit order"); return; }
                   const body = {
                     symbol: selectedSymbol,
                     side: selectedSignal?.direction === "SHORT" ? "sell" : "buy",
                     type: "stop_limit",
                     time_in_force: "day",
                     qty: String(riskData?.proposal?.proposedSize || 100),
-                    limit_price: String(selectedSignal?.entry ?? selectedSignal?.price ?? riskData?.proposal?.limitPrice ?? 0),
-                    stop_price: String(selectedSignal?.stop ?? riskData?.proposal?.stopLoss ?? 0),
+                    limit_price: String(limitPrice),
+                    stop_price: String(stopPrice),
                   };
                   fetch(getApiUrl("orders/advanced"), {
                     method: "POST",
                     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
                     body: JSON.stringify(body),
                   }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-                    .then(() => alert(`Stop Limit order placed: ${selectedSymbol}`))
-                    .catch(e => alert(`Stop Limit order failed: ${e.message}`));
+                    .then(() => toast.success(`Stop-Limit placed: ${selectedSymbol} limit $${limitPrice} stop $${stopPrice}`))
+                    .catch(e => toast.error(`Stop-Limit failed: ${e.message}`));
                 }} className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Stop Limit</button>
-                <button onClick={() => { navigate("/trade-execution"); }} className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
+                <button onClick={() => { toast.info("Opening Trade Execution for order modification..."); navigate("/trade-execution"); }} className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
               </div>
             </div>
           )}
@@ -1635,7 +1668,7 @@ export default function Dashboard() {
               <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">COGNITIVE INTELLIGENCE</h3>
-                  <button onClick={() => { navigate("/dashboard"); }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
+                  <button onClick={() => { navigate("/agents"); }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
                 </div>
                 <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
                   <div className="flex items-center gap-1.5">
