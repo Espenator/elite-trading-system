@@ -63,6 +63,7 @@ const API_CONFIG = {
     risk:             "/risk",
     strategy:         "/strategy",
     performance:      "/performance",
+    performanceMetrics: "/performance",
     performanceEquity:  "/performance/equity",
     performanceTrades:  "/performance/trades",
     logs:             "/logs",
