@@ -86,6 +86,22 @@ class TestSourceAvailabilityGetCurrentSession:
             m_dt.now.return_value = _et(2026, 3, 10, 19, 30)
             assert clock.get_current_session() == TradingSession.AFTER_HOURS
 
+    def test_post_market_after_hours_all_sources_firing(self) -> None:
+        """Post-market (4 PM–8 PM ET): Alpaca, UW (no flow), FinViz all active."""
+        clock = SourceAvailability()
+        with patch("app.services.data_swarm.session_clock.datetime") as m_dt:
+            m_dt.now.return_value = _et(2026, 3, 10, 17, 0)  # 5 PM ET Tuesday
+            assert clock.get_current_session() == TradingSession.AFTER_HOURS
+            active = clock.get_active_sources()
+        assert active["alpaca_stream"] is True
+        assert active["alpaca_rest"] is True
+        assert active["alpaca_futures"] is True
+        assert active["uw_websocket"] is True
+        assert active["uw_rest"] is True
+        assert active["finviz_screener"] is True
+        assert active["finviz_futures"] is True
+        assert active["uw_flow"] is False  # options closed after hours
+
     def test_overnight_10pm(self) -> None:
         clock = SourceAvailability()
         with patch("app.services.data_swarm.session_clock.datetime") as m_dt:
