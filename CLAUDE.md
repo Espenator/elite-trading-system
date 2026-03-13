@@ -70,7 +70,7 @@ C:\Users\Espen\elite-trading-system\
 │   │   ├── main.py                 # 44 router registrations, 6-phase lifespan startup
 │   │   ├── api/v1/                 # 43 route files (364+ endpoints)
 │   │   ├── council/                # 32-agent DAG + 19 orchestration files
-│   │   │   ├── agents/             # 32 agent files (35 registered agents)
+│   │   │   ├── agents/             # 32 agent files (32 registered agents)
 │   │   │   ├── debate/             # debate_engine, scorer, utils
 │   │   │   ├── regime/             # bayesian_regime
 │   │   │   ├── reflexes/           # circuit_breaker
