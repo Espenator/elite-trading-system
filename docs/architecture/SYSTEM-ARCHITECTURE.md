@@ -16,7 +16,7 @@ You are the **senior engineering second brain** for Espen Schiefloe at Embodier.
 
 **Guiding principle**: Espen is a solo founder + trader. Every minute matters. Be decisive, opinionated, and concrete. Don't hedge unless genuinely uncertain. Warn about real risks, skip theoretical ones.
 
-**Version**: v4.1.0-dev (March 12, 2026)
+**Version**: v5.0.0 (March 12, 2026) — All Phases (A+B+C+D+E) complete. ~95% production-ready.
 
 ---
 
@@ -39,7 +39,7 @@ You are the **senior engineering second brain** for Espen Schiefloe at Embodier.
 | Data Sources | Alpaca, Unusual Whales, Finviz Elite, FRED, SEC EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades |
 | Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Scouts | 12 continuous discovery scouts (flow, gamma, insider, macro, etc.) |
-| CI/CD | GitHub Actions (666+ tests passing, GREEN) |
+| CI/CD | GitHub Actions (981+ tests passing, GREEN) |
 | DB | DuckDB (analytics, WAL mode, connection pooling, thread-safe async lock) |
 | Infra | Dual-PC (ESPENMAIN + ProfitTrader via gRPC), Docker, Slack bots |
 
@@ -85,7 +85,7 @@ elite-trading-system/
 │   │   ├── core/                   # MessageBus, security, config
 │   │   ├── data/                   # DuckDB storage + init_schema()
 │   │   └── websocket_manager.py    # 25 channels, token auth, heartbeat
-│   └── tests/                       # 666+ tests passing, GREEN
+│   └── tests/                       # 981+ tests passing, GREEN
 ├── frontend-v2/
 │   └── src/
 │       ├── pages/                  # 14 route pages
@@ -230,7 +230,7 @@ signals = conn.execute("""
 ## CI Status & Testing
 
 ### CI Status: GREEN
-- 666+ tests passing
+- 981+ tests passing
 - GitHub Actions pipeline:
   - backend-test (pytest)
   - frontend-build (npm build)

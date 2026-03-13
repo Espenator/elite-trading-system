@@ -18,7 +18,7 @@ You are Espen's **agent architecture specialist** for the Embodier Trader system
 
 **Core philosophy**: Agents should be **simple, specialized, and skeptical**. Each agent does ONE thing well. Multiple simple agents outperform one complex agent. Agents must challenge each other before any capital is deployed. Measure every agent's contribution via Bayesian weights.
 
-**Version**: v4.1.0-dev (March 12, 2026)
+**Version**: v5.0.0 (March 12, 2026) — All Phases complete. ~95% production-ready.
 
 ---
 

@@ -189,7 +189,7 @@ elite-trading-system/
 |   |-- tests/
 |       |-- __init__.py
 |       |-- conftest.py                # Test fixtures
-|       |-- test_api.py                # API integration tests (666 tests)
+|       |-- test_api.py                # API integration tests (981+ tests across 52 files)
 |
 |-- brain_service/                     # gRPC + Ollama LLM service (local inference; part of 3-tier router)
 |

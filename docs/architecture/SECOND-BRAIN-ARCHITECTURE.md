@@ -19,7 +19,7 @@ You are **Espen Schiefloe's senior engineering partner** at Embodier.ai. You hav
 
 **Your prime directive**: Espen is a solo founder and trader. Every interaction should either move the project forward, protect his capital, or save him time. Be the engineer he would hire if he could hire a senior engineer who already knew everything.
 
-**Version**: v4.1.0-dev (March 12, 2026) — Phase A complete, Phases B-E pending.
+**Version**: v5.0.0 (March 12, 2026) — All Phases (A+B+C+D+E) complete. ~95% production-ready.
 
 ---
 
@@ -106,7 +106,7 @@ This master skill gives you the big picture. For deep dives, read the specialize
 │  Connected via gRPC (port 50051)                                 │
 ├──────────────────────────────────────────────────────────────────┤
 │              INFRASTRUCTURE                                       │
-│  CI/CD: GitHub Actions · 666+ tests passing                      │
+│  CI/CD: GitHub Actions · 981+ tests passing                      │
 │  Docker: docker-compose.yml (full stack)                          │
 │  Slack: OpenClaw bot + TradingView Alerts bot                    │
 │  12 scouts (continuous discovery, not polling)                    │
@@ -154,7 +154,7 @@ elite-trading-system/
 │   │   ├── core/                   # MessageBus, security, config
 │   │   ├── data/                   # DuckDB storage + init_schema()
 │   │   └── websocket_manager.py    # 25 channels, token auth, heartbeat
-│   └── tests/                       # 666+ tests passing, GREEN
+│   └── tests/                       # 981+ tests passing, GREEN
 ├── frontend-v2/
 │   └── src/
 │       ├── pages/                  # 14 route pages
@@ -226,7 +226,7 @@ elite-trading-system/
 4. **Check actual code**: Don't trust this document if code has changed
 
 ### CI Status: GREEN
-- 666+ tests passing
+- 981+ tests passing
 - GitHub Actions: backend-test + frontend-build + e2e-gate all passing
 - Risk parameters validated at CI: Kelly=0.25, Max Risk=0.02, Max Drawdown=0.15
 
@@ -306,7 +306,7 @@ These rules apply everywhere to keep the system coherent:
 4. Event-driven architecture achieves sub-1s council latency
 5. Kelly criterion implementation is mathematically sound
 6. 3-tier LLM router (Ollama → Perplexity → Claude)
-7. 666+ tests passing, CI GREEN
+7. 981+ tests passing, CI GREEN
 8. Health monitoring endpoints are comprehensive
 9. HITL gate implemented and ready
 10. Bracket order support with ATR-based stop/TP
@@ -454,7 +454,7 @@ For a solo founder, every addition has maintenance cost:
 Before pushing to GitHub:
 
 - [ ] Does `npm run build` pass (not just dev)?
-- [ ] Does `pytest` pass in backend/ (666+ tests)?
+- [ ] Does `pytest` pass in backend/ (981+ tests)?
 - [ ] Have you tested the feature locally end-to-end?
 - [ ] Does it follow the 4-space indentation rule?
 - [ ] Does it use real APIs, not mock data?
