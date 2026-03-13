@@ -501,7 +501,7 @@ async def _start_event_driven_pipeline():
     async def _bridge_signal_to_ws(signal_data):
         try:
             from app.websocket_manager import broadcast_ws
-            await broadcast_ws("signal", {"type": "new_signal", "signal": signal_data})
+            await broadcast_ws("signals", {"type": "new_signal", "signal": signal_data})
         except Exception as e:
             log.debug("WS broadcast failed: %s", e)
 
@@ -1825,7 +1825,7 @@ async def ws_registry():
         "channels": all_channel_names,
         "subscriber_counts": subscriber_counts,
         "message_schema": {
-            "channel": "string (e.g. signal, council, risk, market, order, swarm)",
+            "channel": "string (e.g. signals, council, risk, market, order, swarm)",
             "type": "string (e.g. update, new_signal, verdict)",
             "data": "object (payload)",
             "ts": "number (Unix timestamp)",
@@ -1847,11 +1847,13 @@ async def consensus_alias():
 # --- Valid WebSocket channels (server-side only publishing) ---
 # Must match WS_ALLOWED_CHANNELS in websocket_manager.py and frontend WS_CHANNELS (config/api.js)
 _VALID_WS_CHANNELS = frozenset({
-    "signal", "signals", "order", "council", "council_verdict",
-    "risk", "swarm", "kelly", "market", "macro", "blackboard",
-    "alerts", "performance", "agents", "data_sources", "datasources",
-    "trades", "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
-    "health", "market_data", "outcomes", "system", "briefing",
+    # Frontend channels (match WS_CHANNELS values in frontend-v2/src/config/api.js)
+    "signals", "order", "council", "council_verdict", "risk", "swarm",
+    "kelly", "market", "macro", "agents", "data_sources", "trades",
+    "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
+    # Backend-only channels (server-side publishing)
+    "health", "market_data", "outcomes", "system", "blackboard",
+    "performance", "alerts", "datasources", "briefing",
 })
 
 # --- WebSocket rate limiting (Audit Task 15) ---

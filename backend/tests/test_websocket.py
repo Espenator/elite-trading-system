@@ -16,7 +16,7 @@ def test_ws_connect_with_token_succeeds(ws_client):
     """Connect with valid token is accepted."""
     token = "test_auth_token_for_tests"
     with ws_client.websocket_connect(f"/ws?token={token}") as ws:
-        ws.send_json({"type": "subscribe", "channel": "signal"})
+        ws.send_json({"type": "subscribe", "channel": "signals"})
         # Connection accepted; no immediate close
     # Clean exit
 
@@ -34,13 +34,13 @@ def test_ws_subscribe_and_receive(ws_client):
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(
-                broadcast_ws("signal", {"type": "new_signal", "signal": {"symbol": "TEST", "score": 80}})
+                broadcast_ws("signals", {"type": "new_signal", "signal": {"symbol": "TEST", "score": 80}})
             )
         finally:
             loop.close()
 
     with ws_client.websocket_connect(f"/ws?token={token}") as ws:
-        ws.send_json({"type": "subscribe", "channel": "signal"})
+        ws.send_json({"type": "subscribe", "channel": "signals"})
         # Start background thread to broadcast after a short delay
         t = threading.Thread(target=run_broadcast)
         t.start()
@@ -55,9 +55,9 @@ def test_ws_subscribe_and_receive(ws_client):
     assert len(received) >= 1, "Expected at least one message (broadcast or ping)"
     # If we got our broadcast, verify shape
     by_channel = {m.get("channel"): m for m in received if m.get("channel")}
-    if "signal" in by_channel:
-        msg = by_channel["signal"]
-        assert msg.get("channel") == "signal"
+    if "signals" in by_channel:
+        msg = by_channel["signals"]
+        assert msg.get("channel") == "signals"
         assert "data" in msg or "type" in msg
         data = msg.get("data", msg)
         assert data.get("type") == "new_signal" or "signal" in data
@@ -72,5 +72,5 @@ async def test_ws_subscribe_valid_channels(client):
     body = r.json()
     assert "channels" in body
     # All allowed channels should be in registry
-    for ch in ["signal", "signals", "order", "council_verdict", "market", "swarm"]:
+    for ch in ["signals", "order", "council_verdict", "market", "swarm"]:
         assert ch in WS_ALLOWED_CHANNELS, f"Channel {ch} must be in WS_ALLOWED_CHANNELS"

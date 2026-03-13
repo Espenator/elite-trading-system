@@ -130,7 +130,7 @@ def test_valid_ws_channels():
     """Verify only known channels can be subscribed to."""
     try:
         from app.main import _VALID_WS_CHANNELS
-        assert "signal" in _VALID_WS_CHANNELS
+        assert "signals" in _VALID_WS_CHANNELS
         assert "council" in _VALID_WS_CHANNELS
         assert "order" in _VALID_WS_CHANNELS
         assert "risk" in _VALID_WS_CHANNELS

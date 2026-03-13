@@ -14,10 +14,10 @@ async def test_ws_registry_returns_channels_and_schema(client):
     assert "schema_examples" in body
     assert "total_connections" in body
     assert "subscriber_counts" in body
-    assert "signal" in body["channels"]
+    assert "signals" in body["channels"]
     assert "council" in body["channels"]
     assert "market" in body["channels"]
-    assert body["message_schema"].get("channel") == "string (e.g. signal, council, risk, market, order, swarm)"
+    assert body["message_schema"].get("channel") == "string (e.g. signals, council, risk, market, order, swarm)"
     assert body["message_schema"].get("type") and body["message_schema"].get("ts")
 
 

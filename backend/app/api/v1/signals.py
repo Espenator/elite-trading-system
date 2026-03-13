@@ -158,31 +158,6 @@ async def get_signals(as_of: date | None = None):
     except Exception as e:
         logger.warning("TurboScanner signals unavailable: %s", e)
 
-    # When no ML and no TurboScanner signals, return minimal placeholder so Dashboard shows data flow
-    if not dashboard_signals:
-        for sym in ("SPY", "QQQ", "AAPL"):
-            dashboard_signals.append({
-                "symbol": sym,
-                "direction": "LONG",
-                "score": 50,
-                "scores": {"technical": 50, "ml": 0, "sentiment": 0, "regime": 0, "breakout": 0, "rebound": 0, "meanReversion": 0},
-                "entry": 0,
-                "target": 0,
-                "stop": 0,
-                "rMultiple": 1.5,
-                "kellyPercent": 10,
-                "momentum": 0,
-                "volSpike": 0,
-                "sector": "",
-                "pattern": "placeholder",
-                "leadAgent": "system",
-                "swarmVote": "LONG",
-                "topShap": "Waiting for live scan",
-                "newsImpact": "",
-                "expPnL": 0,
-                "detected_at": "",
-            })
-
     # Sort by score descending
     dashboard_signals.sort(key=lambda x: x.get("score", 0), reverse=True)
     result = {"as_of": str(as_of), "signals": dashboard_signals}
