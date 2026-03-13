@@ -31,6 +31,9 @@ _METADATA_FILE = _ARTIFACTS_DIR / "ml_metadata.json"
 class MLScorer:
     """Live XGBoost scorer for signal pipeline integration."""
 
+    # Check for champion changes at most every 60 seconds
+    _CHAMPION_CHECK_INTERVAL = 60.0
+
     def __init__(self):
         self._model = None
         self._feature_cols: List[str] = []
@@ -38,6 +41,8 @@ class MLScorer:
         self._loaded = False
         self._load_time = 0.0
         self._predictions_made = 0
+        self._current_model_path: Optional[str] = None
+        self._last_champion_check = 0.0
         self._load_model()
 
     def _model_path(self) -> Optional[Path]:
@@ -51,6 +56,24 @@ class MLScorer:
         except Exception as e:
             logger.debug("MLScorer: registry champion not used: %s", e)
         return _MODEL_FILE if _MODEL_FILE.exists() else None
+
+    def _check_champion_changed(self) -> None:
+        """Periodically check if a new champion model was promoted and reload if so."""
+        now = time.time()
+        if now - self._last_champion_check < self._CHAMPION_CHECK_INTERVAL:
+            return
+        self._last_champion_check = now
+        try:
+            new_path = self._model_path()
+            new_path_str = str(new_path) if new_path else None
+            if new_path_str and new_path_str != self._current_model_path:
+                logger.info(
+                    "MLScorer: champion changed %s -> %s, reloading",
+                    self._current_model_path, new_path_str,
+                )
+                self.reload()
+        except Exception as e:
+            logger.debug("MLScorer: champion check failed: %s", e)
 
     def _load_model(self) -> None:
         """Load the trained XGBoost model if available (registry champion or xgb_latest.json)."""
@@ -79,8 +102,10 @@ class MLScorer:
 
             self._loaded = True
             self._load_time = time.time()
+            self._current_model_path = str(path)
             logger.info(
-                "MLScorer: model loaded (%d features, val_acc=%.3f)",
+                "MLScorer: model loaded from %s (%d features, val_acc=%.3f)",
+                path,
                 len(self._feature_cols),
                 self._metadata.get("val_accuracy", 0),
             )
@@ -110,6 +135,9 @@ class MLScorer:
         Returns:
             Dict with ml_score (0-100), probability, confidence, or None if model unavailable
         """
+        # Check if a new champion was promoted since last load
+        self._check_champion_changed()
+
         if not self._loaded or not self._model:
             return None
 
@@ -272,7 +300,7 @@ class MLScorer:
             "predictions_made": self._predictions_made,
             "val_accuracy": self._metadata.get("val_accuracy", 0),
             "last_trained": self._metadata.get("last_trained", "never"),
-            "model_file": str(_MODEL_FILE),
+            "model_file": self._current_model_path or str(_MODEL_FILE),
         }
 
 

@@ -6,7 +6,7 @@ GET /api/v1/health/incidents -> Recent health incidents
 """
 
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
 logger = logging.getLogger(__name__)
@@ -21,14 +21,10 @@ async def system_health():
         return agg.get_health()
     except Exception as e:
         logger.warning("Health aggregator unavailable: %s", e)
-        return {
-            "overall_status": "unknown",
-            "error": "Service unavailable",
-            "total_sources": 0,
-            "healthy": 0,
-            "degraded": 0,
-            "unavailable": 0,
-        }
+        raise HTTPException(
+            status_code=503,
+            detail=f"Health aggregator unavailable: {e}",
+        )
 
 
 @router.get("/alerts")
@@ -40,7 +36,10 @@ async def alert_status():
         return alerter.get_status()
     except Exception as e:
         logger.warning("Slack alerter status unavailable: %s", e)
-        return {"enabled": False, "error": "Service unavailable"}
+        raise HTTPException(
+            status_code=503,
+            detail=f"Slack alerter status unavailable: {e}",
+        )
 
 
 @router.get("/incidents")
@@ -56,4 +55,7 @@ async def recent_incidents():
         }
     except Exception as e:
         logger.warning("Health incidents unavailable: %s", e)
-        return {"incidents": [], "error": "Service unavailable"}
+        raise HTTPException(
+            status_code=503,
+            detail=f"Health incidents unavailable: {e}",
+        )

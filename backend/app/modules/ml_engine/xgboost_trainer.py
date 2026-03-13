@@ -532,7 +532,7 @@ if __name__ == "__main__":
     except Exception as exc:
         log.warning("v2 path failed (%s), trying legacy...", exc)
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store.get_thread_cursor()
+        conn = duckdb_store.get_connection()
         df = load_feature_frame(conn)
         if df.empty:
             log.error("No data in daily_features table.")

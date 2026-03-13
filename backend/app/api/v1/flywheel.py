@@ -102,27 +102,57 @@ async def get_flywheel_logs():
 
 @router.get("/kpis")
 async def get_flywheel_kpis():
-    """Flywheel KPIs for ML Brain page. Stub when no pipeline data."""
+    """Flywheel KPIs for ML Brain page — pulls from real model registry and feature pipeline."""
     data = _get_flywheel_data()
     accuracy = round((data.get("accuracy30d") or 0) * 100, 1)
+
+    # Pull real active model count from model registry
+    active_models = 0
+    training_sessions = 0
+    try:
+        from app.modules.ml_engine.model_registry import get_registry
+        registry = get_registry()
+        status = registry.get_status() if hasattr(registry, "get_status") else {}
+        active_models = status.get("total_runs", 0)
+        training_sessions = status.get("total_runs", 0)
+    except Exception:
+        pass
+
+    # Pull real feature count from feature pipeline
+    feature_count = 0
+    try:
+        from app.modules.ml_engine.feature_pipeline import FeatureManifest
+        manifest = FeatureManifest.load()
+        feature_count = manifest.n_features if manifest.feature_cols else 0
+    except Exception:
+        pass
+
+    # Pull flywheel cycle count from outcome resolver
+    flywheel_cycles = 0
+    try:
+        from app.modules.ml_engine.outcome_resolver import _get_store
+        store = _get_store()
+        flywheel_cycles = len(store.get("resolved", []))
+    except Exception:
+        pass
+
     return {
         "flywheel": {
             "accuracy": accuracy,
             "resolvedSignals": data.get("resolvedSignals", 0),
             "pendingResolution": data.get("pendingResolution", 0),
-            # Frontend KPI fields
-            "active_models": 0,
-            "activeModels": 0,
+            "active_models": active_models,
+            "activeModels": active_models,
             "walk_forward": accuracy,
             "walkForwardAcc": accuracy,
             "ignitions_total": data.get("resolvedSignals", 0),
-            "trainingSessions": 0,
-            "flywheel_cycles": 0,
-            "flywheelCycles": 0,
-            "feature_store_sync": 0,
-            "featureStore": 0,
-            "win_prob_threshold": 0.6,
-            "winRateThresh": 0.6,
+            "trainingSessions": training_sessions,
+            "flywheel_cycles": flywheel_cycles,
+            "flywheelCycles": flywheel_cycles,
+            "feature_store_sync": feature_count,
+            "featureStore": feature_count,
+            "win_prob_threshold": data.get("winRate", 0.6),
+            "winRateThresh": data.get("winRate", 0.6),
         }
     }
 
@@ -142,13 +172,47 @@ async def get_flywheel_signals_staged():
 
 @router.get("/models")
 async def get_flywheel_models():
-    """Model registry summary for ML Brain page. Stub."""
-    return {"flywheel": {"models": [], "champion": None}}
+    """Model registry summary for ML Brain page — pulls from real model registry."""
+    try:
+        from app.modules.ml_engine.model_registry import get_registry
+        registry = get_registry()
+        status = registry.get_status() if hasattr(registry, "get_status") else {}
+        runs = status.get("recent_runs", [])
+        champions = status.get("champions", {})
+        champion_info = None
+        if champions:
+            champion_name = next(iter(champions.values()), None)
+            if champion_name:
+                champion_path = registry.get_champion_model_path("xgboost_daily")
+                champion_info = {
+                    "run_id": champion_name,
+                    "model_path": str(champion_path) if champion_path else None,
+                }
+        return {"flywheel": {"models": runs, "champion": champion_info, "total_runs": status.get("total_runs", 0)}}
+    except Exception as e:
+        logger.debug("Model registry unavailable for flywheel: %s", e)
+        return {"flywheel": {"models": [], "champion": None, "total_runs": 0}}
 
 
 @router.get("/features")
 async def get_flywheel_features():
-    """Feature pipeline status for ML Brain page. Stub."""
+    """Feature pipeline status for ML Brain page — pulls from real feature pipeline."""
+    try:
+        from app.modules.ml_engine.feature_pipeline import FeatureManifest, PIPELINE_VERSION
+        manifest = FeatureManifest.load()
+        if manifest.feature_cols:
+            return {
+                "flywheel": {
+                    "features": manifest.feature_cols,
+                    "version": manifest.version or PIPELINE_VERSION,
+                    "n_features": manifest.n_features,
+                    "n_labels": manifest.n_labels,
+                    "data_hash": manifest.data_hash,
+                    "created_at": manifest.created_at,
+                }
+            }
+    except Exception as e:
+        logger.debug("Feature pipeline unavailable for flywheel: %s", e)
     return {"flywheel": {"features": [], "version": None}}
 
 
