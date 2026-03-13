@@ -4,6 +4,7 @@ Real data only. No mock data, no fabricated numbers.
 Supports both Trading API (paper-api.alpaca.markets/v2) and
 Market Data API (data.alpaca.markets/v2) for 24/7 price coverage.
 """
+import asyncio
 import httpx
 import logging
 import time
@@ -88,6 +89,7 @@ class AlpacaService:
         # Previous: created fresh httpx.AsyncClient per call (SSL handshake overhead).
         # Now: single pooled client with keep-alive, 50 max connections.
         self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client_loop_id: Optional[int] = None
 
         logger.info("AlpacaService initialized: mode=%s, url=%s, configured=%s",
                     self.trading_mode, self.base_url, self._is_configured())
@@ -175,6 +177,22 @@ class AlpacaService:
         creating a new SSL handshake on every API call (~50-100ms per call saved).
         The pool maintains up to 50 connections with keep-alive.
         """
+        try:
+            current_loop_id = id(asyncio.get_running_loop())
+        except RuntimeError:
+            current_loop_id = None
+
+        # AsyncClient transports are loop-bound; recreate on loop changes.
+        if (
+            self._http_client is not None
+            and not self._http_client.is_closed
+            and self._http_client_loop_id is not None
+            and current_loop_id is not None
+            and self._http_client_loop_id != current_loop_id
+        ):
+            self._http_client = None
+            self._http_client_loop_id = None
+
         if self._http_client is None or self._http_client.is_closed:
             self._http_client = httpx.AsyncClient(
                 timeout=_TIMEOUT,
@@ -185,13 +203,19 @@ class AlpacaService:
                 ),
                 headers=self._get_headers(),
             )
+            self._http_client_loop_id = current_loop_id
         return self._http_client
 
     async def close(self) -> None:
         """Close the persistent HTTP client (call on shutdown)."""
         if self._http_client and not self._http_client.is_closed:
-            await self._http_client.aclose()
+            try:
+                await self._http_client.aclose()
+            except RuntimeError:
+                # Can happen during shutdown when originating loop is already closed.
+                pass
             self._http_client = None
+            self._http_client_loop_id = None
 
     async def _request(
         self,
@@ -208,7 +232,6 @@ class AlpacaService:
             return None
         url = f"{self.base_url}{path}"
 
-        import asyncio
         client = self._get_http_client()
 
         for attempt in range(_retries + 1):

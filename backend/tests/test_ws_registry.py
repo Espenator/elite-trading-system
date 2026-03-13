@@ -29,11 +29,11 @@ async def test_ws_payload_has_canonical_shape():
     from unittest.mock import AsyncMock, MagicMock
 
     # Build canonical payload as broadcast_ws would
-    channel = "signal"
+    channel = "signals"
     data = {"type": "new_signal", "signal": {"symbol": "AAPL", "score": 80}}
     ts = 1234567890.0
     msg = {"channel": channel, "type": data.get("type", "update"), "data": data, "ts": ts}
-    assert msg["channel"] == "signal"
+    assert msg["channel"] == "signals"
     assert msg["type"] == "new_signal"
     assert "data" in msg
     assert "ts" in msg

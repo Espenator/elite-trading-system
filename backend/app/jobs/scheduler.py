@@ -108,14 +108,14 @@ def start_scheduler() -> Optional[object]:
         log.warning("apscheduler not installed — scheduler disabled")
         return None
 
-    # Ensure an event loop exists for AsyncIOScheduler (Python 3.11+
-    # raises RuntimeError when there is no current event loop).
     try:
-        asyncio.get_event_loop()
+        event_loop = asyncio.get_event_loop()
     except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
+        # Python 3.13+: no current loop in main thread by default.
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
 
-    _scheduler = AsyncIOScheduler()
+    _scheduler = AsyncIOScheduler(event_loop=event_loop)
 
     # Daily at 18:00 UTC — outcome resolution
     _scheduler.add_job(
@@ -181,8 +181,13 @@ def stop_scheduler():
     """Gracefully stop the scheduler."""
     global _scheduler
     if _scheduler is not None:
-        _scheduler.shutdown(wait=False)
-        log.info("Flywheel scheduler stopped")
+        try:
+            if getattr(_scheduler, "running", False):
+                _scheduler.shutdown(wait=False)
+                log.info("Flywheel scheduler stopped")
+        except Exception as e:
+            # Best effort in tests and shutdown races.
+            log.debug("Scheduler shutdown skipped: %s", e)
         _scheduler = None
 
 

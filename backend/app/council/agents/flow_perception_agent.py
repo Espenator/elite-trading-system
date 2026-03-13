@@ -1,9 +1,11 @@
 """Flow Perception Agent — options flow analysis."""
 import logging
+import time
 from typing import Any, Dict
 
 from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
+from app.services.unusual_whales_service import get_unusual_whales_service
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,34 @@ async def evaluate(
     put_vol = f.get("flow_put_volume", 0)
     net_premium = f.get("flow_net_premium", 0)
     pcr = f.get("flow_pcr", 0)
+    intel_meta = {"data_available": True, "pcr": pcr}
+
+    # Cache-warming path: use fresh UW bus cache if direct flow features are missing.
+    if call_vol == 0 and put_vol == 0:
+        uw_svc = get_unusual_whales_service()
+        cached = getattr(uw_svc, "_last_flow_cache", []) or []
+        cache_age = time.time() - float(getattr(uw_svc, "_last_flow_ts", 0) or 0)
+        if cached and cache_age < 60:
+            call_count = 0
+            put_count = 0
+            net = 0.0
+            for alert in cached:
+                if not isinstance(alert, dict):
+                    continue
+                put_call = str(alert.get("put_call", "")).lower()
+                premium = float(alert.get("premium", 0) or alert.get("total_premium", 0) or 0)
+                if put_call == "call":
+                    call_count += 1
+                    net += premium
+                elif put_call == "put":
+                    put_count += 1
+                    net -= premium
+            if call_count or put_count:
+                call_vol = call_count
+                put_vol = put_count
+                net_premium = net
+                pcr = put_vol / max(call_vol, 1)
+                intel_meta.update({"cache_used": True, "cache_age_s": round(cache_age, 2), "pcr": pcr})
 
     # If no flow data, abstain with low confidence
     if call_vol == 0 and put_vol == 0:
@@ -30,7 +60,7 @@ async def evaluate(
             confidence=0.1,
             reasoning="No options flow data available",
             weight=cfg["weight_flow_perception"],
-            metadata={"data_available": False},
+            metadata={"data_available": False, "cache_used": False},
         )
 
     # PCR analysis
@@ -59,7 +89,6 @@ async def evaluate(
     )
 
     # Enrich with institutional flow intelligence if available
-    intel_meta = {"data_available": True, "pcr": pcr}
     blackboard = context.get("blackboard")
     if blackboard:
         intel = blackboard.metadata.get("intelligence", {})

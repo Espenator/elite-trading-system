@@ -23,9 +23,10 @@ import secrets
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Body, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+from app.core.security import require_auth
 
 router = APIRouter(prefix="/api/v1/metrics", tags=["metrics"])
 
@@ -322,7 +323,7 @@ async def trigger_emergency_flatten(
         return {"error": "Internal server error", "status": "failed"}
 
 
-@router.post("/ws-circuit-breaker/reset")
+@router.post("/ws-circuit-breaker/reset", dependencies=[Depends(require_auth)])
 def reset_ws_circuit_breaker():
     """Reset the WebSocket circuit breaker to allow reconnection attempts.
 
