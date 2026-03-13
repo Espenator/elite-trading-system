@@ -99,7 +99,7 @@ function CorrelationHeatmap({ data, loading, onCellClick }) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
         <Grid3X3 className="w-6 h-6 mb-2 opacity-40" />
-        <div className="text-xs font-mono">No correlation data</div>
+        <div className="text-xs font-mono">No active positions for correlation analysis</div>
       </div>
     );
   }
@@ -234,11 +234,18 @@ export default function RiskIntelligence() {
   const [historyDayDetail, setHistoryDayDetail] = useState(null);
   const [stressResult, setStressResult] = useState(null);
   const [stressLoading, setStressLoading] = useState(false);
+  const [toast, setToast] = useState(null);
   const emergencyTimerRef = useRef(null);
+  const emergencyAbortRef = useRef(null);
+
+  const showToast = useCallback((msg, type = 'info') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   // ─── RISK HOOKS (spec: useRiskScore, useDrawdownCheck, useKellyRanked) ──────
   const { data: riskScoreData, loading: riskScoreLoading } = useRiskScore(30000);
-  const { data: drawdownData, loading: drawdownLoading } = useDrawdownCheck(15000);
+  const { data: drawdownData, loading: drawdownLoading } = useDrawdownCheck(30000);
   const { data: kellyRankedData } = useKellyRanked(true);
   const { settings, updateField, saveCategory, loading: settingsLoading } = useSettings();
 
@@ -252,6 +259,7 @@ export default function RiskIntelligence() {
   const { data: portfolioData } = useApi('portfolio');
   const { data: correlationData, loading: correlationLoading } = useApi('risk', { endpoint: '/risk/correlation-matrix' });
   const { data: sweepStatusData } = useApi('swarmSweepStatus');
+  const { data: regimeData } = useApi('risk', { endpoint: '/openclaw/regime' });
 
   const handleRefresh = useCallback(() => {
     setLastRefresh(new Date());
@@ -268,7 +276,8 @@ export default function RiskIntelligence() {
   const rawScore = riskScoreData?.score ?? riskData?.risk_score;
   const riskScore = (typeof rawScore === 'number' && !Number.isNaN(rawScore)) ? rawScore : null;
   const grade = riskScore != null ? gradeFromScore(riskScore) : null;
-  const systemStatus = riskData?.system_status ?? null;
+  const systemStatus = riskData?.system_status
+    ?? (riskScore != null ? (riskScore <= 35 ? 'SAFE' : riskScore <= 65 ? 'CAUTION' : 'DANGER') : null);
 
   const shieldLoading = !shieldData && riskData === undefined;
   const safetyChecks = shieldData?.checks ?? [];
@@ -342,17 +351,27 @@ export default function RiskIntelligence() {
   useEffect(() => {
     if (emergencyCountdown == null) return;
     if (emergencyCountdown <= 0) {
+      const ctrl = new AbortController();
+      emergencyAbortRef.current = ctrl;
+      const timeout = setTimeout(() => ctrl.abort(), 10000);
       (async () => {
         try {
           const res = await fetch(getApiUrl('orders/emergency-stop'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            signal: ctrl.signal,
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          showToast('Emergency stop executed', 'success');
           handleRefresh();
         } catch (err) {
-          log.error('Emergency stop failed:', err);
+          if (err.name !== 'AbortError') {
+            log.error('Emergency stop failed:', err);
+            showToast(`Emergency stop failed: ${err.message}`, 'error');
+          }
         } finally {
+          clearTimeout(timeout);
+          emergencyAbortRef.current = null;
           setEmergencyCountdown(null);
         }
       })();
@@ -367,6 +386,10 @@ export default function RiskIntelligence() {
     if (emergencyTimerRef.current) {
       clearInterval(emergencyTimerRef.current);
       emergencyTimerRef.current = null;
+    }
+    if (emergencyAbortRef.current) {
+      emergencyAbortRef.current.abort();
+      emergencyAbortRef.current = null;
     }
     setEmergencyCountdown(null);
   }, []);
@@ -383,11 +406,14 @@ export default function RiskIntelligence() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         log.error(`Emergency ${action} failed:`, res.status, data?.detail ?? data);
+        showToast(`${action} failed: ${data?.detail ?? `HTTP ${res.status}`}`, 'error');
         return;
       }
+      showToast(`${action} executed successfully`, 'success');
       handleRefresh();
     } catch (err) {
       log.error(`Emergency ${action} failed:`, err);
+      showToast(`${action} failed: ${err.message}`, 'error');
     }
   };
 
@@ -401,47 +427,82 @@ export default function RiskIntelligence() {
     const values = sweepParams;
     setSweepParams(null);
     try {
-      const res = await fetch(getApiUrl('swarmSweepStatus'), { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const res = await fetch(getApiUrl('swarmSweepStatus'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.detail ?? `HTTP ${res.status}: ${res.statusText}`);
+      }
+      showToast('Parameter sweep started', 'success');
       handleRefresh();
     } catch (err) {
-      log.error('Sweep status fetch failed:', err);
+      log.error('Sweep start failed:', err);
+      showToast(`Sweep failed: ${err.message}`, 'error');
     }
-  }, [sweepParams]);
+  }, [sweepParams, showToast]);
 
   const runStressTest = useCallback(async () => {
     setStressLoading(true);
     setStressResult(null);
     try {
-      const res = await fetch(getApiUrl('risk/stress-test'), { headers: getAuthHeaders() });
+      const res = await fetch(getApiUrl('risk/stress-test'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         setStressResult({ error: errBody?.detail ?? `HTTP ${res.status}: ${res.statusText}` });
+        showToast('Stress test failed', 'error');
         return;
       }
       const data = await res.json();
       setStressResult(data);
+      showToast('Stress test complete', 'success');
     } catch (err) {
       log.error('Stress test failed:', err);
       setStressResult({ error: String(err?.message ?? err) });
+      showToast(`Stress test error: ${err.message}`, 'error');
     } finally {
       setStressLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   const riskParams = settings?.risk ?? null;
   const handleRiskParamChange = useCallback((paramKey, value) => {
     updateField('risk', paramKey, value);
   }, [updateField]);
+  const [savingRisk, setSavingRisk] = useState(false);
   const handleSaveRiskSettings = useCallback(async () => {
-    await saveCategory('risk');
-  }, [saveCategory]);
+    setSavingRisk(true);
+    try {
+      await saveCategory('risk');
+      showToast('Risk settings saved', 'success');
+    } catch (err) {
+      showToast(`Failed to save: ${err.message}`, 'error');
+    } finally {
+      setSavingRisk(false);
+    }
+  }, [saveCategory, showToast]);
 
   // =========================================================================
   // RENDER
   // =========================================================================
   return (
     <div className="flex flex-col min-h-0" style={{ backgroundColor: C.bg, color: C.text }}>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[60] px-4 py-2 rounded-lg shadow-lg text-sm font-mono border backdrop-blur-sm transition-all ${
+          toast.type === 'success' ? 'bg-green-900/80 border-green-500/50 text-green-300' :
+          toast.type === 'error' ? 'bg-red-900/80 border-red-500/50 text-red-300' :
+          'bg-slate-800/80 border-slate-500/50 text-slate-300'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════════
           HEADER BAR (mockup 13-risk-intelligence: aligns with system header style)
@@ -529,7 +590,10 @@ export default function RiskIntelligence() {
 
       {/* ─── Emergency stop countdown modal ──────────────────────────────────── */}
       {emergencyCountdown != null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+             onKeyDown={(e) => { if (e.key === 'Escape') cancelEmergencyCountdown(); }}
+             tabIndex={-1}
+             ref={(el) => el?.focus()}>
           <div className="bg-[#111827] border border-red-500/50 rounded-xl p-6 max-w-sm shadow-xl text-center">
             <div className="text-red-400 font-bold text-lg mb-2">Flattening all positions</div>
             <div className="text-4xl font-mono font-black text-white mb-4">
@@ -540,8 +604,7 @@ export default function RiskIntelligence() {
             </p>
             <button
               onClick={cancelEmergencyCountdown}
-              disabled={emergencyCountdown <= 0}
-              className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm font-mono disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm font-mono"
             >
               Cancel
             </button>
@@ -602,11 +665,11 @@ export default function RiskIntelligence() {
             {riskParams && (
               <div className="space-y-2 pt-2 border-t border-[rgba(42,52,68,0.5)]">
                 {[
-                  { key: 'maxDrawdownLimit', label: 'Max drawdown %', min: 0.02, max: 0.25, step: 0.01, fmt: (v) => `${(v * 100).toFixed(0)}%` },
-                  { key: 'positionSizePct', label: 'Position size %', min: 0.5, max: 10, step: 0.5, fmt: (v) => `${v}%` },
-                  { key: 'maxDailyLossPct', label: 'Max daily loss %', min: 1, max: 10, step: 0.5, fmt: (v) => `${v}%` },
-                ].map(({ key, label, min, max, step, fmt }) => {
-                  const val = riskParams[key];
+                  { key: 'maxDrawdownLimit', altKey: 'maxDailyDrawdown', label: 'Max drawdown %', min: 0.02, max: 0.25, step: 0.01, fmt: (v) => `${(v * 100).toFixed(0)}%` },
+                  { key: 'positionSizePct', altKey: 'positionSizeLimit', label: 'Position size %', min: 0.5, max: 10, step: 0.5, fmt: (v) => `${v}%` },
+                  { key: 'maxDailyLossPct', altKey: null, label: 'Max daily loss %', min: 1, max: 10, step: 0.5, fmt: (v) => `${v}%` },
+                ].map(({ key, altKey, label, min, max, step, fmt }) => {
+                  const val = riskParams[key] ?? (altKey ? riskParams[altKey] : undefined);
                   if (val == null) return null;
                   const num = Number(val);
                   return (
@@ -627,9 +690,10 @@ export default function RiskIntelligence() {
                 })}
                 <button
                   onClick={handleSaveRiskSettings}
-                  className="w-full py-1.5 rounded text-[10px] font-bold uppercase bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30"
+                  disabled={savingRisk}
+                  className="w-full py-1.5 rounded text-[10px] font-bold uppercase bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30 disabled:opacity-50"
                 >
-                  Save risk settings
+                  {savingRisk ? 'Saving…' : 'Save risk settings'}
                 </button>
               </div>
             )}
@@ -696,20 +760,25 @@ export default function RiskIntelligence() {
             ) : (
               [
                 { label: 'Portfolio VaR (95%)', key: 'VaR 95%', color: C.amber },
-                { label: 'Tail Risk (CVaR)', key: 'CVaR', color: C.red },
-                { label: 'Volatility Level', key: 'Volatility', color: C.purple },
-                { label: 'Beta Exposure', key: 'Beta', color: C.cyan },
-                { label: 'Concentration', key: 'Concentration', color: C.amber },
-                { label: 'Skew Risk', key: 'Skew Risk', color: C.red },
+                { label: 'Tail Risk (CVaR)', key: 'CVaR 95%', color: C.red },
+                { label: 'Portfolio Heat', key: 'Portfolio Heat', color: C.purple },
+                { label: 'Tail Risk', key: 'Tail Risk', color: C.cyan },
+                { label: 'Delta Exposure', key: 'Delta', color: C.amber },
+                { label: 'Gamma Exposure', key: 'Gamma', color: C.green },
+                { label: 'Vega Exposure', key: 'Vega', color: C.teal },
               ].map((item, i) => {
-                const val = rawGauges.find((g) => g.label === item.key)?.value;
+                const gauge = rawGauges.find((g) => (g.name || g.label) === item.key);
+                const val = gauge?.value;
+                const max = gauge?.max || 100;
+                const unit = gauge?.unit || '%';
                 const num = typeof val === 'number' ? val : null;
+                const pct = num != null && max > 0 ? Math.min((num / max) * 100, 100) : 0;
                 return (
                   <div key={i} className="space-y-0.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-gray-400">{item.label}</span>
                       <span className="text-[10px] font-mono font-bold" style={{ color: item.color }}>
-                        {num != null ? Math.round(num) + '%' : '—'}
+                        {num != null ? `${unit === '$' ? '$' : ''}${num.toLocaleString()}${unit === '%' ? '%' : ''}` : '—'}
                       </span>
                     </div>
                     <div className="w-full h-2 bg-[#0B0E14] rounded-full overflow-hidden">
@@ -717,7 +786,7 @@ export default function RiskIntelligence() {
                         <div
                           className="h-full rounded-full transition-all duration-500"
                           style={{
-                            width: `${Math.min(num, 100)}%`,
+                            width: `${Math.max(pct, 2)}%`,
                             backgroundColor: item.color,
                             boxShadow: `0 0 6px ${item.color}40`,
                           }}
@@ -856,13 +925,13 @@ export default function RiskIntelligence() {
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-gray-500">Current Regime</span>
                 <span className="text-[10px] font-mono font-bold" style={{ color: C.green }}>
-                  {riskData?.volatility_regime ?? '—'}
+                  {riskData?.volatility_regime ?? regimeData?.state ?? '—'}
                 </span>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-[10px] text-gray-500">Regime Confidence</span>
                 <span className="text-[10px] font-mono font-bold" style={{ color: C.cyan }}>
-                  {riskData?.regime_confidence != null ? String(riskData.regime_confidence) : '—'}
+                  {riskData?.regime_confidence != null ? String(riskData.regime_confidence) : (regimeData?.confidence != null ? `${(regimeData.confidence * 100).toFixed(0)}%` : '—')}
                 </span>
               </div>
             </div>
@@ -874,6 +943,12 @@ export default function RiskIntelligence() {
               action={<Brain className="w-4 h-4 text-[#00D9FF]" />}>
           <div className="space-y-2">
             {agentMonitors.length === 0 && !monte && !kelly && <Skeleton className="w-full h-20" />}
+            {agentMonitors.length === 0 && (monte || kelly) && (
+              <div className="flex flex-col items-center justify-center py-4 text-gray-500">
+                <Brain className="w-5 h-5 mb-1 opacity-40" />
+                <div className="text-[10px] font-mono">No agents reporting risk data</div>
+              </div>
+            )}
             {agentMonitors.map((item, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between text-[10px] mb-0.5">
@@ -975,8 +1050,8 @@ export default function RiskIntelligence() {
                   >
                     <td className="py-1 px-2 text-gray-400">{row.date}</td>
                     <td className="py-1 px-2 text-right font-bold" style={{ color: scoreColor }}>{score}</td>
-                    <td className="py-1 px-2 text-right text-slate-300">{row.var95 ?? '--'}</td>
-                    <td className="py-1 px-2 text-right text-slate-300">{row.drawdown ?? row.dd ?? '--'}%</td>
+                    <td className="py-1 px-2 text-right text-slate-300">{row.var95 ?? row.var ?? '--'}</td>
+                    <td className="py-1 px-2 text-right text-slate-300">{row.drawdown ?? row.dd ?? (row.maxDailyLoss != null ? (row.maxDailyLoss * 100).toFixed(1) : '--')}%</td>
                     <td className="py-1 px-2 text-right text-slate-300">{row.vol ?? '--'}</td>
                     <td className="py-1 px-2 text-right text-slate-300">{row.beta ?? '--'}</td>
                     <td className="py-1 px-2 text-right text-slate-300">{row.sharpe ?? '--'}</td>
@@ -1012,8 +1087,8 @@ export default function RiskIntelligence() {
               <div className="text-[10px] font-mono text-gray-300 space-y-1">
                 <div>Date: {historyDayDetail.date}</div>
                 <div>Score: {historyDayDetail.score ?? '—'}</div>
-                <div>VaR 95%: {historyDayDetail.var95 ?? '—'}</div>
-                <div>Drawdown: {historyDayDetail.drawdown ?? historyDayDetail.dd ?? '—'}%</div>
+                <div>VaR 95%: {historyDayDetail.var95 ?? historyDayDetail.var ?? '—'}</div>
+                <div>Drawdown: {historyDayDetail.drawdown ?? historyDayDetail.dd ?? (historyDayDetail.maxDailyLoss != null ? (historyDayDetail.maxDailyLoss * 100).toFixed(1) + '%' : '—')}</div>
                 <div>Vol: {historyDayDetail.vol ?? '—'}</div>
                 <div>Regime: {historyDayDetail.regime ?? '—'}</div>
                 <div>Status: {historyDayDetail.status ?? '—'}</div>
