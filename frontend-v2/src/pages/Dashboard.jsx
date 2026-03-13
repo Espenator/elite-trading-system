@@ -794,7 +794,10 @@ export default function Dashboard() {
     loading: sigLoading,
     error: sigErr,
     isStale: sigStale,
-  } = useApi("signals", { pollIntervalMs: 15000 });
+  } = useApi("signals", {
+    pollIntervalMs: 15000,
+    endpoint: `/signals/?timeframe=${encodeURIComponent(activeTimeframe)}`,
+  });
   const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 });
   const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 15000 });
   const { data: indicesData, error: indicesErr } = useApi("marketIndices", {
@@ -904,9 +907,10 @@ export default function Dashboard() {
   // --- EXECUTION HANDLER ---
   const handleExecute = useCallback(
     async (action) => {
+      const side = action === "BUY" ? "buy" : "sell";
+      const qty = String(riskData?.proposal?.proposedSize || 100);
+      if (!window.confirm(`Execute ${action} ${qty} shares of ${selectedSymbol}?`)) return;
       try {
-        const side = action === "BUY" ? "buy" : "sell";
-        const qty = String(riskData?.proposal?.proposedSize || 100);
         const body = {
           symbol: selectedSymbol,
           side,
@@ -929,10 +933,14 @@ export default function Dashboard() {
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        alert(`Execution successful: ${action} ${selectedSymbol}`);
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}));
+          throw new Error(detail?.detail || `HTTP ${res.status}`);
+        }
+        toast.success(`${action} ${selectedSymbol} executed`);
       } catch (err) {
         log.error("Execution failed:", err);
+        toast.error(`Execution failed: ${err.message}`);
       }
     },
     [selectedSymbol, riskData],
@@ -957,9 +965,13 @@ export default function Dashboard() {
   }, []);
   const handleExecTop5 = useCallback(async () => {
     const top5 = processedSignals.slice(0, 5);
+    if (!top5.length) { toast.warn("No signals to execute"); return; }
+    const names = top5.map((s) => `${s.symbol} ${s.direction || "LONG"}`).join(", ");
+    if (!window.confirm(`Execute top 5: ${names}?`)) return;
+    let ok = 0;
     for (const sig of top5) {
       try {
-        await fetch(getApiUrl("orders/advanced"), {
+        const res = await fetch(getApiUrl("orders/advanced"), {
           method: "POST",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
@@ -970,38 +982,48 @@ export default function Dashboard() {
             qty: "100",
           }),
         });
+        if (res.ok) ok++;
       } catch (e) {
         log.error(e);
       }
     }
+    toast.info(`Exec Top 5: ${ok}/${top5.length} orders sent`);
   }, [processedSignals]);
   const handleFlatten = useCallback(async () => {
+    if (!window.confirm("Flatten ALL positions? This cannot be undone.")) return;
     try {
       const res = await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) log.error("Flatten failed:", res.status);
+      if (!res.ok) { toast.error(`Flatten failed: HTTP ${res.status}`); return; }
+      toast.success("All positions flattened");
     } catch (e) {
       log.error(e);
+      toast.error(`Flatten error: ${e.message}`);
     }
   }, []);
   const handleEmergencyStop = useCallback(async () => {
+    if (!window.confirm("EMERGENCY STOP: Cancel all orders and close all positions?")) return;
     try {
       const res = await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) log.error("Emergency stop failed:", res.status);
+      if (!res.ok) { toast.error(`Emergency stop failed: HTTP ${res.status}`); return; }
+      toast.success("Emergency stop executed");
     } catch (e) {
       log.error(e);
+      toast.error(`Emergency stop error: ${e.message}`);
     }
   }, []);
 
   const handleExportCSV = useCallback(() => {
     const data = processedSignals;
-    if (!data.length) return;
+    if (!data.length) { toast.warn("No signals to export"); return; }
     const headers = ["symbol","direction","score","entry","target","stop","rMultiple","kellyPercent"];
     const rows = data.map(s => headers.map(h => `"${s[h] ?? ""}"`).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "signals.csv"; a.click();
+    const fname = `signals_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    const a = document.createElement("a"); a.href = url; a.download = fname; a.click();
     URL.revokeObjectURL(url);
+    toast.success(`Exported ${data.length} signals`);
   }, [processedSignals]);
 
   const handleSpawnAgent = useCallback(() => {

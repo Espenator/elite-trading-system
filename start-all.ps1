@@ -16,20 +16,20 @@ git pull origin main
 Write-Host ""
 
 # --- 2. Start Backend (FastAPI/Uvicorn) ---
-Write-Host "[2/5] Starting Backend (FastAPI on port 8000)..." -ForegroundColor Yellow
+Write-Host "[2/5] Starting Backend (FastAPI on port 8001)..." -ForegroundColor Yellow
 $backendDir = Join-Path $RepoRoot "backend"
 $venvActivate = Join-Path $backendDir "venv\Scripts\Activate.ps1"
 
 $backendJob = Start-Process powershell -ArgumentList @(
     "-NoExit", "-Command",
-    "Set-Location '$backendDir'; & '$venvActivate'; uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    "Set-Location '$backendDir'; & '$venvActivate'; uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
 ) -PassThru
 Write-Host "  Backend PID: $($backendJob.Id)" -ForegroundColor Green
 
 Start-Sleep -Seconds 3
 
-# --- 3. Start Frontend (Vite on port 5173) ---
-Write-Host "[3/5] Starting Frontend (Vite on port 5173)..." -ForegroundColor Yellow
+# --- 3. Start Frontend (Vite on port 3000) ---
+Write-Host "[3/5] Starting Frontend (Vite on port 3000)..." -ForegroundColor Yellow
 $frontendDir = Join-Path $RepoRoot "frontend-v2"
 
 $frontendJob = Start-Process powershell -ArgumentList @(
@@ -41,8 +41,8 @@ Write-Host "  Frontend PID: $($frontendJob.Id)" -ForegroundColor Green
 Start-Sleep -Seconds 5
 
 # --- 4. Open Browser ---
-Write-Host "[4/5] Opening browser at http://localhost:5173/dashboard ..." -ForegroundColor Yellow
-Start-Process "http://localhost:5173/dashboard"
+Write-Host "[4/5] Opening browser at http://localhost:3000/ ..." -ForegroundColor Yellow
+Start-Process "http://localhost:3000/"
 
 # --- 5. Start Electron (optional) ---
 Write-Host "[5/5] Starting Electron desktop app..." -ForegroundColor Yellow
@@ -64,9 +64,9 @@ if (Test-Path (Join-Path $desktopDir "node_modules")) {
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  All services launched!" -ForegroundColor Green
-Write-Host "  Backend:  http://localhost:8000" -ForegroundColor White
-Write-Host "  Frontend: http://localhost:5173" -ForegroundColor White
-Write-Host "  API Docs: http://localhost:8000/docs" -ForegroundColor White
+Write-Host "  Backend:  http://localhost:8001" -ForegroundColor White
+Write-Host "  Frontend: http://localhost:3000" -ForegroundColor White
+Write-Host "  API Docs: http://localhost:8001/docs" -ForegroundColor White
 Write-Host "  Electron: Desktop window" -ForegroundColor White
 Write-Host "========================================`n" -ForegroundColor Cyan
 Write-Host "Keep this window open. Close it to see service windows." -ForegroundColor DarkGray

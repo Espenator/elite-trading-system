@@ -191,6 +191,10 @@ const API_CONFIG = {
     scanners: "/agents",  // Scanner weight/toggle -> agents/{id}/weight, agents/{id}/toggle
     intels: "/agents",    // Intel weight/toggle -> agents/{id}/weight, agents/{id}/toggle
 
+    // ---- PATTERN LIBRARY ----
+    patternFeed:          "/patterns/feed",
+    patternForming:       "/patterns/forming",
+
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler:    "/flywheel/scheduler",
     flywheelKpis:         "/flywheel/kpis",

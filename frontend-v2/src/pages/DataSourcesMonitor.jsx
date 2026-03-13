@@ -824,7 +824,7 @@ export default function DataSourcesMonitor() {
 
         {/* Right column - Credential / Config Panel */}
         <div className="w-[42%] bg-[#111827] overflow-hidden flex flex-col">
-          <ConnectionDetailPanel source={selectedSource} />
+          <ConnectionDetailPanel key={selectedSource?.id} source={selectedSource} />
         </div>
       </div>
 

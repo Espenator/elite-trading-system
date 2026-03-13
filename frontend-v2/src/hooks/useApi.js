@@ -124,27 +124,35 @@ export function useApi(endpoint, options = {}) {
     const fetchPromise = (async () => {
       await _acquireSlot();
       try {
-        // FIX: combine user abort + timeout using addEventListener (no AbortSignal.any needed)
-        const timeoutCtrl = new AbortController();
-        const timeoutId = setTimeout(() => timeoutCtrl.abort(), DEFAULT_TIMEOUT_MS);
-        const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
+        const MAX_RETRIES = 3;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          const timeoutCtrl = new AbortController();
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), DEFAULT_TIMEOUT_MS);
+          const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
 
-        try {
-          const res = await fetch(url, {
-            cache: "no-store",
-            headers: getAuthHeaders(),
-            signal: combinedCtrl.signal,
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-          const json = await res.json();
-          if (_apiCache.size >= CACHE_MAX_SIZE) {
-            const oldest = _apiCache.keys().next().value;
-            _apiCache.delete(oldest);
+          try {
+            const res = await fetch(url, {
+              cache: "no-store",
+              headers: getAuthHeaders(),
+              signal: combinedCtrl.signal,
+            });
+            // Retry on 503 Service Unavailable with exponential backoff
+            if (res.status === 503 && attempt < MAX_RETRIES) {
+              clearTimeout(timeoutId);
+              await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+              continue;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            const json = await res.json();
+            if (_apiCache.size >= CACHE_MAX_SIZE) {
+              const oldest = _apiCache.keys().next().value;
+              _apiCache.delete(oldest);
+            }
+            _apiCache.set(url, { data: json, ts: Date.now() });
+            return json;
+          } finally {
+            clearTimeout(timeoutId);
           }
-          _apiCache.set(url, { data: json, ts: Date.now() });
-          return json;
-        } finally {
-          clearTimeout(timeoutId);
         }
       } finally {
         _releaseSlot();
