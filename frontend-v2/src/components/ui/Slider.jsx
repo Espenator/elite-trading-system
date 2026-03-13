@@ -79,6 +79,7 @@ function Slider({
         {label && !labelAbove && (
           <label
             htmlFor={id}
+            title={label}
             className="text-xs text-gray-400 font-medium shrink-0 w-28 min-w-28 max-w-28 truncate"
           >
             {label}
