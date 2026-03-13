@@ -9,6 +9,7 @@ Schedules:
 
 Only starts when SCHEDULER_ENABLED=true.
 """
+import asyncio
 import logging
 from typing import Optional
 
@@ -106,6 +107,13 @@ def start_scheduler() -> Optional[object]:
     except ImportError:
         log.warning("apscheduler not installed — scheduler disabled")
         return None
+
+    # Ensure an event loop exists for AsyncIOScheduler (Python 3.11+
+    # raises RuntimeError when there is no current event loop).
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
     _scheduler = AsyncIOScheduler()
 
