@@ -340,6 +340,44 @@ async def _run_youtube_knowledge_tick():
         _set_current_task(5, f"Error: {str(e)[:80]}")
 
 
+# --- Batch Agent Operations ---
+# NOTE: These MUST be registered BEFORE /{agent_id}/* routes to avoid
+# FastAPI matching "batch" as an agent_id integer and returning 422.
+
+@router.post("/batch/start", dependencies=[Depends(require_auth)])
+async def batch_start_agents():
+    """Start all agents."""
+    results = []
+    for agent in _AGENTS_TEMPLATE:
+        _set_agent_status(agent["id"], "running")
+        _append_log(agent["name"], "Agent started (batch)", "success")
+        results.append({"agent_id": agent["id"], "status": "running"})
+    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "running"})
+    return {"ok": True, "results": results}
+
+@router.post("/batch/stop", dependencies=[Depends(require_auth)])
+async def batch_stop_agents():
+    """Stop all agents."""
+    results = []
+    for agent in _AGENTS_TEMPLATE:
+        _set_agent_status(agent["id"], "stopped")
+        _append_log(agent["name"], "Agent stopped (batch)", "info")
+        results.append({"agent_id": agent["id"], "status": "stopped"})
+    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "stopped"})
+    return {"ok": True, "results": results}
+
+@router.post("/batch/restart", dependencies=[Depends(require_auth)])
+async def batch_restart_agents():
+    """Restart all agents."""
+    results = []
+    for agent in _AGENTS_TEMPLATE:
+        _set_agent_status(agent["id"], "running")
+        _append_log(agent["name"], "Agent restarted (batch)", "success")
+        results.append({"agent_id": agent["id"], "status": "running"})
+    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "running"})
+    return {"ok": True, "results": results}
+
+
 @router.post("/{agent_id}/start", dependencies=[Depends(require_auth)])
 async def start_agent(agent_id: int):
     """Start an agent; persist status and append to activity log.
@@ -823,41 +861,6 @@ async def update_agent_config(agent_id: int, payload: dict):
     _append_log(agent_name, f"Config updated: {list(payload.keys())}", "info")
     await broadcast_ws("agents", {"type": "config_updated", "agent_id": agent_id, "config": config})
     return {"ok": True, "agent_id": agent_id, "config": config}
-
-
-# --- Batch Agent Operations ---
-@router.post("/batch/start", dependencies=[Depends(require_auth)])
-async def batch_start_agents():
-    """Start all agents."""
-    results = []
-    for agent in _AGENTS_TEMPLATE:
-        _set_agent_status(agent["id"], "running")
-        _append_log(agent["name"], "Agent started (batch)", "success")
-        results.append({"agent_id": agent["id"], "status": "running"})
-    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "running"})
-    return {"ok": True, "results": results}
-
-@router.post("/batch/stop", dependencies=[Depends(require_auth)])
-async def batch_stop_agents():
-    """Stop all agents."""
-    results = []
-    for agent in _AGENTS_TEMPLATE:
-        _set_agent_status(agent["id"], "stopped")
-        _append_log(agent["name"], "Agent stopped (batch)", "info")
-        results.append({"agent_id": agent["id"], "status": "stopped"})
-    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "stopped"})
-    return {"ok": True, "results": results}
-
-@router.post("/batch/restart", dependencies=[Depends(require_auth)])
-async def batch_restart_agents():
-    """Restart all agents."""
-    results = []
-    for agent in _AGENTS_TEMPLATE:
-        _set_agent_status(agent["id"], "running")
-        _append_log(agent["name"], "Agent restarted (batch)", "success")
-        results.append({"agent_id": agent["id"], "status": "running"})
-    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "running"})
-    return {"ok": True, "results": results}
 
 
 # --- Agent Attribution & ELO ---

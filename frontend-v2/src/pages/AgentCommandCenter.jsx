@@ -48,6 +48,7 @@ function MetricBar({ value, max = 100, color = "#00D9FF" }) {
 export default function AgentCommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
+  const [killSwitchActive, setKillSwitchActive] = useState(false);
 
   // Data hooks (real API — no mock data)
   const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 15000 });
@@ -142,16 +143,32 @@ export default function AgentCommandCenter() {
           <button
             className="px-4 py-1.5 text-[11px] font-bold bg-[#7f1d1d] text-[#f87171] border border-[#ef4444]/50 rounded-full hover:bg-[#991b1b] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
             onClick={async () => {
+              if (!window.confirm("⚠️ KILL SWITCH: This will halt ALL trading, cancel ALL open orders, and shut down ALL agents. Are you sure?")) return;
+              toast.warning("KILL SWITCH activated — executing emergency shutdown...");
               try {
-                const res = await fetch(getApiUrl("orders/emergency-stop"), { method: "POST", headers: getAuthHeaders() });
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+                const res = await fetch(getApiUrl("risk-shield/emergency-action"), {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                  body: JSON.stringify({ action: "kill_switch" }),
+                  signal: controller.signal,
+                });
+                clearTimeout(timeout);
                 if (res.ok) {
-                  toast.error("KILL SWITCH activated — orders cancelled, positions closed.");
+                  const data = await res.json().catch(() => ({}));
+                  setKillSwitchActive(true);
+                  toast.error(`KILL SWITCH EXECUTED — orders cancelled: ${data.orders_cancelled ?? "yes"}, positions closed: ${data.positions_closed ?? "yes"}`);
                 } else {
                   const err = await res.json().catch(() => ({}));
-                  toast.error(err?.detail || `Emergency stop failed: ${res.status}`);
+                  toast.error(`KILL SWITCH FAILED: ${err?.detail || err?.message || `HTTP ${res.status}`} — manual intervention required`);
                 }
               } catch (e) {
-                toast.error("KILL SWITCH request failed: " + (e?.message || "network error"));
+                if (e.name === "AbortError") {
+                  toast.error("KILL SWITCH TIMED OUT — check system manually!");
+                } else {
+                  toast.error("KILL SWITCH FAILED: " + (e?.message || "network error") + " — manual intervention required");
+                }
               }
             }}
           >
@@ -231,6 +248,20 @@ export default function AgentCommandCenter() {
           Embodier.ai v2.0
         </div>
       </div>
+
+      {/* KILL SWITCH overlay */}
+      {killSwitchActive && (
+        <div className="fixed inset-0 z-[9999] bg-red-950/95 flex flex-col items-center justify-center">
+          <div className="text-6xl font-black text-red-500 tracking-[0.3em] animate-pulse mb-4">SYSTEM HALTED</div>
+          <div className="text-lg text-red-300 mb-8">All trading stopped. All orders cancelled. All positions closed.</div>
+          <button
+            onClick={() => setKillSwitchActive(false)}
+            className="px-6 py-2 text-sm font-bold bg-red-800 text-white border border-red-500 rounded hover:bg-red-700 transition-colors"
+          >
+            ACKNOWLEDGE &amp; DISMISS
+          </button>
+        </div>
+      )}
     </div>
   );
 }
