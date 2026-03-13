@@ -370,10 +370,48 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 | 2.2 | `main.py` + `websocket_manager.py` | Unify channel registries, remove `"signal"` singular | 1776, 18 |
 | 3.1 | `api/v1/system.py` | Add `require_auth` to DLQ endpoints | 272, 285 |
 | 3.2 | `api/v1/metrics_api.py` | Add `require_auth` to WS circuit breaker reset | 283 |
+| 4.1 | `main.py` | Fix gate_threshold default `"0.65"` → `"65.0"` | 422 |
+| 4.2 | `main.py` | Fix fallback direction `"label"` → `"direction"` | 441 |
 
 **Total files modified**: 5-7
 **Risk**: Low — all changes are additive (lowering threshold, adding auth, fixing channel names)
 **Rollback**: Git revert on single commit
+
+## BONUS FIXES (Quick Wins Found During Investigation)
+
+### FIX 4.1 — CouncilGate threshold env var uses 0-1 scale (noisy warning on every startup)
+
+**File**: `backend/app/main.py`
+
+**Line 422 — BEFORE:**
+```python
+            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "0.65")),
+```
+
+**Line 422 — AFTER:**
+```python
+            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "65.0")),
+```
+
+**Why**: `coerce_gate_threshold_0_100()` in `core/score_semantics.py` detects 0-1 values and auto-scales to 0-100, but logs a warning every startup. Using `65.0` directly avoids the noisy warning.
+
+### FIX 4.2 — Fallback verdict uses `label` as direction (wrong field)
+
+**File**: `backend/app/main.py`
+
+**Line 441 — BEFORE:**
+```python
+                "final_direction": signal_data.get("label", "long"),
+```
+
+**Line 441 — AFTER:**
+```python
+                "final_direction": signal_data.get("direction", "buy"),
+```
+
+**Why**: When CouncilGate is disabled, the fallback converts signals to verdicts. But `signal_data["label"]` contains strings like `"Bull candle"` or `"scanner_momentum"`, not `"buy"`/`"sell"`. The `direction` field is what contains the actual trade direction. Using `"label"` would cause OrderExecutor to receive nonsensical directions.
+
+---
 
 ## Already Fixed (Do Not Re-Fix)
 
