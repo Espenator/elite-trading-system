@@ -537,15 +537,15 @@ export default function Backtesting() {
     loading: loadResults,
     error: errResults,
     refetch: refetchResults,
-  } = useApi("backtestResults", { pollIntervalMs: 30000 });
+  } = useApi("backtestResults", { pollIntervalMs: 30000, enabled: hasRunBacktest });
   const { data: optRaw, loading: loadOpt } = useApi("backtestOptimization", {
-    pollIntervalMs: 60000,
+    pollIntervalMs: 60000, enabled: hasRunBacktest,
   });
   const { data: wfRaw, loading: loadWf } = useApi("backtestWalkforward", {
-    pollIntervalMs: 60000,
+    pollIntervalMs: 60000, enabled: hasRunBacktest,
   });
   const { data: mcRaw, loading: loadMc } = useApi("backtestMontecarlo", {
-    pollIntervalMs: 60000,
+    pollIntervalMs: 60000, enabled: hasRunBacktest,
   });
   const { data: rsRaw, loading: loadRs } = useApi("backtestRollingSharpe", {
     pollIntervalMs: 60000,
@@ -673,6 +673,7 @@ export default function Backtesting() {
 
   // --- Backtest running state ---
   const [running, setRunning] = useState(false);
+  const [hasRunBacktest, setHasRunBacktest] = useState(false);
 
   // --- ReactFlow state ---
   const [nodes, setNodes] = useState(defaultStratNodes);
@@ -721,30 +722,7 @@ export default function Backtesting() {
 
   // --- Parallel run data ---
   const parallelRuns = useMemo(() => {
-    if (!Array.isArray(runs) || !runs.length)
-      return [
-        {
-          name: "Mean Reversion V2",
-          sharpe: 1.2,
-          return: 12.5,
-          maxDD: -8.2,
-          color: "#00D9FF",
-        },
-        {
-          name: "Mean Reversion V2",
-          sharpe: 1.8,
-          return: 18.3,
-          maxDD: -5.1,
-          color: "#10B981",
-        },
-        {
-          name: "Mean Reversion V2",
-          sharpe: 1.5,
-          return: 15.1,
-          maxDD: -6.8,
-          color: "#A78BFA",
-        },
-      ];
+    if (!Array.isArray(runs) || !runs.length) return [];
     return runs.slice(0, 5).map((r, i) => ({
       name: r.name ?? r.strategy ?? `Run ${i + 1}`,
       sharpe: r.sharpe ?? r.metrics?.sharpe ?? 0,
@@ -754,19 +732,19 @@ export default function Backtesting() {
     }));
   }, [runs]);
 
-  // --- Regime performance (mockup: BULL 65.5% $450 avg, BEAR 42.0% -$120 avg, SIDEWAYS 51.1% $80 avg) ---
+  // --- Regime performance — API data or null (no hardcoded fallback) ---
   const regimeChartData = useMemo(() => {
     if (!Array.isArray(regimeData) || !regimeData.length)
       return [
-        { regime: "BULL", winRate: 65.5, avgPnl: 450 },
-        { regime: "BEAR", winRate: 42.0, avgPnl: -120 },
-        { regime: "SIDEWAYS", winRate: 51.1, avgPnl: 80 },
+        { regime: "BULL", winRate: null, avgPnl: null },
+        { regime: "BEAR", winRate: null, avgPnl: null },
+        { regime: "SIDEWAYS", winRate: null, avgPnl: null },
       ];
     return regimeData.map((r) => {
-      const pnl = r.avg_pnl ?? r.pnl ?? r.total_pnl ?? 0;
+      const pnl = r.avg_pnl ?? r.pnl ?? r.total_pnl ?? null;
       return {
         regime: r.regime ?? r.name ?? "UNKNOWN",
-        winRate: r.win_rate ?? r.winRate ?? 50,
+        winRate: r.win_rate ?? r.winRate ?? null,
         avgPnl: pnl,
       };
     });
@@ -788,18 +766,22 @@ export default function Backtesting() {
           strategy,
           startDate,
           endDate,
-          assets: symbols || null,
-          capital: null,
-          paramA: null,
-          paramBMin: null,
-          paramBMax: null,
+          assets: assets.trim() || null,
+          capital: capital ? Number(capital) : null,
+          paramA: paramA ?? null,
+          paramBMin: bMinMax ?? null,
+          paramBMax: bMinMax ?? null,
           runMode: "single",
-          useKelly: false,
-          kellyFraction: 0.5,
+          useKelly: kellySizing > 0,
+          kellyFraction: kellySizing || 0.5,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.detail || `HTTP ${res.status}`);
+      }
       toast.success("Backtest started");
+      setHasRunBacktest(true);
       setTimeout(() => refetchResults(), 2000);
     } catch (err) {
       log.error("Backtest run failed", err);
@@ -824,108 +806,156 @@ export default function Backtesting() {
     refetchResults,
   ]);
 
-  // --- KPI definitions (mockup: 18 KPIs with primary + secondary values) ---
+  // --- Export helpers ---
+  const handleExportCSV = useCallback(() => {
+    if (!Array.isArray(trades) || trades.length === 0) {
+      toast.info("No trades to export");
+      return;
+    }
+    const headers = ["date", "asset", "side", "qty", "entry_price", "exit_price", "pnl", "duration", "r_multiple", "agent", "commission"];
+    const rows = trades.map(t =>
+      headers.map(h => {
+        const v = t[h] ?? t[h.replace("_", "")] ?? "";
+        return typeof v === "string" && v.includes(",") ? `"${v}"` : v;
+      }).join(",")
+    );
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `backtest_trades_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Trade log exported");
+  }, [trades]);
+
+  const handleExportAll = useCallback(() => {
+    const hasData = Object.keys(kpis).length > 0 || (Array.isArray(trades) && trades.length > 0);
+    if (!hasData) {
+      toast.info("No results to export \u2014 run a backtest first");
+      return;
+    }
+    const exportData = {
+      strategy,
+      startDate,
+      endDate,
+      kpis,
+      trades: Array.isArray(trades) ? trades : [],
+      equity: Array.isArray(equity) ? equity : [],
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `backtest_results_${strategy.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("All results exported");
+  }, [kpis, trades, equity, strategy, startDate, endDate]);
+
+  // --- KPI definitions — all values from API, "--" when no data ---
   const kpiItems = useMemo(
     () => [
       {
         label: "Net P&L",
-        value: fmtUsd(kpis.net_pnl ?? kpis.netPnl ?? 345000),
-        sub: fmtPct(kpis.net_pnl_pct ?? 2.43),
-        raw: kpis.net_pnl ?? kpis.netPnl ?? 345000,
+        value: fmtUsd(kpis.net_pnl ?? kpis.netPnl ?? null),
+        sub: fmtPct(kpis.net_pnl_pct ?? null),
+        raw: kpis.net_pnl ?? kpis.netPnl ?? null,
         thresholds: { good: 0, warn: -1000 },
       },
       {
         label: "Sharpe",
-        value: fmt(kpis.sharpe ?? kpis.sharpe_ratio ?? 2.35, 2),
-        sub: fmtPct(kpis.sharpe_sub ?? 9.3),
-        raw: kpis.sharpe ?? kpis.sharpe_ratio ?? 2.35,
+        value: fmt(kpis.sharpe ?? kpis.sharpe_ratio ?? null, 2),
+        sub: fmtPct(kpis.sharpe_sub ?? null),
+        raw: kpis.sharpe ?? kpis.sharpe_ratio ?? null,
         thresholds: { good: 1.5, warn: 1.0 },
       },
       {
         label: "Sortino",
-        value: fmt(kpis.sortino ?? kpis.sortino_ratio ?? 3.5, 2),
-        sub: fmt(kpis.sortino_sub ?? 4.56, 2),
-        raw: kpis.sortino ?? kpis.sortino_ratio ?? 3.5,
+        value: fmt(kpis.sortino ?? kpis.sortino_ratio ?? null, 2),
+        sub: fmt(kpis.sortino_sub ?? null, 2),
+        raw: kpis.sortino ?? kpis.sortino_ratio ?? null,
         thresholds: { good: 2.0, warn: 1.0 },
       },
       {
         label: "Calmar",
-        value: fmt(kpis.calmar ?? 1.96, 2),
-        sub: fmt(kpis.calmar_sub ?? 3.86, 2),
-        raw: kpis.calmar ?? 1.96,
+        value: fmt(kpis.calmar ?? null, 2),
+        sub: fmt(kpis.calmar_sub ?? null, 2),
+        raw: kpis.calmar ?? null,
         thresholds: { good: 1.5, warn: 1.0 },
       },
       {
         label: "Max DD",
-        value: fmtPct(kpis.max_drawdown ?? kpis.maxDrawdown ?? -12.5),
-        sub: fmt(kpis.maxdd_sub ?? 3.3, 1),
-        raw: kpis.max_drawdown ?? kpis.maxDrawdown ?? -12.5,
+        value: fmtPct(kpis.max_drawdown ?? kpis.maxDrawdown ?? null),
+        sub: fmt(kpis.maxdd_sub ?? null, 1),
+        raw: kpis.max_drawdown ?? kpis.maxDrawdown ?? null,
         thresholds: { good: -5, warn: -15, invert: true },
       },
       {
         label: "Win Rate",
-        value: fmtPct(kpis.win_rate ?? kpis.winRate ?? 58.5),
-        sub: fmt(kpis.winrate_sub ?? 2.15, 2),
-        raw: kpis.win_rate ?? kpis.winRate ?? 58.5,
+        value: fmtPct(kpis.win_rate ?? kpis.winRate ?? null),
+        sub: fmt(kpis.winrate_sub ?? null, 2),
+        raw: kpis.win_rate ?? kpis.winRate ?? null,
         thresholds: { good: 55, warn: 45 },
       },
       {
         label: "Profit Factor",
-        value: fmt(kpis.profit_factor ?? kpis.profitFactor ?? 3.5, 2),
-        sub: fmt(kpis.pf_sub ?? 71.24, 2),
-        raw: kpis.profit_factor ?? kpis.profitFactor ?? 3.5,
+        value: fmt(kpis.profit_factor ?? kpis.profitFactor ?? null, 2),
+        sub: fmt(kpis.pf_sub ?? null, 2),
+        raw: kpis.profit_factor ?? kpis.profitFactor ?? null,
         thresholds: { good: 1.5, warn: 1.0 },
       },
       {
         label: "Avg Trade",
-        value: fmtUsd(kpis.avg_trade ?? kpis.avgTrade ?? 196),
-        sub: kpis.avg_grade ?? "A+",
-        raw: kpis.avg_trade ?? kpis.avgTrade ?? 196,
+        value: fmtUsd(kpis.avg_trade ?? kpis.avgTrade ?? null),
+        sub: kpis.avg_grade ?? null,
+        raw: kpis.avg_trade ?? kpis.avgTrade ?? null,
         thresholds: { good: 0, warn: -50 },
       },
       {
         label: "Total Trades",
-        value: String(kpis.total_trades ?? kpis.totalTrades ?? 1250).replace(
-          /\B(?=(\d{3})+(?!\d))/g,
-          ",",
-        ),
-        sub: fmtPct(kpis.trades_sub ?? 31.2),
-        raw: kpis.total_trades ?? kpis.totalTrades ?? 1250,
+        value: (kpis.total_trades ?? kpis.totalTrades) != null
+          ? String(kpis.total_trades ?? kpis.totalTrades).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+          : "--",
+        sub: fmtPct(kpis.trades_sub ?? null),
+        raw: kpis.total_trades ?? kpis.totalTrades ?? null,
         thresholds: { good: 50, warn: 20 },
       },
       {
         label: "Expectancy",
-        value: fmt(kpis.expectancy ?? 0.0847, 4),
-        sub: fmtPct(kpis.exp_sub ?? 14.8),
-        raw: kpis.expectancy ?? 0.0847,
+        value: fmt(kpis.expectancy ?? null, 4),
+        sub: fmtPct(kpis.exp_sub ?? null),
+        raw: kpis.expectancy ?? null,
         thresholds: { good: 0.5, warn: 0 },
       },
       {
         label: "Kelly Efficiency",
-        value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency ?? 78),
-        sub: fmtPct(kpis.kelly_sub ?? 8.5),
-        raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency ?? 78,
+        value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency ?? null),
+        sub: fmtPct(kpis.kelly_sub ?? null),
+        raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency ?? null,
         thresholds: { good: 30, warn: 15 },
       },
       {
         label: "Trading Grade",
-        value: kpis.trading_grade ?? kpis.tradingGrade ?? kpis.grade ?? "A+",
-        sub: fmt(kpis.grade_sub ?? 0.72, 2),
+        value: kpis.trading_grade ?? kpis.tradingGrade ?? kpis.grade ?? "--",
+        sub: fmt(kpis.grade_sub ?? null, 2),
         raw: null,
         thresholds: null,
       },
       {
         label: "CAGR",
-        value: fmtPct(kpis.cagr ?? kpis.total_return ?? 31.2),
-        sub: fmt(kpis.cagr_sub ?? 1.85, 2),
-        raw: kpis.cagr ?? kpis.total_return ?? 31.2,
+        value: fmtPct(kpis.cagr ?? kpis.total_return ?? null),
+        sub: fmt(kpis.cagr_sub ?? null, 2),
+        raw: kpis.cagr ?? kpis.total_return ?? null,
         thresholds: { good: 10, warn: 0 },
       },
       {
         label: "Beta",
-        value: fmt(kpis.beta ?? 0.31, 2),
-        sub: fmt(kpis.beta_sub ?? 2.31, 2),
-        raw: kpis.beta ?? 0.31,
+        value: fmt(kpis.beta ?? null, 2),
+        sub: fmt(kpis.beta_sub ?? null, 2),
+        raw: kpis.beta ?? null,
         thresholds: { good: 0.5, warn: 1.0, invert: true },
       },
     ],
@@ -1104,11 +1134,18 @@ export default function Backtesting() {
             size="sm"
             variant="danger"
             leftIcon={Square}
-            onClick={() => setRunning(false)}
+            onClick={() => {
+              if (running) {
+                setRunning(false);
+                toast.info("Backtest stopped");
+              } else {
+                toast.info("No backtest running");
+              }
+            }}
           >
             Stop
           </Button>
-          <Button size="sm" variant="ghost" leftIcon={Download}>
+          <Button size="sm" variant="ghost" leftIcon={Download} onClick={handleExportAll}>
             Export
           </Button>
           <Button
@@ -1197,15 +1234,22 @@ export default function Backtesting() {
                 size="sm"
                 variant="danger"
                 leftIcon={Square}
-                onClick={() => setRunning(false)}
+                onClick={() => {
+                  if (running) {
+                    setRunning(false);
+                    toast.info("Backtest stopped");
+                  } else {
+                    toast.info("No backtest running");
+                  }
+                }}
               >
                 Stop
               </Button>
             </div>
           }
         >
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               <Slider
                 label="Param A"
                 min={0}
@@ -1217,7 +1261,7 @@ export default function Backtesting() {
                 valueClassName="text-[10px] min-w-[2rem]"
               />
               <div>
-                <label className="text-xs text-secondary font-medium mb-1 block">
+                <label className="text-xs text-secondary font-medium mb-1 block truncate">
                   Transaction Cost
                 </label>
                 <input
@@ -1232,7 +1276,7 @@ export default function Backtesting() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               <Slider
                 label="B Min/Max"
                 min={10}
@@ -1250,7 +1294,7 @@ export default function Backtesting() {
                 onChange={(e) => setMaxPositions(Number(e.target.value) || 0)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               <Slider
                 label="Position Size"
                 min={0}
@@ -1263,7 +1307,7 @@ export default function Backtesting() {
                 valueClassName="text-[10px] min-w-[2.5rem]"
               />
               <div>
-                <label className="text-xs text-secondary font-medium mb-1 block">
+                <label className="text-xs text-secondary font-medium mb-1 block truncate">
                   Rebalance Freq.
                 </label>
                 <select
@@ -1277,10 +1321,10 @@ export default function Backtesting() {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-secondary font-medium shrink-0 w-24">
-                  Slippage
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              <div>
+                <label className="text-xs text-secondary font-medium mb-1 block truncate">
+                  Slippage (bps)
                 </label>
                 <input
                   type="text"
@@ -1291,9 +1335,8 @@ export default function Backtesting() {
                     )
                   }
                   placeholder="0"
-                  className="flex-1 bg-dark/80 border border-secondary/40 rounded px-2 py-1 text-xs text-white"
+                  className="w-full bg-dark/80 border border-secondary/40 rounded px-2 py-1 text-xs text-white"
                 />
-                <span className="text-[10px] text-secondary shrink-0">bps</span>
               </div>
               <Slider
                 label="Stop Loss %"
@@ -1307,7 +1350,7 @@ export default function Backtesting() {
                 valueClassName="text-[10px] min-w-[2rem]"
               />
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               <Slider
                 label="Take Profit %"
                 min={0}
@@ -1336,7 +1379,7 @@ export default function Backtesting() {
                 Regime Filter
               </label>
               <div className="flex gap-1">
-                {["BULL", "SIDEWAYS"].map((r) => (
+                {["BULL", "BEAR", "SIDEWAYS"].map((r) => (
                   <button
                     type="button"
                     key={r}
@@ -1353,7 +1396,7 @@ export default function Backtesting() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               <TextField
                 label="Warm-Up Period"
                 type="number"
@@ -1361,7 +1404,7 @@ export default function Backtesting() {
                 onChange={(e) => setWarmUpPeriod(Number(e.target.value) || 0)}
               />
               <Slider
-                label="Walk-Forward Window"
+                label="WF Window"
                 min={10}
                 max={90}
                 step={5}
@@ -1372,15 +1415,15 @@ export default function Backtesting() {
                 valueClassName="text-[10px] min-w-[2rem]"
               />
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               <TextField
-                label="Monte Carlo Iterations"
+                label="MC Iterations"
                 type="number"
                 value={monteCarloIter}
                 onChange={(e) => setMonteCarloIter(Number(e.target.value) || 0)}
               />
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-secondary font-medium shrink-0 w-28">
+              <div>
+                <label className="text-xs text-secondary font-medium mb-1 block truncate">
                   Confidence Level
                 </label>
                 <span className="text-xs text-white">{confidenceLevel}%</span>
@@ -1550,39 +1593,51 @@ export default function Backtesting() {
           }
           className="xl:col-span-1"
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-[10px]">
-              <thead>
-                <tr className="border-b border-secondary/20 text-secondary">
-                  <th className="text-left py-1 px-1">Run</th>
-                  <th className="text-left py-1 px-1">Strategy Name</th>
-                  <th className="text-left py-1 px-1">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {parallelRuns.map((r, i) => (
-                  <tr key={i} className="border-b border-secondary/10">
-                    <td className="py-1 px-1 text-white">{i + 1}</td>
-                    <td className="py-1 px-1 text-white">{r.name}</td>
-                    <td className="py-1 px-1">
-                      <span className="text-emerald-400">Running</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <ResponsiveContainer width="100%" height={130}>
-            <BarChart data={parallelRuns} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
-              <XAxis type="number" stroke="#6B7280" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" stroke="#6B7280" tick={{ fontSize: 9 }} width={90} />
-              <Tooltip content={<DarkTooltip />} />
-              <Bar dataKey="sharpe" name="Sharpe">
-                {parallelRuns.map((r, i) => <Cell key={r.name || `cell-${i}`} fill={r.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {parallelRuns.length > 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="border-b border-secondary/20 text-secondary">
+                      <th className="text-left py-1 px-1">Run</th>
+                      <th className="text-left py-1 px-1">Strategy Name</th>
+                      <th className="text-left py-1 px-1">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parallelRuns.map((r, i) => (
+                      <tr key={i} className="border-b border-secondary/10">
+                        <td className="py-1 px-1 text-white">{i + 1}</td>
+                        <td className="py-1 px-1 text-white">{r.name}</td>
+                        <td className="py-1 px-1">
+                          <span className="text-emerald-400">{r.status || "Completed"}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={parallelRuns} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
+                  <XAxis type="number" stroke="#6B7280" tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" stroke="#6B7280" tick={{ fontSize: 9 }} width={90} />
+                  <Tooltip content={<DarkTooltip />} />
+                  <Bar dataKey="sharpe" name="Sharpe">
+                    {parallelRuns.map((r, i) => <Cell key={r.name || `cell-${i}`} fill={r.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-[200px] text-secondary text-sm">
+              <div className="text-center">
+                <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p>No parallel runs</p>
+                <p className="text-[10px] text-secondary/60 mt-1">Run a backtest to see results here</p>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Trade P&L Distribution */}
@@ -1693,7 +1748,7 @@ export default function Backtesting() {
           <div className="grid grid-cols-3 gap-2 py-2">
             {regimeChartData.map((r) => {
               const color = REGIME_COLORS[r.regime] ?? "#6B7280";
-              const avgVal = r.avgPnl ?? r.pnl ?? 0;
+              const avgVal = r.avgPnl;
               return (
                 <div
                   key={r.regime}
@@ -1703,17 +1758,15 @@ export default function Backtesting() {
                     {r.regime}
                   </span>
                   <span className="text-sm font-bold text-white">
-                    {r.winRate ?? 0}%
+                    {r.winRate != null ? `${r.winRate}%` : "--"}
                   </span>
                   <span
                     className={clsx(
                       "text-[10px]",
-                      Number(avgVal) >= 0 ? "text-green-400" : "text-red-400",
+                      avgVal == null ? "text-secondary" : Number(avgVal) >= 0 ? "text-green-400" : "text-red-400",
                     )}
                   >
-                    {Number(avgVal) >= 0
-                      ? `$${avgVal} avg`
-                      : `-$${Math.abs(avgVal)} avg`}
+                    {avgVal == null ? "N/A" : Number(avgVal) >= 0 ? `$${avgVal} avg` : `-$${Math.abs(avgVal)} avg`}
                   </span>
                 </div>
               );
@@ -1900,7 +1953,7 @@ export default function Backtesting() {
           noPadding
           className="col-span-1"
         >
-          <div style={{ height: 260 }}>
+          <div style={{ height: 260 }} className="relative">
             <SafeReactFlow>
               <ReactFlow
                 nodes={nodes}
@@ -1919,6 +1972,11 @@ export default function Backtesting() {
                 />
               </ReactFlow>
             </SafeReactFlow>
+            <div className="absolute inset-0 flex items-end justify-center pb-3 pointer-events-none">
+              <span className="px-2 py-1 rounded bg-gray-900/80 border border-secondary/30 text-[10px] text-secondary font-mono uppercase tracking-wider">
+                Visual Strategy Builder — Coming Soon
+              </span>
+            </div>
           </div>
         </Card>
       </div>
@@ -1937,7 +1995,7 @@ export default function Backtesting() {
             <Badge variant="secondary" size="sm">
               {Array.isArray(trades) ? trades.length : 0} trades
             </Badge>
-            <Button size="sm" variant="ghost" leftIcon={Download}>
+            <Button size="sm" variant="ghost" leftIcon={Download} onClick={handleExportCSV}>
               CSV
             </Button>
           </div>
@@ -1965,7 +2023,7 @@ export default function Backtesting() {
             </span>
           }
           action={
-            <Button size="sm" variant="primary" leftIcon={Download}>
+            <Button size="sm" variant="primary" leftIcon={Download} onClick={handleExportAll}>
               Export All Results
             </Button>
           }
