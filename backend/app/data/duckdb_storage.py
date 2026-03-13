@@ -517,6 +517,61 @@ class DuckDBStorage:
             )
         """)
 
+        # ── Data swarm (24/7 collection: Alpaca, UW, FinViz) ─────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS swarm_prices (
+                symbol VARCHAR NOT NULL,
+                ts TIMESTAMP NOT NULL,
+                price DOUBLE NOT NULL,
+                bid DOUBLE,
+                ask DOUBLE,
+                volume BIGINT DEFAULT 0,
+                source VARCHAR NOT NULL,
+                session VARCHAR,
+                is_realtime BOOLEAN DEFAULT FALSE,
+                PRIMARY KEY (symbol, ts, source)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS flow_signals (
+                symbol VARCHAR NOT NULL,
+                ts TIMESTAMP NOT NULL,
+                flow_type VARCHAR NOT NULL,
+                direction VARCHAR,
+                premium DOUBLE,
+                volume BIGINT DEFAULT 0,
+                open_interest BIGINT,
+                strike DOUBLE,
+                expiry VARCHAR,
+                source VARCHAR NOT NULL,
+                PRIMARY KEY (symbol, ts, flow_type, source)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS screener_signals (
+                symbol VARCHAR NOT NULL,
+                ts TIMESTAMP NOT NULL,
+                signal_type VARCHAR NOT NULL,
+                price DOUBLE,
+                change_pct DOUBLE,
+                relative_volume DOUBLE,
+                source VARCHAR NOT NULL,
+                PRIMARY KEY (symbol, ts, source)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS futures_prices (
+                symbol VARCHAR NOT NULL,
+                ts TIMESTAMP NOT NULL,
+                price DOUBLE NOT NULL,
+                change_pct DOUBLE,
+                volume BIGINT DEFAULT 0,
+                source VARCHAR NOT NULL,
+                is_delayed BOOLEAN DEFAULT FALSE,
+                PRIMARY KEY (symbol, ts, source)
+            )
+        """)
+
         # ── Phase 1: LLM Router telemetry ────────────────────────────
         conn.execute("""
             CREATE TABLE IF NOT EXISTS llm_calls (

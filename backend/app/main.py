@@ -828,6 +828,16 @@ async def _start_event_driven_pipeline():
             except Exception as e:
                 log.warning("DiscordSwarmBridge failed to start: %s", e)
 
+        # 20. Data swarm (24/7 collectors: Alpaca, UW, FinViz) — opt-in via DATA_SWARM_ENABLED=true
+        if os.getenv("DATA_SWARM_ENABLED", "").lower() in ("1", "true", "yes"):
+            try:
+                from app.services.data_swarm import get_swarm_orchestrator
+                _data_swarm = get_swarm_orchestrator()
+                asyncio.create_task(_data_swarm.run())
+                log.info("\u2705 Data swarm orchestrator started (session-aware collectors)")
+            except Exception as e:
+                log.warning("Data swarm orchestrator failed to start: %s", e)
+
         await asyncio.sleep(2)
 
         # 12. GeopoliticalRadar
