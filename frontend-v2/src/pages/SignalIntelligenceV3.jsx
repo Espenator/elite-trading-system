@@ -244,22 +244,24 @@ export default function SignalIntelligenceV3() {
   const searchQuery = searchParams.get("q")?.toUpperCase() || "";
 
   // --- REAL API HOOKS (mapped to config/api.js endpoints) ---
-  const { data: apiSignals, loading: sigLoading, refetch: refetchSignals } = useApi('signals', { pollIntervalMs: 15000 });
-  const { data: apiAgents } = useApi('agents', { pollIntervalMs: 30000 });
-  const { data: apiOpenclaw } = useApi('openclaw', { pollIntervalMs: 15000 });
-  const { data: apiDataSources } = useApi('dataSources', { pollIntervalMs: 30000 });
-  const { data: apiSentiment } = useApi('sentiment', { pollIntervalMs: 30000 });
-  const { data: apiYoutube } = useApi('youtubeKnowledge', { pollIntervalMs: 60000 });
-  const { data: apiTraining } = useApi('training', { pollIntervalMs: 30000 });
-  const { data: apiMlBrain } = useApi('mlBrain', { pollIntervalMs: 30000 });
-  const { data: apiPatterns } = useApi('patterns', { pollIntervalMs: 30000 });
-  const { data: apiRisk } = useApi('risk', { pollIntervalMs: 15000 });
-  const { data: apiAlerts } = useApi('alerts', { pollIntervalMs: 15000 });
+  // useApi already has: 503 backoff (3 retries), concurrency limit (6), dedup, visibility-pause
+  const { data: apiSignals, loading: sigLoading, error: sigError, refetch: refetchSignals } = useApi('signals', { pollIntervalMs: 15000 });
+  const { data: apiAgents } = useApi('agents', { pollIntervalMs: 60000 });
+  const { data: apiOpenclaw } = useApi('openclaw', { pollIntervalMs: 30000 });
+  const { data: apiDataSources } = useApi('dataSources', { pollIntervalMs: 60000 });
+  const { data: apiSentiment } = useApi('sentiment', { pollIntervalMs: 60000 });
+  const { data: apiYoutube } = useApi('youtubeKnowledge', { pollIntervalMs: 120000 });
+  const { data: apiTraining } = useApi('training', { pollIntervalMs: 60000 });
+  const { data: apiMlBrain } = useApi('mlBrain', { pollIntervalMs: 60000 });
+  const { data: apiPatterns } = useApi('patterns', { pollIntervalMs: 60000 });
+  const { data: apiRisk } = useApi('risk', { pollIntervalMs: 30000 });
+  const { data: apiAlerts } = useApi('alerts', { pollIntervalMs: 30000 });
   const { data: apiStatus } = useApi('status', { pollIntervalMs: 30000 });
-  const { data: apiPerf } = useApi('performance', { pollIntervalMs: 30000 });
-  const { data: apiMarket } = useApi('market', { pollIntervalMs: 15000 });
-  const { data: apiPortfolio } = useApi('portfolio', { pollIntervalMs: 15000 });
-  const { data: apiStrategy } = useApi('strategy', { pollIntervalMs: 30000 });
+  const { data: apiPerf } = useApi('performance', { pollIntervalMs: 60000 });
+  const { data: apiMarket } = useApi('market', { pollIntervalMs: 30000 });
+  const { data: apiPortfolio } = useApi('portfolio', { pollIntervalMs: 30000 });
+  const { data: apiStrategy } = useApi('strategy', { pollIntervalMs: 60000 });
+  const { data: apiSettings } = useApi('settings', { pollIntervalMs: 0 });
 
   // --- DERIVE AGENT LISTS FROM API (with hardcoded fallbacks) ---
   const parsedAgents = useMemo(
@@ -344,9 +346,12 @@ export default function SignalIntelligenceV3() {
   );
   const [regimeLock, setRegimeLock] = useState(false);
   const [autoExecute, setAutoExecute] = useState(false);
+  const [tradingMode, setTradingMode] = useState("PAPER TRADING");
   const [maxHeat, setMaxHeat] = useState(25);
   const [lossLimit, setLossLimit] = useState(5);
   const [wsLatency, setWsLatency] = useState(42);
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef(null);
   const [signals, setSignals] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState("NVDA");
   const [chartTimeframe, setChartTimeframe] = useState("W1");
@@ -447,6 +452,23 @@ export default function SignalIntelligenceV3() {
       return next;
     });
   }, [apiMlBrain, apiTraining]);
+
+  // --- SYNC SETTINGS FROM API INTO LOCAL STATE (#4) ---
+  useEffect(() => {
+    if (!apiSettings) return;
+    const profile = apiSettings?.profile || apiSettings;
+    const trading = apiSettings?.trading || profile?.trading || {};
+    if (trading.tradingMode === "live" || trading.tradingMode === "LIVE TRADING") setTradingMode("LIVE TRADING");
+    if (trading.autoExecute === true) setAutoExecute(true);
+    if (profile?.maxHeat != null) setMaxHeat(profile.maxHeat);
+    if (profile?.lossLimit != null) setLossLimit(profile.lossLimit);
+    if (profile?.regimeLock != null) setRegimeLock(profile.regimeLock);
+    if (profile?.scoringFormula) setScoringFormula((p) => ({ ...p, ...profile.scoringFormula }));
+    if (profile?.shapWeights) setShapWeights((p) => ({ ...p, ...profile.shapWeights }));
+    const risk = apiSettings?.risk || {};
+    if (risk.maxHeat != null) setMaxHeat(risk.maxHeat);
+    if (risk.dailyLossLimit != null) setLossLimit(risk.dailyLossLimit);
+  }, [apiSettings]);
 
   // --- LIGHTWEIGHT CHARTS SETUP ---
   useEffect(() => {
@@ -686,6 +708,7 @@ export default function SignalIntelligenceV3() {
 
   // --- SAVE PROFILE (persist all weights/toggles to backend settings) ---
   const handleSaveProfile = useCallback(async () => {
+    setSaving(true);
     try {
       const payload = {
         agentStates,
@@ -697,6 +720,7 @@ export default function SignalIntelligenceV3() {
         shapWeights,
         regimeLock,
         autoExecute,
+        tradingMode,
         maxHeat,
         lossLimit,
       };
@@ -714,6 +738,8 @@ export default function SignalIntelligenceV3() {
     } catch (err) {
       log.error("Failed to save profile:", err);
       toast.error(`Failed to save profile: ${err.message}`);
+    } finally {
+      setSaving(false);
     }
   }, [
     agentStates,
@@ -725,6 +751,7 @@ export default function SignalIntelligenceV3() {
     shapWeights,
     regimeLock,
     autoExecute,
+    tradingMode,
     maxHeat,
     lossLimit,
   ]);
@@ -751,10 +778,80 @@ export default function SignalIntelligenceV3() {
     }
   }, []);
 
+  // --- Download profile as JSON ---
+  const handleDownloadProfile = useCallback(() => {
+    const payload = { agentStates, scannerStates, intelStates, mlStates, dataSourceStates, scoringFormula, shapWeights, regimeLock, autoExecute, tradingMode, maxHeat, lossLimit };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `signal-profile-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Profile downloaded");
+  }, [agentStates, scannerStates, intelStates, mlStates, dataSourceStates, scoringFormula, shapWeights, regimeLock, autoExecute, tradingMode, maxHeat, lossLimit]);
+
+  // --- Upload profile from JSON ---
+  const handleUploadProfile = useCallback((e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const profile = JSON.parse(ev.target.result);
+        if (profile.scoringFormula) setScoringFormula((p) => ({ ...p, ...profile.scoringFormula }));
+        if (profile.shapWeights) setShapWeights((p) => ({ ...p, ...profile.shapWeights }));
+        if (profile.maxHeat != null) setMaxHeat(profile.maxHeat);
+        if (profile.lossLimit != null) setLossLimit(profile.lossLimit);
+        if (profile.autoExecute != null) setAutoExecute(profile.autoExecute);
+        if (profile.tradingMode) setTradingMode(profile.tradingMode);
+        if (profile.regimeLock != null) setRegimeLock(profile.regimeLock);
+        toast.success(`Profile loaded from ${file.name}`);
+      } catch {
+        toast.error("Invalid profile JSON");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }, []);
+
+  // --- Share profile link ---
+  const handleShareProfile = useCallback(() => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(
+      () => toast.success("Page link copied to clipboard"),
+      () => toast.error("Failed to copy link")
+    );
+  }, []);
+
+  // --- Override regime (uses ref to avoid TDZ with regimeData) ---
+  const regimeStateRef = useRef("BULL_TREND");
+  const handleOverrideRegime = useCallback(async () => {
+    const newRegime = window.prompt("Override regime to which state?\n(BULL_TREND, BEAR_TREND, SIDEWAYS, HIGH_VOL)", regimeStateRef.current);
+    if (!newRegime) return;
+    try {
+      const url = getApiUrl("openclaw") + "/regime/override";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ state: newRegime.toUpperCase().trim() }),
+      });
+      if (res.ok) {
+        toast.success(`Regime overridden to ${newRegime.toUpperCase()}`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.detail || `Override failed: HTTP ${res.status}`);
+      }
+    } catch (err) {
+      toast.error(`Override failed: ${err.message}`);
+    }
+  }, []);
+
   // --- DERIVED DATA ---
   const { data: regimeApiData } = useApi('openclawRegime', { pollIntervalMs: 30000 });
   const { data: flywheelData } = useApi('flywheel', { pollIntervalMs: 15000 });
   const regimeData = useMemo(() => regimeApiData || apiOpenclaw?.regime || { state: 'BULL_TREND', conf: 87, color: 'emerald', since: null }, [regimeApiData, apiOpenclaw]);
+  regimeStateRef.current = regimeData.state || "BULL_TREND";
 
   const regimeBanner = useMemo(() => {
     const state = regimeData.state || "";
@@ -859,28 +956,33 @@ export default function SignalIntelligenceV3() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={handleDownloadProfile}
             className="p-1.5 rounded text-gray-500 hover:text-[#00D9FF] transition-colors"
-            title="Download"
+            title="Download profile"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           <button
+            onClick={() => fileInputRef.current?.click()}
             className="p-1.5 rounded text-gray-500 hover:text-[#00D9FF] transition-colors"
-            title="Upload"
+            title="Upload profile"
           >
             <Upload className="w-3.5 h-3.5" />
           </button>
+          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleUploadProfile} />
           <button
+            onClick={handleShareProfile}
             className="p-1.5 rounded text-gray-500 hover:text-[#00D9FF] transition-colors"
-            title="Share"
+            title="Copy page link"
           >
             <Share2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleSaveProfile}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium text-white transition-colors"
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded text-xs font-medium text-white transition-colors"
           >
-            <Save className="w-3.5 h-3.5" /> Save Profile
+            <Save className="w-3.5 h-3.5" /> {saving ? "Saving..." : "Save Profile"}
           </button>
         </div>
       </div>
@@ -915,7 +1017,7 @@ export default function SignalIntelligenceV3() {
             <span className="text-[10px] text-gray-400 font-mono">
               HMM Confidence: {regimeData.conf ?? 87}%
             </span>
-            <button className="px-2 py-0.5 text-[9px] font-medium border rounded border-gray-600 text-gray-400 hover:border-[#00D9FF]/50 hover:text-[#00D9FF] transition-colors">
+            <button onClick={handleOverrideRegime} className="px-2 py-0.5 text-[9px] font-medium border rounded border-gray-600 text-gray-400 hover:border-[#00D9FF]/50 hover:text-[#00D9FF] transition-colors">
               Override
             </button>
             <button
@@ -987,25 +1089,43 @@ export default function SignalIntelligenceV3() {
             }
           >
             <div className="space-y-1">
-              {CORE_AGENTS.slice(0, 7).map((agent) => (
-                <Slider
-                  key={agent.id}
-                  label={agent.name}
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={agentStates[agent.id]?.weight ?? agent.defaultWeight}
-                  onChange={(v) => handleUpdateWeight("agent", agent.id, v)}
-                  suffix="%"
-                  className="py-0.5"
-                  valueClassName="text-[8px] min-w-[2.5rem]"
-                />
-              ))}
+              {CORE_AGENTS.length === 0 ? (
+                <div className="text-[9px] text-gray-500 text-center py-3">Awaiting agent data from /api/v1/agents...</div>
+              ) : (
+                CORE_AGENTS.slice(0, 7).map((agent) => (
+                  <Slider
+                    key={agent.id}
+                    label={agent.name}
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={agentStates[agent.id]?.weight ?? agent.defaultWeight}
+                    onChange={(v) => handleUpdateWeight("agent", agent.id, v)}
+                    suffix="%"
+                    className="py-0.5"
+                    valueClassName="text-[8px] min-w-[2.5rem]"
+                  />
+                ))
+              )}
             </div>
             <div className="mt-2 pt-1 border-t border-[rgba(42,52,68,0.5)]">
               <span className="text-[8px] text-gray-500 uppercase tracking-wider">
-                EXTENDED SWARM ({EXTENDED_AGENTS.length || 93})
+                EXTENDED SWARM ({EXTENDED_AGENTS.length || 0})
               </span>
+              {EXTENDED_AGENTS.length > 0 && (
+                <div className="mt-1 space-y-1">
+                  {EXTENDED_AGENTS.slice(0, 5).map((agent) => (
+                    <div key={agent.id} className="flex items-center gap-1.5 py-0.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${agentStates[agent.id]?.status === "red" ? "bg-red-500" : agentStates[agent.id]?.status === "yellow" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                      <span className="text-[8px] text-gray-400 truncate flex-1">{agent.name}</span>
+                      <span className="text-[7px] text-gray-600 font-mono">{agent.type}</span>
+                    </div>
+                  ))}
+                  {EXTENDED_AGENTS.length > 5 && (
+                    <div className="text-[7px] text-gray-600 text-center">+{EXTENDED_AGENTS.length - 5} more agents</div>
+                  )}
+                </div>
+              )}
             </div>
           </Panel>
         </div>
@@ -1088,6 +1208,13 @@ export default function SignalIntelligenceV3() {
                   </tr>
                 </thead>
                 <tbody>
+                  {filteredSignals.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="text-center py-4 text-gray-500 text-[9px]">
+                        {sigLoading ? "Loading signals..." : sigError ? "Service temporarily unavailable — retrying..." : "No signals available — awaiting signal generation from agents"}
+                      </td>
+                    </tr>
+                  )}
                   {filteredSignals.map((sig, idx) => (
                     <tr
                       key={sig.id || idx}
@@ -1369,12 +1496,14 @@ export default function SignalIntelligenceV3() {
                 ) : (
                   <Toggle
                     checked={dataSourceStates[ds.id]?.active ?? true}
-                    onChange={() =>
+                    onChange={() => {
+                      const newActive = !dataSourceStates[ds.id]?.active;
                       setDataSourceStates((p) => ({
                         ...p,
-                        [ds.id]: { ...p[ds.id], active: !p[ds.id]?.active },
-                      }))
-                    }
+                        [ds.id]: { ...p[ds.id], active: newActive },
+                      }));
+                      toast.info(`${ds.name}: ${newActive ? "enabled" : "disabled"} (save profile to persist)`);
+                    }}
                     size="sm"
                   />
                 )}
@@ -1409,7 +1538,7 @@ export default function SignalIntelligenceV3() {
                 <span className="text-[8px] text-gray-500 w-24">
                   Trading Mode:
                 </span>
-                <select className="bg-[#1e293b] border border-[#374151] rounded px-1.5 py-0.5 text-[8px] text-gray-300 outline-none font-mono flex-1">
+                <select value={tradingMode} onChange={(e) => setTradingMode(e.target.value)} className="bg-[#1e293b] border border-[#374151] rounded px-1.5 py-0.5 text-[8px] text-gray-300 outline-none font-mono flex-1">
                   <option>PAPER TRADING</option>
                   <option>LIVE TRADING</option>
                 </select>

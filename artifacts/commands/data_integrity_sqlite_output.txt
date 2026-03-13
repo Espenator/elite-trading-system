@@ -1,0 +1,13 @@
+Data Integrity Audit — SQLite query output
+Run: python artifacts/commands/data_integrity_db_queries.py (from repo root)
+
+SQLite trading_orders.db tables: orders, sqlite_sequence, config, alert_rules, training_runs, training_progress, training_configs, models_registry, openclaw_ingests, openclaw_signals, core_memory, graph_edges, job_idempotency, backtest_run_cache
+  orders: count=0
+  sqlite_sequence: count=0
+  config: count=14
+  alert_rules: count=0
+  (other tables 0)
+
+DuckDB: Not captured — file locked by another process (IO Error: File is already open).
+
+Performance API: GET /api/v1/performance/equity reads from _detect_trade_table(conn) on this SQLite DB. Table "orders" has potential_pnl; pnl_names in code are ["realized_pnl", "pnl", "profit", "realizedProfit", "net_pnl"]. So "orders" may not match; if no table matches, endpoint returns hasData: false.

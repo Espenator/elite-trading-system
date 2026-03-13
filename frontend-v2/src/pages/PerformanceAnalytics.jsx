@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   TrendingUp, TrendingDown, Activity, Shield,
   Target, Zap, BarChart3, Brain,
   ArrowUpRight, ArrowDownRight, ChevronDown,
   Award, Cpu, CheckCircle, Crosshair, Star,
-  Settings, Download, RefreshCw, Search, Maximize2, X, Filter
+  Settings, Download, RefreshCw, Search, Maximize2, X, Filter,
+  Info
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import {
   AreaChart, Area, BarChart, Bar, ComposedChart,
   Line, XAxis, YAxis, CartesianGrid,
@@ -22,8 +24,8 @@ const EMPTY_KPI = {
   equity: '$0', daily_pnl: '$0', open_positions: 0, win_rate: 0,
   avg_win: 0, avg_loss: 0, profit_factor: 0, sharpe: 0,
   max_drawdown: '0%', total_trades: 0, grade: '—', score: 0,
-  deployed_pct: '0%', alpha: '0', expectancy: 0, max_dd: 0,
-  max_dd_pct: 0, kelly_fraction: '0%', sortino: 0, calmar: 0,
+  deployed_pct: '0%', alpha: '0', expectancy: 0, max_dd: null,
+  max_dd_pct: null, kelly_fraction: '0%', sortino: 0, calmar: 0,
   netPnl: 0, maxDd: 0, totalTrades: 0, winRate: 0,
   avgWin: 0, avgLoss: 0, profitFactor: 0,
   riskReward: 0,
@@ -231,13 +233,21 @@ const rankColors = ['bg-emerald-500', 'bg-cyan-500', 'bg-violet-500', 'bg-amber-
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
 export default function PerformanceAnalytics() {
-  const { data: perfData, loading: perfLoading } = useApi('performance');
+  const { data: perfData, loading: perfLoading, refetch: refetchPerf } = useApi('performance');
   const { data: tradesData, loading: tradesLoading } = useApi('performanceTrades');
   const { data: flywheelData } = useApi('flywheel');
   const { data: riskData } = useApi('riskScore');
   const { data: agentsData } = useApi('agents');
 
   const [tradeSort, setTradeSort] = useState({ key: 'date', dir: 'desc' });
+  const [showGradeModal, setShowGradeModal] = useState(false);
+  const [tradeSearch, setTradeSearch] = useState('');
+  const [showTradeSearch, setShowTradeSearch] = useState(false);
+  const [tradeExpanded, setTradeExpanded] = useState(false);
+  const [showTradeFilter, setShowTradeFilter] = useState(false);
+  const [tradeFilterSide, setTradeFilterSide] = useState('all');
+  const [tradeFilterPnl, setTradeFilterPnl] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
 
   // Merge API data with empty defaults — no fake data
   const kpi = useMemo(() => ({ ...EMPTY_KPI, ...(perfData?.kpi || perfData || {}) }), [perfData]);
@@ -245,14 +255,32 @@ export default function PerformanceAnalytics() {
   const agents = useMemo(() => agentsData?.leaderboard || [], [agentsData]);
   const pnlBySymbol = useMemo(() => perfData?.pnlBySymbol || [], [perfData]);
   const trades = useMemo(() => {
-    const raw = tradesData?.trades || [];
+    let raw = tradesData?.trades || [];
+    // Apply search filter
+    if (tradeSearch.trim()) {
+      const q = tradeSearch.toLowerCase();
+      raw = raw.filter(t => (t.symbol || '').toLowerCase().includes(q));
+    }
+    // Apply side filter
+    if (tradeFilterSide !== 'all') {
+      raw = raw.filter(t => {
+        const side = (t.side || '').toLowerCase();
+        if (tradeFilterSide === 'long') return side === 'long' || side === 'l' || side === 'buy';
+        if (tradeFilterSide === 'short') return side === 'short' || side === 'h' || side === 'sell';
+        return true;
+      });
+    }
+    // Apply PnL filter
+    if (tradeFilterPnl === 'winners') raw = raw.filter(t => (t.pnl ?? 0) > 0);
+    if (tradeFilterPnl === 'losers') raw = raw.filter(t => (t.pnl ?? 0) < 0);
+    // Sort
     const sorted = [...raw].sort((a, b) => {
       const av = a[tradeSort.key], bv = b[tradeSort.key];
       if (typeof av === 'string') return tradeSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
       return tradeSort.dir === 'asc' ? av - bv : bv - av;
     });
     return sorted;
-  }, [tradesData, tradeSort]);
+  }, [tradesData, tradeSort, tradeSearch, tradeFilterSide, tradeFilterPnl]);
   const rollingRisk = useMemo(() => {
     const raw = perfData?.rollingRisk || [];
     return raw.map((r, i) => ({
@@ -273,6 +301,52 @@ export default function PerformanceAnalytics() {
     }));
   };
 
+  // Determine if we have real data
+  const hasData = (kpi.totalTrades ?? 0) > 0 || trades.length > 0;
+
+  // Refresh handler for Equity + Drawdown
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetchPerf();
+      toast.success('Performance data refreshed');
+    } catch { toast.error('Refresh failed'); }
+    setRefreshing(false);
+  }, [refetchPerf]);
+
+  // Export equity CSV
+  const handleExportEquity = useCallback(() => {
+    if (!equityData.length) { toast.info('No equity data to export'); return; }
+    const headers = ['date', 'equity', 'drawdown'];
+    const rows = equityData.map(r => headers.map(h => r[h] ?? '').join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `equity_curve_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    toast.success('Equity curve exported');
+  }, [equityData]);
+
+  // Export trade log CSV
+  const handleExportTrades = useCallback(() => {
+    if (!trades.length) { toast.info('No trades to export'); return; }
+    const headers = ['date', 'symbol', 'side', 'qty', 'entry', 'exit', 'pnl'];
+    const rows = trades.map(t => headers.map(h => t[h] ?? t.quantity ?? '').join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `trade_log_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    toast.success('Trade log exported');
+  }, [trades]);
+
+  // Format helpers for null-safe display
+  const fmt = (v, fallback = '--') => (v == null || v === '' || (typeof v === 'number' && isNaN(v))) ? fallback : v;
+  const fmtUsd = (v) => v == null ? '--' : `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const fmtPct = (v) => v == null ? '--' : `${Number(v)}%`;
+
   // Returns Heatmap Calendar
   const returnsCalendar = useMemo(() => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -289,27 +363,30 @@ export default function PerformanceAnalytics() {
         <div className="flex-1" />
         <h1 className="text-xl font-bold text-white tracking-tight text-center flex-1">Performance Analytics</h1>
         <div className="flex-1 flex justify-end">
-          <button className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/40 rounded-lg px-4 py-2 transition-colors">
+          <button
+            onClick={() => setShowGradeModal(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/40 rounded-lg px-4 py-2 transition-colors"
+          >
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-lg font-bold text-white">
-              {kpi.grade || 'A'}
+              {kpi.grade && kpi.grade !== '—' ? kpi.grade : 'N/A'}
             </div>
-            <span className="text-sm font-semibold text-white">A Trading Grade</span>
+            <span className="text-sm font-semibold text-white">{kpi.grade && kpi.grade !== '—' ? `${kpi.grade} Trading Grade` : 'Trading Grade'}</span>
           </button>
         </div>
       </div>
 
       {/* ─── KPI STRIP (mockup: value + sparkline + change %) ───── */}
       <div className="px-4 py-2 flex items-center gap-2 overflow-x-auto border-b border-[rgba(42,52,68,0.5)] shrink-0 bg-[#0B0E14]">
-        <KpiPill label="Total Trades" value={kpi.totalTrades} icon={BarChart3} sparkData={[0,2,1,3,2]} />
-        <KpiPill label="Net P&L" value={`+$${(kpi.netPnl ?? 0).toLocaleString(undefined,{minimumFractionDigits:2})}`} positive={(kpi.netPnl ?? 0) > 0} change={kpi.netPnlChg} icon={TrendingUp} sparkData={[1,2,1.5,2.5,2,3]} />
-        <KpiPill label="Win Rate" value={`${(kpi.winRate ?? 0)}%`} positive={(kpi.winRate ?? 0) > 50} change={kpi.winRateChg} icon={Target} sparkData={[0,1,2,2.5,3]} />
-        <KpiPill label="Avg Win" value={`$${kpi.avgWin ?? 0}`} positive change={kpi.avgWinChg} icon={ArrowUpRight} sparkData={[0,1,1.5,2,2.5,3]} />
-        <KpiPill label="Avg Loss" value={`-$${Math.abs(kpi.avgLoss ?? 0).toFixed(2)}`} positive={false} change={kpi.avgLossChg} icon={ArrowDownRight} sparkData={[3,2.5,2,2.5,2,1]} />
-        <KpiPill label="Profit Factor" value={kpi.profitFactor} positive={(kpi.profitFactor ?? 0) > 1} icon={Zap} sparkData={[0,1,1.5,2,2.2]} />
-        <KpiPill label="Max DD" value={`-${Math.abs(kpi.maxDd ?? 0).toLocaleString()} / ${(kpi.max_dd_pct ?? -8.2)}%`} positive={false} icon={TrendingDown} sparkData={[1,2,2.5,2,3]} />
-        <KpiPill label="Sharpe" value={kpi.sharpe} positive={(kpi.sharpe ?? 0) > 1} icon={Activity} sparkData={[0,1,1.5,1.8,2]} />
-        <KpiPill label="Expectancy" value={`$${kpi.expectancy ?? 0}`} positive={(kpi.expectancy ?? 0) > 0} icon={Crosshair} sparkData={[0,1,2,2.5,3]} />
-        <KpiPill label="R:R" value={`${kpi.riskReward ?? 0}:1`} positive icon={Shield} sparkData={[0,1,1.5,1.6,1.7]} />
+        <KpiPill label="Total Trades" value={fmt(kpi.totalTrades)} icon={BarChart3} sparkData={[0,2,1,3,2]} />
+        <KpiPill label="Net P&L" value={fmtUsd(kpi.netPnl)} positive={(kpi.netPnl ?? 0) > 0} change={hasData ? kpi.netPnlChg : undefined} icon={TrendingUp} sparkData={[1,2,1.5,2.5,2,3]} />
+        <KpiPill label="Win Rate" value={fmtPct(kpi.winRate)} positive={(kpi.winRate ?? 0) > 50} change={hasData ? kpi.winRateChg : undefined} icon={Target} sparkData={[0,1,2,2.5,3]} />
+        <KpiPill label="Avg Win" value={kpi.avgWin != null ? `$${kpi.avgWin}` : '--'} positive change={hasData ? kpi.avgWinChg : undefined} icon={ArrowUpRight} sparkData={[0,1,1.5,2,2.5,3]} />
+        <KpiPill label="Avg Loss" value={kpi.avgLoss != null ? `-$${Math.abs(kpi.avgLoss).toFixed(2)}` : '--'} positive={false} change={hasData ? kpi.avgLossChg : undefined} icon={ArrowDownRight} sparkData={[3,2.5,2,2.5,2,1]} />
+        <KpiPill label="Profit Factor" value={fmt(kpi.profitFactor)} positive={(kpi.profitFactor ?? 0) > 1} icon={Zap} sparkData={[0,1,1.5,2,2.2]} />
+        <KpiPill label="Max DD" value={kpi.maxDd != null ? `-${Math.abs(kpi.maxDd).toLocaleString()} / ${kpi.max_dd_pct ?? 0}%` : '--'} positive={false} icon={TrendingDown} sparkData={[1,2,2.5,2,3]} />
+        <KpiPill label="Sharpe" value={fmt(kpi.sharpe)} positive={(kpi.sharpe ?? 0) > 1} icon={Activity} sparkData={[0,1,1.5,1.8,2]} />
+        <KpiPill label="Expectancy" value={kpi.expectancy != null ? `$${kpi.expectancy}` : '--'} positive={(kpi.expectancy ?? 0) > 0} icon={Crosshair} sparkData={[0,1,2,2.5,3]} />
+        <KpiPill label="R:R" value={kpi.riskReward != null ? `${kpi.riskReward}:1` : '--'} positive icon={Shield} sparkData={[0,1,1.5,1.6,1.7]} />
       </div>
 
       {/* ─── CONTENT GRID ──────────────────────────────────────── */}
@@ -330,45 +407,61 @@ export default function PerformanceAnalytics() {
               </div>
               {/* Sharpe / Sortino / Calmar with change indicators */}
               <div className="grid grid-cols-3 gap-1 w-full">
-                <div className="text-center bg-[#0B0E14] rounded p-1.5">
-                  <div className="text-[9px] text-gray-500">Sharpe</div>
-                  <div className="text-sm font-bold text-white">{kpi.sharpe}</div>
-                  <div className="text-[9px] text-emerald-400">(+0.50)</div>
-                </div>
-                <div className="text-center bg-[#0B0E14] rounded p-1.5">
-                  <div className="text-[9px] text-gray-500">Sortino</div>
-                  <div className="text-sm font-bold text-white">{kpi.sortino}</div>
-                  <div className="text-[9px] text-emerald-400">(+0.92)</div>
-                </div>
-                <div className="text-center bg-[#0B0E14] rounded p-1.5">
-                  <div className="text-[9px] text-gray-500">Calmar</div>
-                  <div className="text-sm font-bold text-white">{kpi.calmar}</div>
-                  <div className="text-[9px] text-red-400">(-0.29)</div>
-                </div>
+                {[
+                  { label: 'Sharpe', val: kpi.sharpe, delta: kpi.sharpeChg },
+                  { label: 'Sortino', val: kpi.sortino, delta: kpi.sortinoChg },
+                  { label: 'Calmar', val: kpi.calmar, delta: kpi.calmarChg },
+                ].map(({ label, val, delta }) => (
+                  <div key={label} className="text-center bg-[#0B0E14] rounded p-1.5">
+                    <div className="text-[9px] text-gray-500">{label}</div>
+                    <div className="text-sm font-bold text-white">{fmt(val)}</div>
+                    {delta != null && hasData && (
+                      <div className={`text-[9px] ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        ({delta >= 0 ? '+' : ''}{delta.toFixed(2)})
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
               {/* Kelly Criterion - Win (green) + Lose (red) bar */}
               <div className="w-full">
                 <div className="text-[10px] text-gray-500 mb-1">Kelly Criterion</div>
-                <div className="flex h-4 rounded overflow-hidden">
-                  <div className="flex-1 bg-emerald-500 flex items-center justify-center text-[9px] font-medium text-white" title="Win">$12,828.50</div>
-                  <div className="w-16 bg-red-500/80 flex items-center justify-center text-[9px] font-medium text-white" title="Lose">-$3.50</div>
-                </div>
+                {(kpi.kellyWin != null || kpi.kellyLose != null) && hasData ? (
+                  <div className="flex h-4 rounded overflow-hidden">
+                    <div className="flex-1 bg-emerald-500 flex items-center justify-center text-[9px] font-medium text-white" title="Win">
+                      {fmtUsd(kpi.kellyWin)}
+                    </div>
+                    <div className="w-16 bg-red-500/80 flex items-center justify-center text-[9px] font-medium text-white" title="Lose">
+                      {kpi.kellyLose != null ? `-${fmtUsd(Math.abs(kpi.kellyLose))}` : '--'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-4 rounded overflow-hidden bg-gray-800 items-center justify-center">
+                    <span className="text-[9px] text-gray-500">Kelly: N/A</span>
+                  </div>
+                )}
               </div>
               {/* Risk/Reward + Expectancy mini bar chart */}
               <div className="w-full flex-1 min-h-0">
                 <div className="text-[10px] text-gray-500 mb-1">Risk/Reward + Expectancy</div>
-                <div className="h-[70px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={rrExpect} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                      <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#6b7280' }} />
-                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
-                      <Tooltip {...chartTooltipStyle} />
-                      <Bar dataKey="rr" fill="#00D9FF" radius={[2, 2, 0, 0]} opacity={0.7} name="R:R" />
-                      <Line type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={1.5} dot={false} name="Expectancy" yAxisId={0} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                {rrExpect.length > 0 ? (
+                  <div className="h-[70px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={rrExpect} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                        <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#6b7280' }} />
+                        <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
+                        <Tooltip {...chartTooltipStyle} />
+                        <Bar dataKey="rr" fill="#00D9FF" radius={[2, 2, 0, 0]} opacity={0.7} name="R:R" />
+                        <Line type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={1.5} dot={false} name="Expectancy" yAxisId={0} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-[70px] flex items-center justify-center text-[10px] text-gray-600">
+                    No expectancy data available
+                  </div>
+                )}
               </div>
             </div>
           </Panel>
@@ -376,35 +469,44 @@ export default function PerformanceAnalytics() {
           {/* ── 2. Equity + Drawdown (mockup: toolbar gear/download/refresh) ── */}
           <Panel title="Equity + Drawdown" icon={TrendingUp} className="col-span-3" action={
             <div className="flex items-center gap-1">
-              <button className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Settings"><Settings size={12} /></button>
-              <button className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Download"><Download size={12} /></button>
-              <button className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Refresh"><RefreshCw size={12} /></button>
+              <button onClick={() => toast.info('Chart settings coming soon')} className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Settings"><Settings size={12} /></button>
+              <button onClick={handleExportEquity} className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Download"><Download size={12} /></button>
+              <button onClick={handleRefresh} className={clsx('p-1 text-gray-500 hover:text-[#00D9FF] transition-colors', refreshing && 'animate-spin')} title="Refresh"><RefreshCw size={12} /></button>
             </div>
           }>
             <div className="flex flex-col h-full">
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={equityData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                      </linearGradient>
-                      <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.05} />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.25} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval="preserveStartEnd" />
-                    <YAxis yAxisId="eq" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                    <YAxis yAxisId="dd" orientation="right" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `${v}%`} />
-                    <Tooltip {...chartTooltipStyle} />
-                    <Area yAxisId="eq" type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} fill="url(#eqGrad)" />
-                    <Area yAxisId="dd" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1} fill="url(#ddGrad)" />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+              {equityData.length > 0 ? (
+                <div className="flex-1 min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={equityData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.05} />
+                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0.25} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval="preserveStartEnd" />
+                      <YAxis yAxisId="eq" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <YAxis yAxisId="dd" orientation="right" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `${v}%`} />
+                      <Tooltip {...chartTooltipStyle} />
+                      <Area yAxisId="eq" type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} fill="url(#eqGrad)" />
+                      <Area yAxisId="dd" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1} fill="url(#ddGrad)" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-center">
+                  <div>
+                    <TrendingUp size={28} className="text-gray-700 mx-auto mb-2" />
+                    <p className="text-[11px] text-gray-500">No equity data — execute trades to see your performance curve</p>
+                  </div>
+                </div>
+              )}
             </div>
           </Panel>
 
@@ -412,30 +514,39 @@ export default function PerformanceAnalytics() {
           <Panel title="AI + Rolling Risk" icon={Brain} className="col-span-3">
             <div className="flex flex-col gap-3 h-full">
               <div className="flex flex-col items-center">
-                <ConcentricAIDial
-                  metrics={[{ name: 'Outer', value: 78.3, color: '#06B6D4' }, { name: 'Agent', value: 67, color: '#10B981' }]}
-                  centerLabel="67% Agent"
-                />
+                {rollingRisk.length > 0 ? (
+                  <ConcentricAIDial
+                    metrics={perfData?.aiMetrics || []}
+                  />
+                ) : (
+                  <ConcentricAIDial metrics={[]} />
+                )}
               </div>
               <div className="flex-1 min-h-0">
                 <div className="text-[10px] text-gray-500 mb-1">Rolling Risk Sharpe</div>
-                <div className="h-[80px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={rollingRisk} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="rollingGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.4} />
-                          <stop offset="100%" stopColor="#06B6D4" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 7, fill: '#6b7280' }} />
-                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} domain={[0, 1.5]} />
-                      <Tooltip {...chartTooltipStyle} />
-                      <Area type="monotone" dataKey="y" stroke="#06B6D4" fill="url(#rollingGrad)" strokeWidth={1.5} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                {rollingRisk.length > 0 ? (
+                  <div className="h-[80px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={rollingRisk} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="rollingGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.4} />
+                            <stop offset="100%" stopColor="#06B6D4" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                        <XAxis dataKey="date" tick={{ fontSize: 7, fill: '#6b7280' }} />
+                        <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} domain={[0, 'auto']} />
+                        <Tooltip {...chartTooltipStyle} />
+                        <Area type="monotone" dataKey="y" stroke="#06B6D4" fill="url(#rollingGrad)" strokeWidth={1.5} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-[80px] flex items-center justify-center text-[10px] text-gray-600">
+                    No rolling risk data
+                  </div>
+                )}
               </div>
             </div>
           </Panel>
@@ -552,29 +663,68 @@ export default function PerformanceAnalytics() {
 
           {/* Risk/Reward + Expectancy chart */}
           <Panel title="Risk/Reward + Expectancy" icon={Crosshair} className="col-span-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={rrExpect} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#6b7280' }} />
-                <YAxis yAxisId="rr" tick={{ fontSize: 9, fill: '#6b7280' }} />
-                <YAxis yAxisId="exp" orientation="right" tick={{ fontSize: 9, fill: '#6b7280' }} />
-                <Tooltip {...chartTooltipStyle} />
-                <Bar yAxisId="rr" dataKey="rr" fill="#00D9FF" radius={[3, 3, 0, 0]} opacity={0.7} name="R:R" />
-                <Line yAxisId="exp" type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} name="Expectancy" />
-              </ComposedChart>
-            </ResponsiveContainer>
+            {rrExpect.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={rrExpect} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#6b7280' }} />
+                  <YAxis yAxisId="rr" tick={{ fontSize: 9, fill: '#6b7280' }} />
+                  <YAxis yAxisId="exp" orientation="right" tick={{ fontSize: 9, fill: '#6b7280' }} />
+                  <Tooltip {...chartTooltipStyle} />
+                  <Bar yAxisId="rr" dataKey="rr" fill="#00D9FF" radius={[3, 3, 0, 0]} opacity={0.7} name="R:R" />
+                  <Line yAxisId="exp" type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} name="Expectancy" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-center">
+                <div>
+                  <Crosshair size={24} className="text-gray-700 mx-auto mb-2" />
+                  <p className="text-[10px] text-gray-500">No expectancy data available</p>
+                </div>
+              </div>
+            )}
           </Panel>
 
           {/* Enhanced Trades Table (mockup: TRADE LOG toolbar, Date/Symbol/Side/Qty/Entry/Exit/P&L) */}
-          <Panel title="Enhanced Trades Table" icon={BarChart3} className="col-span-6" action={
+          <Panel title="Enhanced Trades Table" icon={BarChart3} className={clsx('col-span-6', tradeExpanded && 'fixed inset-4 z-50 col-span-12')} action={
             <div className="flex items-center gap-1">
-              <button className="px-2 py-0.5 text-[10px] font-medium bg-[#00D9FF]/20 text-[#00D9FF] rounded border border-[#00D9FF]/40">TRADE LOG</button>
-              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><Search size={12} /></button>
-              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><Maximize2 size={12} /></button>
-              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><X size={12} /></button>
-              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><Filter size={12} /></button>
+              <button onClick={handleExportTrades} className="px-2 py-0.5 text-[10px] font-medium bg-[#00D9FF]/20 text-[#00D9FF] rounded border border-[#00D9FF]/40 hover:bg-[#00D9FF]/30 transition-colors">TRADE LOG</button>
+              <button onClick={() => setShowTradeSearch(p => !p)} className={clsx('p-1 transition-colors', showTradeSearch ? 'text-[#00D9FF]' : 'text-gray-500 hover:text-[#00D9FF]')}><Search size={12} /></button>
+              <button onClick={() => setTradeExpanded(p => !p)} className="p-1 text-gray-500 hover:text-[#00D9FF]">{tradeExpanded ? <X size={12} /> : <Maximize2 size={12} />}</button>
+              <button onClick={() => { setTradeExpanded(false); setShowTradeSearch(false); setTradeSearch(''); setShowTradeFilter(false); setTradeFilterSide('all'); setTradeFilterPnl('all'); }} className="p-1 text-gray-500 hover:text-[#00D9FF]"><X size={12} /></button>
+              <button onClick={() => setShowTradeFilter(p => !p)} className={clsx('p-1 transition-colors', showTradeFilter ? 'text-[#00D9FF]' : 'text-gray-500 hover:text-[#00D9FF]')}><Filter size={12} /></button>
             </div>
           }>
+            {/* Search bar */}
+            {showTradeSearch && (
+              <div className="mb-2">
+                <input
+                  type="text"
+                  value={tradeSearch}
+                  onChange={e => setTradeSearch(e.target.value)}
+                  placeholder="Search by symbol..."
+                  className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1 text-xs text-white placeholder-gray-600 focus:border-cyan-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+            )}
+            {/* Filter bar */}
+            {showTradeFilter && (
+              <div className="mb-2 flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] text-gray-500">Side:</span>
+                {['all', 'long', 'short'].map(s => (
+                  <button key={s} onClick={() => setTradeFilterSide(s)} className={clsx('px-2 py-0.5 rounded text-[9px]', tradeFilterSide === s ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-gray-800 text-gray-400 border border-gray-700')}>
+                    {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+                <span className="text-[9px] text-gray-500 ml-2">P&L:</span>
+                {['all', 'winners', 'losers'].map(p => (
+                  <button key={p} onClick={() => setTradeFilterPnl(p)} className={clsx('px-2 py-0.5 rounded text-[9px]', tradeFilterPnl === p ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-gray-800 text-gray-400 border border-gray-700')}>
+                    {p === 'all' ? 'All' : p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="overflow-auto h-full">
               <table className="w-full text-[10px]">
                 <thead>
@@ -793,6 +943,45 @@ export default function PerformanceAnalytics() {
           </Panel>
         </div>
       </div>
+
+      {/* ─── TRADING GRADE MODAL ──────────────────────────────────────────────── */}
+      {showGradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowGradeModal(false)}>
+          <div className="bg-[#111827] border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Award size={20} className="text-cyan-400" />
+                Trading Grade Breakdown
+              </h3>
+              <button onClick={() => setShowGradeModal(false)} className="p-1 text-gray-400 hover:text-white"><X size={18} /></button>
+            </div>
+            {hasData ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-center mb-4">
+                  <TradingGradeHero grade={kpi.grade || '--'} score={kpi.score ?? 0} size={100} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <MetricRow label="Win Rate" value={fmtPct(kpi.winRate)} color="text-emerald-400" />
+                  <MetricRow label="Profit Factor" value={fmt(kpi.profitFactor)} color="text-cyan-400" />
+                  <MetricRow label="Sharpe Ratio" value={fmt(kpi.sharpe)} color="text-cyan-400" />
+                  <MetricRow label="Max Drawdown" value={kpi.maxDd != null ? `${kpi.maxDd}%` : '--'} color="text-red-400" />
+                  <MetricRow label="R:R Ratio" value={kpi.riskReward != null ? `${kpi.riskReward}:1` : '--'} color="text-cyan-400" />
+                  <MetricRow label="Expectancy" value={kpi.expectancy != null ? `$${kpi.expectancy}` : '--'} color="text-emerald-400" />
+                </div>
+                <p className="text-[10px] text-gray-500 text-center mt-3">
+                  Grade is calculated from win rate, risk-adjusted returns, drawdown control, and consistency.
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Info size={32} className="text-gray-600 mx-auto mb-3" />
+                <p className="text-sm text-gray-400">No trades to grade yet</p>
+                <p className="text-[10px] text-gray-600 mt-1">Start trading to earn your performance grade</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── FOOTER (mockup: Embodier Trader - Performance Analytics v2.0 | Connected | Active filters in cyan | Data: Jan 1 - Feb 28, 2026 - 312 trades) ── */}
       <div className="px-4 py-2 border-t border-gray-800/50 flex items-center justify-between text-[10px] text-[#94a3b8] shrink-0 bg-[#0B0E14]">

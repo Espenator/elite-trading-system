@@ -1,5 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useApi } from "../hooks/useApi";
+import { getApiUrl, getAuthHeaders } from "../config/api";
+import { toast } from "react-toastify";
 import {
   RefreshCw,
   Copy,
@@ -14,6 +16,7 @@ import {
   Link2,
   Cloud,
   ArrowRight,
+  Upload,
 } from "lucide-react";
 import {
   LineChart,
@@ -214,23 +217,25 @@ function genSparkline(min, max) {
 }
 
 function StatusBadge({ status }) {
-  const isHealthy = status === "healthy";
+  // Map API statuses to display values
+  const s = (status || "").toLowerCase();
+  const isActive = s === "healthy" || s === "active";
+  const isBeta = s === "beta";
+  const isError = s === "error" || s === "offline";
+  // active/healthy = green, beta = yellow, error = red, degraded/other = amber
+  const colors = isActive
+    ? "bg-emerald-500/20 text-emerald-400"
+    : isError
+    ? "bg-red-500/20 text-red-400"
+    : isBeta
+    ? "bg-yellow-500/20 text-yellow-400"
+    : "bg-amber-500/20 text-amber-400";
+  const dotColor = isActive ? "bg-emerald-400" : isError ? "bg-red-400" : isBeta ? "bg-yellow-400" : "bg-amber-400";
+  const label = isActive ? "ACTIVE" : isError ? "ERROR" : isBeta ? "BETA" : "DEGRADED";
   return (
-    <span
-      className={clsx(
-        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-        isHealthy
-          ? "bg-emerald-500/20 text-emerald-400"
-          : "bg-amber-500/20 text-amber-400"
-      )}
-    >
-      <span
-        className={clsx(
-          "w-1.5 h-1.5 rounded-full",
-          isHealthy ? "bg-emerald-400" : "bg-amber-400"
-        )}
-      />
-      {isHealthy ? "HEALTHY" : "DEGRADED"}
+    <span className={clsx("inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", colors)}>
+      <span className={clsx("w-1.5 h-1.5 rounded-full", dotColor)} />
+      {label}
     </span>
   );
 }
@@ -276,7 +281,7 @@ function LatencySparkline({ points = [] }) {
 
 // ---------- Source Card ----------
 
-function SourceCard({ source, isSelected, onClick }) {
+function SourceCard({ source, isSelected, onClick, onLivePing }) {
   const sparkColor =
     source.status === "degraded" ? "#f87171" : "#22d3ee";
 
@@ -332,7 +337,7 @@ function SourceCard({ source, isSelected, onClick }) {
               {source.latency}
               <LatencySparkline />
             </span>
-            {source.uptime && (
+            {source.uptime != null && (
               <span className="text-[10px] text-gray-500 font-mono">
                 {source.uptime}%
               </span>
@@ -355,31 +360,35 @@ function SourceCard({ source, isSelected, onClick }) {
 
         {/* Metrics / Uptime */}
         <div className="text-right flex-shrink-0 w-12">
-          <div
-            className={clsx(
-              "text-xs font-bold font-mono",
-              source.uptime >= 99
-                ? "text-emerald-400"
-                : source.uptime >= 95
-                ? "text-amber-400"
-                : "text-red-400"
-            )}
-          >
-            {source.uptime}%
-          </div>
+          {source.uptime != null ? (
+            <div
+              className={clsx(
+                "text-xs font-bold font-mono",
+                source.uptime >= 99
+                  ? "text-emerald-400"
+                  : source.uptime >= 95
+                  ? "text-amber-400"
+                  : "text-red-400"
+              )}
+            >
+              {source.uptime}%
+            </div>
+          ) : (
+            <div className="text-xs font-mono text-gray-600">—</div>
+          )}
         </div>
 
         {/* Row actions per mockup */}
         <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {source.id === "alpaca" ? (
-            <button type="button" className="px-2 py-0.5 text-[9px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/30 transition-colors">
+            <button type="button" onClick={() => onLivePing?.(source)} className="px-2 py-0.5 text-[9px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/30 transition-colors">
               LIVE PING
             </button>
           ) : source.id === "finviz" ? (
             <>
-              <button type="button" className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Show</button>
-              <button type="button" className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Copy</button>
-              <button type="button" className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Rotate</button>
+              <button type="button" onClick={() => toast.info("Show: credential display not yet implemented")} className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Show</button>
+              <button type="button" onClick={() => { navigator.clipboard.writeText(source.name || "finviz").then(() => toast.success("Copied to clipboard")).catch(() => toast.error("Copy failed")); }} className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Copy</button>
+              <button type="button" onClick={() => toast.info("Rotate: key rotation not yet implemented")} className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Rotate</button>
             </>
           ) : null}
         </div>
@@ -392,14 +401,21 @@ function SourceCard({ source, isSelected, onClick }) {
 
 // ---------- Connection Detail Panel ----------
 
-function ConnectionDetailPanel({ source }) {
+function ConnectionDetailPanel({ source, onTestConnection, onSaveChanges, testing, saving }) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [copied, setCopied] = useState(null);
+  const [testResult, setTestResult] = useState(null);
 
-  const handleCopy = useCallback((field) => {
-    setCopied(field);
-    setTimeout(() => setCopied(null), 1500);
+  const handleCopy = useCallback(async (field, value) => {
+    try {
+      await navigator.clipboard.writeText(value || "");
+      setCopied(field);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      setCopied(field);
+      setTimeout(() => setCopied(null), 1500);
+    }
   }, []);
 
   if (!source) {
@@ -410,19 +426,18 @@ function ConnectionDetailPanel({ source }) {
     );
   }
 
-  // Display name: "Alpaca Markets" for Alpaca per mockup
-  const displayName = source.id === "alpaca" ? "Alpaca Markets" : (source.name || "—");
+  // Use API data for credential panel — no hardcoded values
+  const hasCreds = source.has_credentials === true;
   const detail = {
-    name: displayName,
-    type: source.type || "—",
-    apiKey: source.id === "alpaca" ? "PK****3F7A" : (source.apiKey || "—"),
-    apiSecret: source.id === "alpaca" ? "**********" : (source.apiSecret || "—"),
-    baseUrl: source.id === "alpaca" ? "https://paper-api.alpaca.markets/v2" : (source.baseUrl || "—"),
-    wsUrl: source.id === "alpaca" ? "wss://stream.data.alpaca.markets/v2" : (source.wsUrl || "—"),
-    rateLimit: source.id === "alpaca" ? "200 req/min" : (source.rateLimit || "—"),
-    pollingInterval: source.id === "alpaca" ? "Real-time (WebSocket)" : (source.pollingInterval || "—"),
-    accountType: source.id === "alpaca" ? "Paper Trading" : (source.tradingType || "—"),
-    testResult: source.id === "alpaca" ? "Connected in 12ms - Account: $251,450 equity" : (source.testResult || "—"),
+    name: source.name || "—",
+    type: source.type || source.category || "—",
+    apiKey: hasCreds ? "••••••••••" : "Not configured",
+    apiSecret: hasCreds ? "••••••••••" : "Not configured",
+    baseUrl: source.base_url || "—",
+    wsUrl: source.wsUrl || "—",
+    rateLimit: source.rateLimit || "—",
+    pollingInterval: source.pollingInterval || "—",
+    accountType: source.tradingType || "—",
   };
 
   return (
@@ -466,8 +481,8 @@ function ConnectionDetailPanel({ source }) {
             <code className="text-xs text-gray-300 bg-[#0B0E14] px-2 py-1.5 rounded flex-1 font-mono truncate border border-gray-700">
               {detail.apiKey}
             </code>
-            <button className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-600 rounded hover:border-gray-500 hover:text-gray-300 transition-colors" onClick={() => handleCopy("apiKey")}>
-              Copy
+            <button className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-600 rounded hover:border-gray-500 hover:text-gray-300 transition-colors" onClick={() => handleCopy("apiKey", detail.apiKey)}>
+              {copied === "apiKey" ? "Copied!" : "Copy"}
             </button>
             <button className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-600 rounded hover:border-gray-500 hover:text-gray-300 transition-colors">
               Rotate
@@ -524,23 +539,41 @@ function ConnectionDetailPanel({ source }) {
         </FieldRow>
 
         {/* Connection Test Result */}
-        <div className="flex items-center gap-2 pt-2">
-          <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span className="text-xs text-emerald-400 font-medium">
-            {detail.testResult}
-          </span>
-        </div>
+        {testResult && (
+          <div className={clsx("flex items-center gap-2 pt-2", testResult.ok ? "text-emerald-400" : "text-red-400")}>
+            {testResult.ok ? <Check className="w-4 h-4 flex-shrink-0" /> : <Wifi className="w-4 h-4 flex-shrink-0" />}
+            <span className="text-xs font-medium">{testResult.message}</span>
+          </div>
+        )}
+        {!testResult && (
+          <div className="flex items-center gap-2 pt-2 text-gray-600">
+            <Wifi className="w-4 h-4 flex-shrink-0" />
+            <span className="text-xs">Click "Test Connection" to verify</span>
+          </div>
+        )}
       </div>
 
-      {/* Action buttons - Test Connection, Save Changes, Cancel, Reset to Default */}
+      {/* Action buttons */}
       <div className="px-4 py-3 border-t border-gray-800 flex flex-wrap gap-2">
-        <button className="px-3 py-2 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1.5">
-          <Wifi className="w-3.5 h-3.5" />
-          Test Connection
+        <button
+          disabled={testing}
+          onClick={async () => {
+            setTestResult(null);
+            const result = await onTestConnection?.(source);
+            if (result) setTestResult(result);
+          }}
+          className="px-3 py-2 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+        >
+          <Wifi className={clsx("w-3.5 h-3.5", testing && "animate-spin")} />
+          {testing ? "Testing..." : "Test Connection"}
         </button>
-        <button className="px-3 py-2 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5">
+        <button
+          disabled={saving}
+          onClick={() => onSaveChanges?.(source)}
+          className="px-3 py-2 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+        >
           <Check className="w-3.5 h-3.5" />
-          Save Changes
+          {saving ? "Saving..." : "Save Changes"}
         </button>
         <button className="px-3 py-2 text-xs font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">
           Cancel
@@ -557,9 +590,7 @@ function ConnectionDetailPanel({ source }) {
           Connection Log
         </div>
         <div className="text-[11px] text-gray-500 font-mono space-y-0.5">
-          <div>2023-10-27 14:30:15: Connected. Latency 12ms.</div>
-          <div>2023-10-27 14:28:02: Reconnected after 2s outage.</div>
-          <div>2023-10-27 14:25:00: Initial handshake. OK.</div>
+          <div className="text-gray-600 italic">No connection log entries</div>
         </div>
       </div>
     </div>
@@ -588,12 +619,111 @@ export default function DataSourcesMonitor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilterChip, setActiveFilterChip] = useState("ALL");
   const [sourceSearchQuery, setSourceSearchQuery] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef(null);
 
-  // Merge API data with static definitions
+  // Test Connection handler
+  const handleTestConnection = useCallback(async (source) => {
+    setTesting(true);
+    try {
+      const sourceId = source.apiId || source.id;
+      const res = await fetch(getApiUrl("dataSources") + `/${sourceId}/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok && (result.ok !== false)) {
+        const msg = `Connected${result.latency_ms ? ` in ${result.latency_ms}ms` : ""}`;
+        toast.success(`${source.name}: ${msg}`);
+        return { ok: true, message: msg };
+      } else {
+        const msg = result.detail || result.error || result.message || `HTTP ${res.status}`;
+        toast.error(`${source.name}: ${msg}`);
+        return { ok: false, message: msg };
+      }
+    } catch (err) {
+      const msg = err?.message || "Network error";
+      toast.error(`Test failed: ${msg}`);
+      return { ok: false, message: msg };
+    } finally {
+      setTesting(false);
+    }
+  }, []);
+
+  // Save Changes handler
+  const handleSaveChanges = useCallback(async (source) => {
+    setSaving(true);
+    try {
+      const sourceId = source.apiId || source.id;
+      toast.info(`Saving ${source.name} configuration...`);
+      const res = await fetch(getApiUrl("dataSources") + `/${sourceId}/credentials`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        toast.success(`${source.name} configuration saved`);
+        refetch();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(`Save failed: ${err?.detail || err?.message || `HTTP ${res.status}`}`);
+      }
+    } catch (err) {
+      toast.error(`Save failed: ${err?.message || "Network error"}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [refetch]);
+
+  // LIVE PING handler
+  const handleLivePing = useCallback(async (source) => {
+    try {
+      toast.info(`Pinging ${source.name}...`);
+      const sourceId = source.apiId || source.id;
+      const res = await fetch(getApiUrl("dataSources") + `/${sourceId}/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success(`${source.name}: ${result.latency_ms ? `${result.latency_ms}ms` : "OK"}`);
+      } else {
+        toast.error(`Ping failed: ${result?.detail || `HTTP ${res.status}`}`);
+      }
+    } catch (err) {
+      toast.error(`Ping failed: ${err?.message || "Network error"}`);
+    }
+  }, []);
+
+  // AI Add Source handler
+  const handleAddSource = useCallback(async (query) => {
+    if (!query?.trim()) return;
+    try {
+      toast.info(`Searching for "${query}"...`);
+      const res = await fetch(getApiUrl("dataSources") + "/ai-detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ url: query, name: query }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success(`Source detected: ${result.name || query}`);
+        refetch();
+      } else {
+        toast.warning(result?.detail || "Could not detect source configuration");
+      }
+    } catch (err) {
+      toast.error(`Add source failed: ${err?.message || "Network error"}`);
+    }
+  }, [refetch]);
+
+  // Merge API data with static definitions — prefer API values, show "—" for nulls
   const sources = useMemo(() => {
     if (!data) return SOURCE_DEFS;
     const apiSources = Array.isArray(data) ? data : data?.sources || [];
-    return SOURCE_DEFS.map((def) => {
+    // Build merged list: start with SOURCE_DEFS, overlay API data
+    const merged = SOURCE_DEFS.map((def) => {
       const apiMatch = apiSources.find(
         (s) =>
           s.id === def.id ||
@@ -603,14 +733,52 @@ export default function DataSourcesMonitor() {
       if (apiMatch) {
         return {
           ...def,
-          status: apiMatch.status || def.status,
-          latency: apiMatch.latency || def.latency,
-          dataRate: apiMatch.dataRate || apiMatch.data_rate || def.dataRate,
-          uptime: apiMatch.uptime ?? def.uptime,
+          // Use API status directly (don't fall back to hardcoded)
+          status: apiMatch.status || "active",
+          // Show real latency or "—" (not hardcoded)
+          latency: apiMatch.last_latency_ms != null ? `${apiMatch.last_latency_ms}ms` : apiMatch.latency || "—",
+          // Show real data rate or "—"
+          dataRate: apiMatch.dataRate || apiMatch.data_rate || "—",
+          // Show real uptime or null (no fake %)
+          uptime: apiMatch.uptime ?? null,
+          // Pass through API fields for credential panel
+          base_url: apiMatch.base_url,
+          has_credentials: apiMatch.has_credentials,
+          required_keys: apiMatch.required_keys,
+          category: apiMatch.category,
+          apiId: apiMatch.id,
         };
       }
       return def;
     });
+    // Also add any API sources not in SOURCE_DEFS
+    apiSources.forEach((api) => {
+      const exists = merged.some(
+        (m) => m.id === api.id || m.name?.toLowerCase() === api.name?.toLowerCase()
+      );
+      if (!exists) {
+        merged.push({
+          id: api.id,
+          name: api.name,
+          type: api.category || "Other",
+          typeBadgeColor: "bg-gray-500/20 text-gray-400",
+          icon: (api.name || "?").substring(0, 2).toUpperCase(),
+          iconBg: "bg-gray-600",
+          status: api.status || "active",
+          latency: api.last_latency_ms != null ? `${api.last_latency_ms}ms` : "—",
+          dataRate: api.dataRate || api.data_rate || "—",
+          dataSize: "",
+          uptime: api.uptime ?? null,
+          sparkData: genSparkline(0.5, 1.0),
+          base_url: api.base_url,
+          has_credentials: api.has_credentials,
+          required_keys: api.required_keys,
+          category: api.category,
+          apiId: api.id,
+        });
+      }
+    });
+    return merged;
   }, [data]);
 
   const filteredSources = useMemo(() => {
@@ -634,14 +802,14 @@ export default function DataSourcesMonitor() {
   }, [sources, selectedSourceId]);
 
   const connectedCount = useMemo(
-    () => sources.filter((s) => s.status === "healthy").length,
+    () => sources.filter((s) => s.status === "healthy" || s.status === "active").length,
     [sources]
   );
 
   const healthPct = useMemo(() => {
     if (!sources.length) return 0;
     const healthyWeight = sources.reduce(
-      (acc, s) => acc + (s.status === "healthy" ? 1 : 0.5),
+      (acc, s) => acc + ((s.status === "healthy" || s.status === "active") ? 1 : s.status === "beta" ? 0.75 : 0.5),
       0
     );
     return Math.round((healthyWeight / sources.length) * 100);
@@ -670,7 +838,7 @@ export default function DataSourcesMonitor() {
             <div className="flex items-center gap-1.5">
               <ArrowRight className="w-3 h-3 text-gray-500" />
               <span className="text-gray-500">Ingestion:</span>
-              <span className="font-medium text-gray-300">4.2K rec/min</span>
+              <span className="font-medium text-gray-300">—</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -715,22 +883,29 @@ export default function DataSourcesMonitor() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSource(searchQuery); } }}
                 placeholder="Type a service name, URL, or paste API docs link..."
                 className="flex-1 bg-transparent px-2 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none min-w-0"
               />
             </div>
-            <button className="self-start px-3 py-1 text-xs font-medium text-[#00D9FF] hover:text-[#00D9FF]/80 transition-colors">
+            <button onClick={() => fileInputRef.current?.click()} className="self-start px-3 py-1 text-xs font-medium text-[#00D9FF] hover:text-[#00D9FF]/80 transition-colors">
               Or browse...
             </button>
+            <input ref={fileInputRef} type="file" accept=".json,.yaml,.yml,.toml,.env,.conf,.cfg" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { toast.info(`Uploaded: ${f.name} — parsing not yet implemented`); } e.target.value = ""; }} />
           </div>
-          <div className="w-48 flex-shrink-0 h-[72px] border border-gray-700 rounded-md border-dashed flex flex-col items-center justify-center gap-1 bg-[#0f1219]/50 hover:border-gray-600 transition-colors cursor-pointer">
+          <div
+            className="w-48 flex-shrink-0 h-[72px] border border-gray-700 rounded-md border-dashed flex flex-col items-center justify-center gap-1 bg-[#0f1219]/50 hover:border-gray-600 transition-colors cursor-pointer"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer?.files?.[0]; if (f) toast.info(`Dropped: ${f.name} — parsing not yet implemented`); }}
+          >
             <Cloud className="w-6 h-6 text-gray-500" />
             <span className="text-[10px] text-gray-500 font-mono">Drop API docs or config file</span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 mt-3">
           {SUGGESTED_SERVICES.map((s) => (
-            <button key={s} className="px-3 py-1 text-[11px] font-mono text-gray-400 border border-gray-700 rounded-full hover:border-[#00D9FF]/50 hover:text-[#00D9FF] transition-colors">
+            <button key={s} onClick={() => handleAddSource(s)} className="px-3 py-1 text-[11px] font-mono text-gray-400 border border-gray-700 rounded-full hover:border-[#00D9FF]/50 hover:text-[#00D9FF] transition-colors">
               {s}
             </button>
           ))}
@@ -783,6 +958,7 @@ export default function DataSourcesMonitor() {
                 source={source}
                 isSelected={selectedSourceId === source.id}
                 onClick={() => setSelectedSourceId(source.id)}
+                onLivePing={handleLivePing}
               />
             ))}
           </div>
@@ -824,7 +1000,14 @@ export default function DataSourcesMonitor() {
 
         {/* Right column - Credential / Config Panel */}
         <div className="w-[42%] bg-[#111827] overflow-hidden flex flex-col">
-          <ConnectionDetailPanel key={selectedSource?.id} source={selectedSource} />
+          <ConnectionDetailPanel
+            key={selectedSource?.id}
+            source={selectedSource}
+            onTestConnection={handleTestConnection}
+            onSaveChanges={handleSaveChanges}
+            testing={testing}
+            saving={saving}
+          />
         </div>
       </div>
 

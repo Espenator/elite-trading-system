@@ -1,0 +1,86 @@
+{
+  "audit_meta": {
+    "system": "Embodier Trader",
+    "version": "5.0.0",
+    "audit_date": "2026-03-12",
+    "commander": "Launch Commander",
+    "rule": "No PASS without evidence"
+  },
+  "phases": {
+    "pre_flight_safety": {
+      "pass": 5,
+      "fail": 0,
+      "needs_attention": 0,
+      "skipped": 0,
+      "items": [
+        {"id": "PF-01", "status": "PASS", "name": "TRADING_MODE defaults to paper"},
+        {"id": "PF-02", "status": "PASS", "name": "Live mode requires ALPACA + API_AUTH_TOKEN or raises at startup"},
+        {"id": "PF-03", "status": "PASS", "name": "Paper/live account safety check before auto-execute"},
+        {"id": "PF-04", "status": "PASS", "name": "Circuit breaker (Gate 2c) enforced in OrderExecutor"},
+        {"id": "PF-05", "status": "PASS", "name": "Regime gate (Gate 2b) blocks RED/CRISIS entries"}
+      ]
+    },
+    "backend_hardening": {
+      "pass": 4,
+      "fail": 0,
+      "needs_attention": 1,
+      "skipped": 0,
+      "items": [
+        {"id": "BE-01", "status": "PASS", "name": "State-changing endpoints require Bearer auth (fail-closed)"},
+        {"id": "BE-02", "status": "PASS", "name": "No hardcoded API keys or secrets in codebase"},
+        {"id": "BE-03", "status": "PASS", "name": ".env and backend/.env gitignored"},
+        {"id": "BE-04", "status": "PASS", "name": "Critical audit tests pass (auth, council, e2e audit, order executor)"},
+        {"id": "BE-05", "status": "NEEDS_ATTENTION", "name": "Full test suite: 7 failed (feature_store, jobs, redis_bridge)"}
+      ]
+    },
+    "frontend": {
+      "pass": 2,
+      "fail": 0,
+      "needs_attention": 0,
+      "skipped": 0,
+      "items": [
+        {"id": "FE-01", "status": "PASS", "name": "E2E audit tests (ingestion health, agents payload, backtest stubs, CORS 5174)"},
+        {"id": "FE-02", "status": "PASS", "name": "CORS includes 5174"}
+      ]
+    },
+    "e2e_pipeline": {
+      "pass": 3,
+      "fail": 0,
+      "needs_attention": 0,
+      "skipped": 0,
+      "items": [
+        {"id": "E2E-01", "status": "PASS", "name": "OrderExecutor subscribes to council.verdict only"},
+        {"id": "E2E-02", "status": "PASS", "name": "Gate logic (hold ignored, mock source rejected, daily limit, cooldown)"},
+        {"id": "E2E-03", "status": "PASS", "name": "Paper trading only for order flow tests"}
+      ]
+    },
+    "deployment": {
+      "pass": 2,
+      "fail": 0,
+      "needs_attention": 0,
+      "skipped": 0,
+      "items": [
+        {"id": "DP-01", "status": "PASS", "name": ".env.example documents TRADING_MODE and Alpaca"},
+        {"id": "DP-02", "status": "PASS", "name": "Emergency flatten and risk shield require auth"}
+      ]
+    }
+  },
+  "totals": {
+    "pass": 16,
+    "fail": 0,
+    "needs_attention": 1,
+    "skipped": 0
+  },
+  "blockers_before_live": [],
+  "provisional_recommendation": "GO for paper; conditional GO for live",
+  "test_evidence": {
+    "critical_audit_tests": "37 passed (execution_auth_boundary, council_pipeline, e2e_audit_enhancements, order_executor)",
+    "full_suite": "1085 passed, 7 failed, 1 skipped",
+    "critical_artifacts": ["artifacts/commands/pytest_critical_audit.txt"]
+  },
+  "unresolved_dependencies": [
+    "Startup timing not measured (backend not started during audit)",
+    "Real Alpaca connectivity not verified (no live/paper API calls)",
+    "Frontend screenshot/console logs not captured"
+  ]
+}

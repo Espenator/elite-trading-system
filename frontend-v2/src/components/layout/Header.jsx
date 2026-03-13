@@ -8,7 +8,7 @@
 //
 // All accent colour references use #00D9FF (primary) — NOT #06b6d4.
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -107,6 +107,7 @@ function RegimeBadge({ regime = "GREEN", pct }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function Header() {
+  const navigate = useNavigate();
   const {
     mode,
     positionScale,
@@ -114,6 +115,7 @@ export default function Header() {
     circuitBreakerFired,
     latestVerdict,
     wsConnected,
+    wsReconnecting,
     notifications = [],
     unreadCount = 0,
     markRead,
@@ -122,19 +124,33 @@ export default function Header() {
     regimePct,
   } = useCNS();
 
-  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu]           = useState(false);
   const [searchFocused, setSearchFocused]         = useState(false);
   const [searchValue, setSearchValue]             = useState("");
 
-  const handleSearch = useCallback((e) => {
-    if (e.key === "Enter" && searchValue.trim()) {
-      navigate(`/signals?q=${encodeURIComponent(searchValue.trim())}`);
-    }
-  }, [searchValue, navigate]);
-
   const modeStyle = MODE_COLORS[mode] ?? MODE_COLORS.NORMAL;
+
+  const searchInputRef = useRef(null);
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select?.();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const handleSearchSubmit = useCallback(() => {
+    const sym = searchValue.trim().toUpperCase();
+    if (!sym) return;
+    setSearchValue("");
+    setSearchFocused(false);
+    navigate(`/symbol/${encodeURIComponent(sym)}`);
+  }, [searchValue, navigate]);
 
   return (
     <header
@@ -159,14 +175,20 @@ export default function Header() {
             style={{ color: searchFocused ? "#00D9FF" : "#6B7280" }}
           />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search tickers, signals…"
-            className="w-full pl-9 pr-12 py-2 bg-transparent text-sm text-white placeholder-[#6B7280] outline-none"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            onKeyDown={handleSearch}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSearchSubmit();
+              }
+            }}
+            className="w-full pl-9 pr-12 py-2 bg-transparent text-sm text-white placeholder-[#6B7280] outline-none"
           />
           <kbd
             className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-medium rounded"
@@ -183,27 +205,29 @@ export default function Header() {
 
       {/* ── Center: CNS Status ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2">
-        {/* WS Connection */}
+        {/* WS Connection — LIVE | RECONNECTING | DOWN (24/7 auto-reconnect) */}
         <StatusPill
-          bg={wsConnected ? "rgba(16,185,129,0.10)" : "rgba(239,68,68,0.10)"}
-          border={wsConnected ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.35)"}
+          bg={wsConnected ? "rgba(16,185,129,0.10)" : wsReconnecting ? "rgba(245,158,11,0.10)" : "rgba(239,68,68,0.10)"}
+          border={wsConnected ? "rgba(16,185,129,0.35)" : wsReconnecting ? "rgba(245,158,11,0.35)" : "rgba(239,68,68,0.35)"}
         >
           {wsConnected ? (
             <Wifi className="w-3.5 h-3.5" style={{ color: "#10B981" }} />
+          ) : wsReconnecting ? (
+            <Wifi className="w-3.5 h-3.5 animate-pulse" style={{ color: "#F59E0B" }} />
           ) : (
             <WifiOff className="w-3.5 h-3.5 animate-pulse" style={{ color: "#EF4444" }} />
           )}
           <span
             className="text-xs font-bold tracking-wider"
-            style={{ color: wsConnected ? "#10B981" : "#EF4444" }}
+            style={{ color: wsConnected ? "#10B981" : wsReconnecting ? "#F59E0B" : "#EF4444" }}
           >
-            {wsConnected ? "WS" : "WS"}
+            WS
           </span>
           <span
             className="text-[10px]"
-            style={{ color: wsConnected ? "#10B981" : "#EF4444", opacity: 0.8 }}
+            style={{ color: wsConnected ? "#10B981" : wsReconnecting ? "#F59E0B" : "#EF4444", opacity: 0.8 }}
           >
-            {wsConnected ? "LIVE" : "DOWN"}
+            {wsConnected ? "LIVE" : wsReconnecting ? "RECONNECTING" : "DOWN"}
           </span>
         </StatusPill>
 

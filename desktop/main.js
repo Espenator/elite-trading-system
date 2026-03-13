@@ -16,6 +16,20 @@ const { peerMonitor } = require('./peer-monitor');
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let appQuitting = false;
 
+// In dev, frontend URL from .embodier-ports.json (from run_full_stack_24_7 / start-embodier) or default 5173
+function getDevFrontendUrl() {
+  const portsPath = path.join(__dirname, '..', '.embodier-ports.json');
+  try {
+    if (fs.existsSync(portsPath)) {
+      const raw = fs.readFileSync(portsPath, 'utf8');
+      const ports = JSON.parse(raw);
+      const port = ports.frontendPort || 5173;
+      return `http://localhost:${port}`;
+    }
+  } catch (_) {}
+  return 'http://localhost:5173';
+}
+
 // Fix Electron cache permission error — set cache path before any window creation
 app.setPath('cache', path.join(app.getPath('userData'), 'Cache'));
 
@@ -144,7 +158,7 @@ async function createMainWindow() {
 
   // ── Dev mode: bulletproof Vite connection ──────────────────────────────
   if (isDev) {
-    const devUrl = 'http://localhost:3000';
+    const devUrl = getDevFrontendUrl();
     let devToolsOpened = false;
     let loadRetryCount = 0;
     const MAX_LOAD_RETRIES = 30;
@@ -183,7 +197,7 @@ async function createMainWindow() {
     mainWindow.webContents.on('did-finish-load', () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       const currentUrl = mainWindow.webContents.getURL();
-      if (currentUrl.startsWith('http://localhost:3000') && !devToolsOpened) {
+      if (currentUrl.startsWith('http://localhost') && !devToolsOpened) {
         devToolsOpened = true;
         loadRetryCount = 0; // Reset retries on success
         console.log('[main] Vite app loaded successfully');
@@ -360,6 +374,17 @@ function registerIpcHandlers() {
   // Setup wizard completion
   ipcMain.on('setup-complete', async (_event, config) => {
     console.log('[main] Setup wizard completed:', config.deviceName, config.deviceRole);
+
+    // Validate and log warnings (do not block launch)
+    try {
+      const { validateSetupConfig } = require('./setup-validator');
+      const { valid, warnings } = validateSetupConfig(config);
+      if (warnings && warnings.length > 0) {
+        warnings.forEach((w) => console.warn('[main] Setup warning:', w));
+      }
+    } catch (err) {
+      console.warn('[main] Setup validation error:', err.message);
+    }
 
     // Save configuration via device-config
     deviceConfig.completeSetup(config);

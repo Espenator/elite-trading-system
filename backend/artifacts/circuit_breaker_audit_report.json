@@ -1,0 +1,13 @@
+{
+  "agent": "circuit_breakers",
+  "normal_conditions_pass": true,
+  "flash_crash_halts": true,
+  "vix_spike_halts": true,
+  "daily_drawdown_halts": true,
+  "position_limit_halts": true,
+  "market_hours_halts": true,
+  "runner_skips_council_on_halt": true,
+  "execution_time_ms": 0,
+  "thresholds_from_directives": true,
+  "errors": []
+}

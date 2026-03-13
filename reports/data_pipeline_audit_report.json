@@ -1,0 +1,15 @@
+{
+  "agent": "data_pipeline",
+  "feature_aggregator_returns_data": true,
+  "features_non_empty": true,
+  "alpaca_bars_valid": false,
+  "vix_data_available": false,
+  "regime_classifiable": true,
+  "data_freshness_ok": true,
+  "graceful_degradation": true,
+  "no_yfinance": true,
+  "blackboard_populated": true,
+  "errors": [
+    "Alpaca get_latest_bars returned no result"
+  ]
+}

@@ -54,6 +54,52 @@ def _next_id(patterns: list) -> int:
     return max(p.get("id", 0) for p in patterns) + 1
 
 
+@router.get("/feed")
+async def get_pattern_feed():
+    """
+    Return recent pattern detection feed entries (reverse chronological).
+    Derives feed from detected patterns — each detection is a feed event.
+    """
+    patterns = _get_patterns()
+    feed = []
+    for p in reversed(patterns[-50:]):
+        feed.append({
+            "id": p.get("id", 0),
+            "timestamp": p.get("detected", ""),
+            "symbol": p.get("ticker", ""),
+            "pattern": p.get("pattern", ""),
+            "confidence": p.get("confidence", 0),
+            "direction": p.get("direction", ""),
+            "agent": p.get("source", "agent"),
+            "action": f"{p.get('pattern', '')} detected — {p.get('direction', '')} {p.get('confidence', 0)}%",
+        })
+    return {"feed": feed, "count": len(feed)}
+
+
+@router.get("/forming")
+async def get_forming_patterns():
+    """
+    Return currently forming/incomplete patterns.
+    Patterns with confidence < 70 are considered 'forming' (not yet confirmed).
+    """
+    patterns = _get_patterns()
+    forming = [
+        {
+            "id": p.get("id", 0),
+            "name": p.get("pattern", ""),
+            "symbol": p.get("ticker", ""),
+            "confidence": p.get("confidence", 0),
+            "direction": p.get("direction", ""),
+            "timeframe": p.get("timeframe", ""),
+            "detected": p.get("detected", ""),
+            "data": [],  # placeholder for mini-chart data
+        }
+        for p in patterns
+        if p.get("confidence", 0) < 70
+    ][-20:]
+    return {"forming": forming, "count": len(forming)}
+
+
 @router.get("")
 async def get_patterns():
     """

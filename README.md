@@ -650,6 +650,27 @@ python server.py           # gRPC on :50051
 pwsh .\start-embodier.ps1
 ```
 
+### 5. Run backend + frontend (one backend, no DuckDB lock)
+
+You need **exactly one backend** so DuckDB isn’t locked (the app exits with “file in use” if a second instance starts).
+
+1. **Stop any other backend** — Close other terminals running uvicorn for this project. Optional: stop stray Python backends:
+   ```powershell
+   Get-Process python -ErrorAction SilentlyContinue | Where-Object {(Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").CommandLine -match "uvicorn|start_server"} | Stop-Process -Force
+   ```
+2. **Start once** — From repo root: `.\start-embodier.ps1` (cleans up, picks ports, starts frontend + backend). Or manually: `cd backend` → `.\venv\Scripts\Activate.ps1` → `$env:PORT = "8000"` → `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`.
+3. **Frontend** — If not using the launcher, set `VITE_BACKEND_URL=http://localhost:8000` so the frontend and WebSocket use the correct backend.
+
+**URLs when running:**
+
+| Service | URL |
+|--------|-----|
+| Backend API docs | http://localhost:8000/docs |
+| Health | http://localhost:8000/health |
+| Startup check | http://localhost:8000/api/v1/health/startup-check |
+| WebSocket | ws://localhost:8000/ws?token=\<API_AUTH_TOKEN\> |
+| Frontend | http://localhost:5180/ or http://localhost:5173/ |
+
 ---
 
 ## 🏗️ Architecture

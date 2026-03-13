@@ -1,0 +1,47 @@
+# Deployment + Monitoring Audit — Evidence (March 12, 2026)
+
+## Commands (reproducible)
+
+# Verify config loads (from backend/)
+python -c "from app.core.config import settings; print('TRADING_MODE', settings.TRADING_MODE); print('KELLY_MAX', settings.KELLY_MAX_ALLOCATION); print('MAX_HEAT', settings.MAX_PORTFOLIO_HEAT); print('MAX_DAILY_TRADES', settings.MAX_DAILY_TRADES)"
+
+# List scheduler jobs (when backend running)
+# curl -s http://localhost:8000/api/v1/status/scheduler  (if exposed) or check logs for "Flywheel scheduler started"
+
+# Test emergency flatten (paper only; requires API_AUTH_TOKEN in .env)
+# curl -X POST "http://localhost:8000/api/v1/orders/flatten-all" -H "Authorization: Bearer YOUR_API_AUTH_TOKEN"
+
+## Key file paths (verified)
+
+backend/.env.example
+backend/app/core/config.py
+backend/app/core/security.py
+backend/app/services/slack_notification_service.py
+backend/app/services/slack_alerter.py
+backend/app/main.py (lines 570-603, 616-671)
+backend/app/jobs/scheduler.py
+backend/app/api/v1/metrics_api.py (lines 256-285)
+backend/app/api/v1/risk_shield_api.py
+backend/app/api/v1/orders.py (flatten-all)
+backend/app/services/order_executor.py (emergency_flatten, _slack_alert)
+backend/app/data/duckdb_storage.py (DUCKDB_PATH)
+backend/app/data/storage.py (DB_PATH)
+
+## Config defaults (from config.py)
+
+TRADING_MODE=paper (line 32)
+KELLY_MAX_ALLOCATION=0.25 (201)
+MAX_PORTFOLIO_HEAT=0.06 (205)
+MAX_DAILY_TRADES=10 (356)
+Live validation: 436-449 (ALPACA_*, API_AUTH_TOKEN)
+
+## Slack channels (hardcoded slack_notification_service.py 34-36)
+
+CH_SIGNALS = "#trade-alerts"
+CH_EXECUTIONS = "#oc-trade-desk"
+CH_SYSTEM = "#embodier-trader"
+
+## MessageBus alert topics -> Slack (main.py 598-603)
+
+alert.health, alert.agent_failure, alert.data_starvation, alert.council_degraded, alert.websocket_circuit_open
+-> _bridge_alert_to_slack -> send_alert -> #embodier-trader

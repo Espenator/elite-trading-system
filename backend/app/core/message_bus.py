@@ -118,6 +118,8 @@ class MessageBus:
         "position.partial_exit",
         "position.closed",
         "symbol.prep.ready",
+        # ── Agent 7: circuit breaker learning (halt → learning signal) ──
+        "circuit_breaker.halt",
         # ── C8: Data source → MessageBus wiring ──
         "macro.fred",
         "perception.insider",
@@ -159,6 +161,31 @@ class MessageBus:
         "ingest.dlq",
         "ingest.to_awareness",
         "ingest.awareness_enriched",
+        # ── Data swarm (24/7 collection: Alpaca, UW, FinViz) ──
+        "data.price.realtime",
+        "data.quotes",
+        "data.bars",
+        "data.price.snapshot",
+        "data.bars.history",
+        "data.futures",
+        "data.market_pulse",
+        "data.price.uw",
+        "data.flow.alerts",
+        "data.gex",
+        "data.news",
+        "data.price.uw_rest",
+        "data.market.tide",
+        "data.market.sectors",
+        "data.gex.levels",
+        "data.flow.options",
+        "data.flow.darkpool",
+        "data.flow.lit",
+        "data.options.maxpain",
+        "data.price.finviz",
+        "data.screener.signals",
+        "data.futures.finviz",
+        "system.swarm.health",
+        "system.collector.health",
     }
 
     # Topics bridged through Redis when cluster mode is active.

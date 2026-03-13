@@ -228,15 +228,31 @@ async def get_risk_proposal(symbol: str):
         equity = 0
         buying_power = 0
     max_notional = buying_power * 0.25 if buying_power else 0
+    max_shares = int(position_limit * 100) if position_limit else 100
+    proposed_size = min(100, max_shares)
+    # Always return displayable values for Dashboard (stub when no live levels)
+    proposal = {
+        "proposedSize": proposed_size,
+        "maxShares": max_shares,
+        "shares": proposed_size,
+        "limitPrice": 0.0,
+        "stopLoss": 0.0,
+        "takeProfit": 0.0,
+        "target1": 0.0,
+        "notional": round(max_notional, 2),
+        "rr": "0",
+        "rMultiple": 0.0,
+    }
     return {
         "symbol": symbol or "?",
         "allowed": True,
-        "maxShares": 0,
+        "maxShares": max_shares,
         "maxNotional": round(max_notional, 2),
         "positionSizeLimit": position_limit,
         "reason": "OK",
         "equity": round(equity, 2),
         "buyingPower": round(buying_power, 2),
+        "proposal": proposal,
     }
 
 

@@ -1,0 +1,40 @@
+# Release tag: when main is green, manually trigger to tag as vX.Y.Z.
+# Run from Actions tab: "Run workflow" → enter version (e.g. 5.0.1) → creates tag v5.0.1.
+
+name: Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 5.0.1) — will create tag v5.0.1"
+        required: true
+        type: string
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version format
+        run: |
+          V="${{ github.event.inputs.version }}"
+          if [[ ! "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Invalid version: $V (use e.g. 5.0.1 or 5.0.2-beta)"
+            exit 1
+          fi
+          echo "TAG=v$V" >> $GITHUB_ENV
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+        env:
+          TAG: ${{ env.TAG }}

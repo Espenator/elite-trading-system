@@ -14,15 +14,13 @@ from fastapi import WebSocket, WebSocketDisconnect, Query
 
 logger = logging.getLogger(__name__)
 
-# Channels allowed for WS subscription (subset of MessageBus or UI channels)
+# Channels allowed for WS subscription (must match _VALID_WS_CHANNELS in main.py and frontend WS_CHANNELS)
 WS_ALLOWED_CHANNELS: Set[str] = {
-    # Core trading channels
-    "order", "risk", "kelly", "signals", "council", "health",
-    "market_data", "alerts", "outcomes", "system",
-    # Frontend dashboard channels (must match frontend WS_CHANNELS in config/api.js)
-    "agents", "data_sources", "datasources", "trades", "logs",
-    "sentiment", "alignment", "council_verdict",
-    "homeostasis", "circuit_breaker", "swarm", "macro", "market",
+    "signal", "signals", "order", "council", "council_verdict",
+    "risk", "swarm", "kelly", "market", "macro", "blackboard",
+    "alerts", "performance", "agents", "data_sources", "datasources",
+    "trades", "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
+    "health", "market_data", "outcomes", "system", "briefing",
 }
 
 # --- Connection Registry ---
@@ -159,28 +157,31 @@ async def send_to(websocket: WebSocket, data: dict):
 
 
 async def heartbeat_loop():
-    """Background task: send pings and clean up dead connections."""
+    """Background task: send pings and clean up dead connections. Never exits — 24/7 resilient."""
     while True:
-        await asyncio.sleep(HEARTBEAT_INTERVAL)
-        now = time.time()
-        dead = set()
-        for ws in list(_ws_connections):
-            last = _last_heartbeat.get(ws, 0)
-            if now - last > HEARTBEAT_TIMEOUT:
-                dead.add(ws)
-                continue
-            try:
-                await ws.send_json({"type": "ping", "ts": now})
-            except Exception:
-                dead.add(ws)
-        for ws in dead:
-            remove_connection(ws)
-            try:
-                await ws.close()
-            except Exception:
-                pass
-        if dead:
-            logger.info(f"Heartbeat cleaned {len(dead)} dead connections")
+        try:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            now = time.time()
+            dead = set()
+            for ws in list(_ws_connections):
+                last = _last_heartbeat.get(ws, 0)
+                if now - last > HEARTBEAT_TIMEOUT:
+                    dead.add(ws)
+                    continue
+                try:
+                    await ws.send_json({"type": "ping", "ts": now})
+                except Exception:
+                    dead.add(ws)
+            for ws in dead:
+                remove_connection(ws)
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("heartbeat_loop: error (continuing for 24/7)")
 
 
 def handle_pong(websocket: WebSocket):

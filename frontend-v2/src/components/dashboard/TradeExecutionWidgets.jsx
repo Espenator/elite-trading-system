@@ -553,13 +553,16 @@ export function CouncilDecisionPanel({
 
   const d = data;
 
-  /* Format timestamp */
+  /* Format timestamp — guard against undefined/null/invalid */
   const fmtTs = (ts) => {
+    if (!ts) return '—';
     try {
-      return new Date(ts).toLocaleTimeString('en-US', {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleTimeString('en-US', {
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
       });
-    } catch { return ts; }
+    } catch { return '—'; }
   };
 
   const dirColor =
@@ -812,9 +815,9 @@ export function CouncilDecisionPanel({
           background: C.bg0,
         }}
       >
-        {/* Execute Trade */}
+        {/* Execute Trade — pass verdict data so parent can submit order */}
         <button
-          onClick={d ? onExecute : undefined}
+          onClick={d ? () => onExecute(d) : undefined}
           disabled={!d}
           className="flex-1 font-mono font-bold uppercase transition-all"
           style={{
@@ -835,9 +838,9 @@ export function CouncilDecisionPanel({
           Execute Trade
         </button>
 
-        {/* Override */}
+        {/* Override — pass verdict data */}
         <button
-          onClick={d ? onOverride : undefined}
+          onClick={d ? () => onOverride(d) : undefined}
           disabled={!d}
           className="font-mono font-semibold uppercase transition-all"
           style={{

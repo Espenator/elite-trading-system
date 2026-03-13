@@ -29,6 +29,8 @@ import {
   Sparkles,
   BarChart3,
   Radar,
+  ExternalLink,
+  Activity,
 } from "lucide-react";
 import { useApi } from "../../hooks/useApi";
 
@@ -65,11 +67,13 @@ const navSections = [
       { to: "/trades",         icon: LineChart, label: "Active Trades"    },
       { to: "/risk",           icon: Shield,    label: "Risk Intelligence" },
       { to: "/trade-execution", icon: Crosshair, label: "Trade Execution" },
+      { to: "/tradingview",    icon: ExternalLink, label: "TradingView Bridge" },
     ],
   },
   {
     label: "SYSTEM",
     items: [
+      { to: "/startup-health", icon: Activity, label: "Startup Health" },
       { to: "/settings", icon: Settings, label: "Settings" },
     ],
   },

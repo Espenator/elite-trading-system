@@ -46,6 +46,11 @@ class DevFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         cid = correlation_id.get("-")
         cid_str = f" [{cid[:8]}]" if cid != "-" else ""
+        tid = trace_id.get("-")
+        eid = eval_id.get("-")
+        if tid != "-" or eid != "-":
+            cid_str += f" [trace={tid[:8]}]" if tid != "-" else ""
+            cid_str += f" [eval={eid[:8]}]" if eid != "-" else ""
         record.cid = cid_str
         return super().format(record)
 

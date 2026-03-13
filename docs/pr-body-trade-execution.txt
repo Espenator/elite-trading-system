@@ -1,0 +1,16 @@
+## Summary
+- **Order confirmation**: Every order opens a confirmation modal with full details before submission.
+- **Emergency stop**: Red Kill Switch button with double confirmation; calls POST /orders/emergency-stop.
+- **Account bar**: Header shows buying power, equity, cash from portfolio/alpaca account.
+- **Recent orders**: Last 10 orders with symbol and status in the order panel from GET /orders/recent.
+
+## Changes
+- api.js: Added orders/recent endpoint.
+- tradeExecutionService.js: getRecentOrders, emergencyStop; executeOrder supports orderType/timeInForce.
+- useTradeExecution.js: orderForm extended with side, orderType, timeInForce; recentOrders state; submitOrder(); fetch recent orders in fetchAll.
+- TradeExecution.jsx: Confirmation modal, kill switch double-confirm modal, account info + Kill Switch in header, quick bar uses openConfirmModal, Place order button opens confirm modal, recent orders list.
+
+## Acceptance
+- Submit order -> confirmation modal -> place -> order appears in recent orders.
+- Emergency stop -> first confirm -> second confirm -> all positions closed, orders cancelled.
+- Account bar shows real buying power/equity/cash.

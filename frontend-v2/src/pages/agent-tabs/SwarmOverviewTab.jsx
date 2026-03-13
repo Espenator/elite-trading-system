@@ -341,25 +341,109 @@ function AgentHealthMatrix({ agents }) {
 
 // ─── QUICK ACTIONS (mockup 01: Restart All blue, Stop All red, Spawn Team green, Run Conference purple, Emergency Kill red) ────────────────────────────────────────────────────────────
 
-async function quickActionApi(path, method = "POST") {
-  const res = await fetch(getApiUrl("agents") + path, { method, headers: getAuthHeaders() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+async function quickActionApi(path, method = "POST", body = undefined) {
+  const headers = { ...getAuthHeaders() };
+  if (body) headers["Content-Type"] = "application/json";
+  const res = await fetch(getApiUrl("agents") + path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail?.detail || detail?.message || `HTTP ${res.status}`);
+  }
   return res.json();
 }
 
+async function batchAgentAction(action) {
+  // Try batch endpoint first; if 422 (route ordering), fall back to individual agents
+  try {
+    const res = await fetch(getApiUrl("agents") + `/batch/${action}`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+    if (res.ok) return res.json();
+    if (res.status === 422) {
+      // Fallback: call individual agents 1-5
+      const results = await Promise.allSettled(
+        [1, 2, 3, 4, 5].map(id =>
+          fetch(getApiUrl("agents") + `/${id}/${action}`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+          }).then(r => { if (!r.ok) throw new Error(`Agent ${id}: HTTP ${r.status}`); return r.json(); })
+        )
+      );
+      const ok = results.filter(r => r.status === "fulfilled").length;
+      const failed = results.filter(r => r.status === "rejected").length;
+      if (failed > 0 && ok === 0) throw new Error(`All ${failed} agents failed`);
+      return { ok: true, results: results.map((r, i) => ({ agent_id: i + 1, status: r.status === "fulfilled" ? "success" : "failed" })) };
+    }
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail?.detail || `HTTP ${res.status}`);
+  } catch (e) {
+    if (e.message?.includes("agents failed")) throw e;
+    throw new Error(e?.message || "network error");
+  }
+}
+
 async function emergencyStopApi() {
-  const res = await fetch(getApiUrl("orders/emergency-stop"), { method: "POST", headers: getAuthHeaders() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(getApiUrl("orders/emergency-stop"), {
+      method: "POST",
+      headers: getAuthHeaders(),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}));
+      throw new Error(detail?.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  } catch (e) {
+    clearTimeout(timeout);
+    if (e.name === "AbortError") throw new Error("Request timed out — check system manually");
+    throw e;
+  }
+}
+
+async function runConferenceApi() {
+  // Try POST to trigger conference, fall back to GET data display
+  const res = await fetch(getApiUrl("agents") + "/conference", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ action: "start" }),
+  });
+  if (res.ok) return res.json();
+  // POST may return 405 (Method Not Allowed) — that's expected if no POST handler
+  if (res.status === 405) {
+    // Fall back to GET to show current conference data
+    const getRes = await fetch(getApiUrl("conference"), { headers: getAuthHeaders() });
+    if (getRes.ok) {
+      const data = await getRes.json();
+      const hasData = data?.last_conference || data?.current || data?.total_conferences > 0;
+      if (hasData) return { ...data, _info: "Showing latest conference result (no POST trigger available)" };
+      throw new Error("No conference data available — council has not run yet");
+    }
+  }
+  const detail = await res.json().catch(() => ({}));
+  throw new Error(detail?.detail || `HTTP ${res.status}`);
 }
 
 function QuickActions({ onRefetch }) {
   const [loading, setLoading] = useState(null);
   const run = async (label, fn) => {
     setLoading(label);
+    toast.info(`${label}...`);
     try {
-      await fn();
-      toast.success(`${label} completed`);
+      const result = await fn();
+      if (result?._info) {
+        toast.info(result._info);
+      } else {
+        toast.success(`${label} completed`);
+      }
       if (typeof onRefetch === "function") setTimeout(onRefetch, 500);
     } catch (e) {
       const msg = typeof e === 'string' ? e : e?.message || e?.detail || (typeof e === 'object' ? JSON.stringify(e) : 'network error');
@@ -369,11 +453,14 @@ function QuickActions({ onRefetch }) {
     }
   };
   const actions = [
-    { label: "Restart All",   color: "bg-[#3b82f6] text-white border-[#3b82f6]", fn: () => quickActionApi("/batch/restart") },
-    { label: "Stop All",     color: "bg-[#ef4444] text-white border-[#ef4444]", fn: () => quickActionApi("/batch/stop") },
-    { label: "Spawn Team",   color: "bg-[#10b981] text-white border-[#10b981]", fn: () => quickActionApi("/batch/start") },
-    { label: "Run Conference", color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", fn: () => { toast.info("Conference triggered via council; no dedicated endpoint."); } },
-    { label: "Emergency Kill", color: "bg-[#ef4444] text-white border-[#ef4444]", fn: emergencyStopApi },
+    { label: "Restart All",    color: "bg-[#3b82f6] text-white border-[#3b82f6]", fn: () => batchAgentAction("restart") },
+    { label: "Stop All",       color: "bg-[#ef4444] text-white border-[#ef4444]", fn: () => batchAgentAction("stop") },
+    { label: "Spawn Team",     color: "bg-[#10b981] text-white border-[#10b981]", fn: () => batchAgentAction("start") },
+    { label: "Run Conference",  color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", fn: runConferenceApi },
+    { label: "Emergency Kill",  color: "bg-[#ef4444] text-white border-[#ef4444]", fn: () => {
+      if (!window.confirm("⚠️ Emergency Kill: Cancel all orders and close all positions?")) throw new Error("Cancelled by user");
+      return emergencyStopApi();
+    }},
   ];
   return (
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
@@ -461,21 +548,61 @@ function LiveActivityFeed({ agents }) {
   const [items, setItems] = useState([]);
   const feedRef = useRef([]);
   const colorMap = useRef({});
+  const polledRef = useRef(false);
   const colors = ["text-emerald-400","text-[#00D9FF]","text-amber-400","text-purple-400","text-red-400","text-blue-400"];
 
+  const addItem = useCallback((name, action) => {
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+    if (!colorMap.current[name]) colorMap.current[name] = colors[Object.keys(colorMap.current).length % colors.length];
+    feedRef.current = [{ id: Date.now() + Math.random(), time, agent: name, action, color: colorMap.current[name] }, ...feedRef.current].slice(0, 40);
+    setItems([...feedRef.current]);
+  }, []);
+
+  // WebSocket listener
   useEffect(() => {
     const handler = (msg) => {
       if (!msg) return;
-      const now = new Date();
-      const time = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
       const name = msg.agent_name || msg.agent || msg.type || "system";
-      if (!colorMap.current[name]) colorMap.current[name] = colors[Object.keys(colorMap.current).length % colors.length];
-      feedRef.current = [{ id: Date.now() + Math.random(), time, agent: name, action: msg.action || msg.message || msg.reasoning || JSON.stringify(msg).slice(0, 100), color: colorMap.current[name] }, ...feedRef.current].slice(0, 40);
-      setItems([...feedRef.current]);
+      addItem(name, msg.action || msg.message || msg.reasoning || JSON.stringify(msg).slice(0, 100));
     };
     ws.subscribe("agents", handler);
     ws.subscribe("council", handler);
     return () => { ws.unsubscribe("agents", handler); ws.unsubscribe("council", handler); };
+  }, [addItem]);
+
+  // API polling fallback — load recent logs from GET /agents if WS feed is empty
+  useEffect(() => {
+    if (polledRef.current || feedRef.current.length > 0) return;
+    polledRef.current = true;
+    fetch(getApiUrl("agents"), { headers: getAuthHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        const logs = data.logs || [];
+        // Also gather last_actions from each agent
+        const agentActions = (data.agents || []).flatMap(a =>
+          (a.last_actions || []).map(la => ({ ...la, agent: a.name || a.agent_name }))
+        );
+        const all = [...logs, ...agentActions]
+          .sort((a, b) => (b.time || "").localeCompare(a.time || ""))
+          .slice(0, 20);
+        if (all.length > 0 && feedRef.current.length === 0) {
+          all.forEach(log => {
+            const name = log.agent || log.agent_name || "system";
+            if (!colorMap.current[name]) colorMap.current[name] = colors[Object.keys(colorMap.current).length % colors.length];
+            feedRef.current.push({
+              id: Date.now() + Math.random(),
+              time: log.time || "—",
+              agent: name,
+              action: log.message || log.msg || "—",
+              color: colorMap.current[name],
+            });
+          });
+          setItems([...feedRef.current]);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -483,7 +610,7 @@ function LiveActivityFeed({ agents }) {
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">LIVE AGENT ACTIVITY FEED</h3>
       <div className="flex-1 space-y-0.5 overflow-y-auto scrollbar-thin font-mono min-h-0">
         {items.length === 0 ? (
-          <div className="text-[10px] text-gray-500 text-center py-6">Waiting for agent activity...</div>
+          <div className="text-[10px] text-gray-500 text-center py-6">No recent activity</div>
         ) : (
           items.map(it => (
             <div key={it.id} className="flex gap-2 text-[10px] hover:bg-[#00D9FF]/5 px-1 py-0.5 rounded cursor-pointer">
@@ -504,15 +631,20 @@ function LiveActivityFeed({ agents }) {
 function ResourceMonitor({ agents = [] }) {
   const rows = agents.length > 0 ? agents.map(a => ({
     name: a.name || a.agent_name || "Agent",
-    cpu: a.cpu ?? a.cpu_usage ?? 0,
-    mem: a.memory_mb != null ? `${a.memory_mb}MB` : (a.mem != null ? `${a.mem}MB` : "0MB"),
+    cpu: a.cpu ?? a.cpu_usage ?? a.cpuPercent ?? null,
+    memRaw: a.memory_mb ?? a.memoryMb ?? a.mem ?? null,
     tokens: a.tokens_per_hour ?? a.tokens ?? 0,
     status: a.status || a.health || "unknown",
   })) : [];
 
+  const allZero = rows.length > 0 && rows.every(r => (r.cpu === 0 || r.cpu === null) && (r.memRaw === 0 || r.memRaw === null));
+
   return (
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">AGENT RESOURCE MONITOR</h3>
+      {allZero && (
+        <div className="text-[9px] text-gray-500 mb-2 px-1">Resource metrics available when agents report process-level data</div>
+      )}
       <table className="w-full text-[10px]">
         <thead>
           <tr className="text-[#64748b] border-b border-[#1e293b]">
@@ -524,31 +656,43 @@ function ResourceMonitor({ agents = [] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.name || i} className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
-              <td className="py-1 text-[#00D9FF] font-mono">{r.name}</td>
-              <td className="font-mono">
-                <div className="flex items-center gap-1">
-                  <span className={r.cpu > 80 ? "text-red-400" : r.cpu > 50 ? "text-amber-400" : "text-white"}>{r.cpu}%</span>
-                  <div className="w-10 h-1 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-[#00D9FF]/60" style={{ width: `${r.cpu}%` }} />
-                  </div>
-                </div>
-              </td>
-              <td className="text-white font-mono">
-                <div className="flex items-center gap-1">
-                  <span>{r.mem}</span>
-                  <div className="w-8 h-1 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-blue-400/60" style={{ width: `${Math.min(100, parseInt(r.mem) / 15)}%` }} />
-                  </div>
-                </div>
-              </td>
-              <td className="text-right text-gray-300 font-mono">{r.tokens?.toLocaleString()}</td>
-              <td className="text-right">
-                <div className={`w-2 h-2 rounded-full inline-block ${r.status === "healthy" || r.status === "running" ? "bg-emerald-400" : r.status === "warn" || r.status === "degraded" ? "bg-amber-400" : "bg-gray-600"}`} />
-              </td>
-            </tr>
-          ))}
+          {rows.map((r, i) => {
+            const cpuVal = r.cpu != null && r.cpu > 0 ? r.cpu : null;
+            const memVal = r.memRaw != null && r.memRaw > 0 ? r.memRaw : null;
+            return (
+              <tr key={r.name || i} className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
+                <td className="py-1 text-[#00D9FF] font-mono">{r.name}</td>
+                <td className="font-mono">
+                  {cpuVal != null ? (
+                    <div className="flex items-center gap-1">
+                      <span className={cpuVal > 80 ? "text-red-400" : cpuVal > 50 ? "text-amber-400" : "text-white"}>{cpuVal}%</span>
+                      <div className="w-10 h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-[#00D9FF]/60" style={{ width: `${cpuVal}%` }} />
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-gray-600">{"\u2014"}</span>
+                  )}
+                </td>
+                <td className="text-white font-mono">
+                  {memVal != null ? (
+                    <div className="flex items-center gap-1">
+                      <span>{memVal}MB</span>
+                      <div className="w-8 h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-blue-400/60" style={{ width: `${Math.min(100, memVal / 15)}%` }} />
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-gray-600">{"\u2014"}</span>
+                  )}
+                </td>
+                <td className="text-right text-gray-300 font-mono">{r.tokens > 0 ? r.tokens.toLocaleString() : "\u2014"}</td>
+                <td className="text-right">
+                  <div className={`w-2 h-2 rounded-full inline-block ${r.status === "healthy" || r.status === "running" ? "bg-emerald-400" : r.status === "warn" || r.status === "degraded" ? "bg-amber-400" : "bg-gray-600"}`} />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

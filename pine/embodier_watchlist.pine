@@ -1,0 +1,47 @@
+// @version=5
+indicator("Embodier Watchlist", overlay=false, max_labels_count=0, max_boxes_count=0)
+
+// ─── Paste input: comma-separated rows ───────────────────────────────────────
+// Format: SYMBOL:direction:entry:stop:t1:t2:score[, ...]
+// Example: AAPL:buy:178.50:174.80:186.60:190.30:87,MSFT:buy:300.00:295.00:310.00:315.00:75
+pasteInput = input.string("", "Paste briefing (Symbol:dir:Entry:Stop:T1:T2:Score,...)", group="Watchlist", tooltip="Paste from Embodier Watchlist Export. One row per symbol, comma-separated.")
+
+// ─── Parse rows (max 10) ────────────────────────────────────────────────────
+splitRows = str.split(pasteInput, ",")
+maxRows = math.min(10, array.size(splitRows))
+
+// ─── Table ──────────────────────────────────────────────────────────────────
+var table t = table.new(position.top_right, 9, 11)
+
+if barstate.isfirst
+    // Headers
+    table.cell(t, 0, 0, "Symbol",  text_color=color.gray, text_size=size.small)
+    table.cell(t, 1, 0, "Direction", text_color=color.gray, text_size=size.small)
+    table.cell(t, 2, 0, "Score",    text_color=color.gray, text_size=size.small)
+    table.cell(t, 3, 0, "Entry",    text_color=color.gray, text_size=size.small)
+    table.cell(t, 4, 0, "Stop",     text_color=color.gray, text_size=size.small)
+    table.cell(t, 5, 0, "T1",       text_color=color.gray, text_size=size.small)
+    table.cell(t, 6, 0, "T2",       text_color=color.gray, text_size=size.small)
+    table.cell(t, 7, 0, "Regime",  text_color=color.gray, text_size=size.small)
+
+for i = 0 to maxRows - 1
+    rowStr = array.get(splitRows, i)
+    parts = str.split(rowStr, ":")
+    sym   = array.size(parts) > 0 ? array.get(parts, 0) : "—"
+    dir   = array.size(parts) > 1 ? array.get(parts, 1) : "—"
+    entry = array.size(parts) > 2 ? array.get(parts, 2) : "—"
+    stop  = array.size(parts) > 3 ? array.get(parts, 3) : "—"
+    t1    = array.size(parts) > 4 ? array.get(parts, 4) : "—"
+    t2    = array.size(parts) > 5 ? array.get(parts, 5) : "—"
+    score = array.size(parts) > 6 ? array.get(parts, 6) : "—"
+    regime = array.size(parts) > 7 ? array.get(parts, 7) : "—"
+    row = i + 1
+    bg = dir == "sell" or dir == "short" ? color.new(color.red, 90) : color.new(color.green, 90)
+    table.cell(t, 0, row, sym,   bgcolor=bg, text_size=size.small)
+    table.cell(t, 1, row, dir,   bgcolor=bg, text_size=size.small)
+    table.cell(t, 2, row, score, bgcolor=bg, text_size=size.small)
+    table.cell(t, 3, row, entry, bgcolor=bg, text_size=size.small)
+    table.cell(t, 4, row, stop,  bgcolor=bg, text_size=size.small)
+    table.cell(t, 5, row, t1,    bgcolor=bg, text_size=size.small)
+    table.cell(t, 6, row, t2,    bgcolor=bg, text_size=size.small)
+    table.cell(t, 7, row, regime, bgcolor=bg, text_size=size.small)

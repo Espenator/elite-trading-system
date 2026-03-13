@@ -2,7 +2,7 @@
 // Market Regime — AI Brain's Macro Intelligence Center (Page 10/15)
 // Route: /market-regime
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import clsx from "clsx";
 import { format } from "date-fns";
+import { toast } from "react-toastify";
 import {
   useRegimeState,
   useMacroState,
@@ -22,6 +23,10 @@ import {
   useRegimePerformance,
   useSectorRotation,
   useRegimeTransitions,
+  useMemoryIntelligence,
+  useWhaleFlow,
+  useRiskGauges,
+  useBridgeHealth,
   postBiasOverride,
 } from "../hooks/useApi";
 import { useApi } from "../hooks/useApi";
@@ -30,17 +35,17 @@ import ws from "../services/websocket";
 import log from "@/utils/logger";
 
 // ============================================================
-// CONSTANTS
+// CONSTANTS — Aurora theme; GREEN #00FF00 / RED #FF4444 per spec
 // ============================================================
 const REGIME_COLORS = {
   GREEN: {
-    bg: "bg-emerald-500",
-    text: "text-emerald-400",
-    hex: "#10B981",
-    hexBright: "#34D399",
-    bgFaint: "bg-emerald-500/10",
-    border: "border-emerald-500/40",
-    badgeBg: "bg-emerald-600",
+    bg: "bg-[#00FF00]/90",
+    text: "text-[#00FF00]",
+    hex: "#00FF00",
+    hexBright: "#00FF00",
+    bgFaint: "bg-[#00FF00]/10",
+    border: "border-[#00FF00]/40",
+    badgeBg: "bg-[#00CC00]",
   },
   YELLOW: {
     bg: "bg-amber-500",
@@ -52,13 +57,13 @@ const REGIME_COLORS = {
     badgeBg: "bg-amber-600",
   },
   RED: {
-    bg: "bg-red-500",
-    text: "text-red-400",
-    hex: "#EF4444",
-    hexBright: "#F87171",
-    bgFaint: "bg-red-500/10",
-    border: "border-red-500/40",
-    badgeBg: "bg-red-600",
+    bg: "bg-[#FF4444]/90",
+    text: "text-[#FF4444]",
+    hex: "#FF4444",
+    hexBright: "#FF4444",
+    bgFaint: "bg-[#FF4444]/10",
+    border: "border-[#FF4444]/40",
+    badgeBg: "bg-[#CC3333]",
   },
   RED_RECOVERY: {
     bg: "bg-orange-500",
@@ -68,23 +73,6 @@ const REGIME_COLORS = {
     bgFaint: "bg-orange-500/10",
     border: "border-orange-500/40",
     badgeBg: "bg-orange-600",
-  },
-};
-
-const REGIME_PARAMS_DEFAULT = {
-  GREEN: { risk_pct: 2.0, max_positions: 6, kelly_mult: 1.5, signal_mult: 1.1 },
-  YELLOW: {
-    risk_pct: 1.5,
-    max_positions: 5,
-    kelly_mult: 1.0,
-    signal_mult: 1.0,
-  },
-  RED: { risk_pct: 5.0, max_positions: 0, kelly_mult: 0.0, signal_mult: 0.0 },
-  RED_RECOVERY: {
-    risk_pct: 1.0,
-    max_positions: 4,
-    kelly_mult: 0.75,
-    signal_mult: 0.95,
   },
 };
 
@@ -149,8 +137,10 @@ function KpiCard({ label, value, unit, color, alert }) {
 // ============================================================
 // REGIME BADGE
 // ============================================================
-function RegimeBadge({ state, confidence }) {
+function RegimeBadge({ state, confidence, details }) {
   const rc = REGIME_COLORS[state] || REGIME_COLORS.YELLOW;
+  // FIX #7: Don't show confidence for UNKNOWN when details is null
+  const showConfidence = confidence != null && !(state === "UNKNOWN" && !details);
   return (
     <span
       className={clsx(
@@ -159,7 +149,7 @@ function RegimeBadge({ state, confidence }) {
       )}
     >
       {state}
-      {confidence != null && (
+      {showConfidence && (
         <span className="text-xs font-mono opacity-90">
           {(confidence * 100).toFixed(0)}%
         </span>
@@ -169,9 +159,9 @@ function RegimeBadge({ state, confidence }) {
 }
 
 // ============================================================
-// REGIME STATE MACHINE (mockup: 4 large rectangular buttons in a row)
+// REGIME STATE MACHINE — cells clickable to show details for that regime period
 // ============================================================
-function RegimeStateMachine({ currentState, regimeData }) {
+function RegimeStateMachine({ currentState, regimeData, selectedState, onSelectState, manualOverride, onForceRegime }) {
   const states = ["GREEN", "YELLOW", "RED", "RED_RECOVERY"];
 
   return (
@@ -183,13 +173,21 @@ function RegimeStateMachine({ currentState, regimeData }) {
             const rc = REGIME_COLORS[s];
             const isCurrent = currentState === s;
             return (
-              <div
+              <button
+                type="button"
                 key={s}
+                onClick={() => {
+                  onSelectState?.(s);
+                  // FIX #9: If manual override is ON, clicking forces regime to that state
+                  if (manualOverride && onForceRegime) onForceRegime(s);
+                }}
                 className={clsx(
-                  "rounded-lg px-2 py-3 border text-center transition-all",
+                  "rounded-lg px-2 py-3 border text-center transition-all cursor-pointer hover:opacity-90",
                   isCurrent
-                    ? clsx(rc.bg, "text-white border-transparent")
+                    ? clsx(rc.bg, "text-white border-transparent shadow-lg")
                     : "border-gray-700/30 bg-gray-800/30 text-gray-500",
+                  isCurrent && `shadow-[0_0_12px_${rc.hex}40]`,
+                  selectedState === s && !isCurrent && "ring-2 ring-cyan-400 ring-offset-1 ring-offset-[#111827]",
                 )}
               >
                 <div className="text-[10px] font-bold font-mono leading-tight">
@@ -203,10 +201,19 @@ function RegimeStateMachine({ currentState, regimeData }) {
                     s
                   )}
                 </div>
-              </div>
+                {isCurrent && (
+                  <div className="text-[7px] mt-0.5 opacity-70">CURRENT</div>
+                )}
+              </button>
             );
           })}
         </div>
+        {/* FIX #9: Show UNKNOWN state if current */}
+        {!states.includes(currentState) && currentState && (
+          <div className="mt-1.5 text-center text-[9px] text-gray-400 bg-gray-800/50 rounded px-2 py-1 border border-gray-700/30">
+            Current: <span className="text-amber-400 font-bold">{currentState}</span>
+          </div>
+        )}
         <div className="flex items-center justify-center gap-0.5 mt-2 text-gray-600">
           <span className="text-[10px]">{"\u2193"}</span>
           <span className="text-[10px]">{"\u2191"}</span>
@@ -220,6 +227,20 @@ function RegimeStateMachine({ currentState, regimeData }) {
           </span>
         </div>
       )}
+      {selectedState && (
+        <div className="mt-2 pt-2 border-t border-gray-700/30 text-[10px] text-gray-400">
+          <span className="text-slate-500">Details for </span>
+          <span className={clsx("font-bold", REGIME_COLORS[selectedState]?.text || "text-gray-400")}>
+            {selectedState}
+          </span>
+          {regimeData?.transitions?.length > 0 && (
+            <div className="mt-1">
+              Last transition:{" "}
+              {regimeData.transitions.find((t) => t.to === selectedState)?.timestamp ?? "\u2014"}
+            </div>
+          )}
+        </div>
+      )}
     </Panel>
   );
 }
@@ -229,7 +250,7 @@ function RegimeStateMachine({ currentState, regimeData }) {
 // ============================================================
 function VixMacroChart({ macroData, regimeData, timeframe }) {
   const chartData = useMemo(() => {
-    if (macroData?.vix_history) {
+    if (macroData?.vix_history?.length) {
       return macroData.vix_history.map((d) => ({
         time:
           typeof d.time === "string"
@@ -239,12 +260,7 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
         spy: d.spy,
       }));
     }
-    const now = Date.now();
-    return Array.from({ length: 30 }, (_, i) => ({
-      time: format(new Date(now - (29 - i) * 86400000), "MM/dd"),
-      vix: 0,
-      spy: 0,
-    }));
+    return [];
   }, [macroData, timeframe]);
 
   return (
@@ -266,6 +282,7 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
         VIX{"\u00D7"}Macro Chart
       </PanelTitle>
       <ResponsiveContainer width="100%" height={170}>
+        {chartData.length ? (
         <LineChart
           data={chartData}
           margin={{ top: 5, right: 5, left: -10, bottom: 0 }}
@@ -329,6 +346,11 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
             dot={false}
           />
         </LineChart>
+        ) : (
+          <div className="h-full flex items-center justify-center text-gray-500 text-sm font-mono">
+            No VIX/macro history
+          </div>
+        )}
       </ResponsiveContainer>
     </Panel>
   );
@@ -337,35 +359,27 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
 // ============================================================
 // REGIME PARAMETER PANEL
 // ============================================================
-function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
+function RegimeParamPanel({ paramsData, regimeState, onOverride, onManualToggle }) {
   const [editMode, setEditMode] = useState(false);
   const [localParams, setLocalParams] = useState({});
   const [overrideState, setOverrideState] = useState("AUTO");
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
 
-  const currentParams = REGIME_PARAMS_DEFAULT[regimeState] || {};
+  const currentParams = paramsData ?? {};
 
   const handleSaveParams = async () => {
     setSaving(true);
     setSaveStatus(null);
+    // FIX #2: Ensure numeric values (not NaN/strings), use correct field names
+    const toNum = (v, fallback) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
     const payload = {
       regime: regimeState,
-      risk_pct:
-        localParams.risk_pct ?? paramsData?.risk_pct ?? currentParams.risk_pct,
-      max_positions:
-        localParams.max_positions ??
-        paramsData?.max_positions ??
-        currentParams.max_positions,
-      kelly_mult:
-        localParams.kelly_mult ??
-        paramsData?.kelly_mult ??
-        currentParams.kelly_mult,
-      signal_mult:
-        localParams.signal_mult ??
-        paramsData?.signal_mult ??
-        currentParams.signal_mult,
-      override: overrideState !== "AUTO",
+      risk_pct: toNum(localParams.risk_pct ?? paramsData?.risk_pct, 1.0),
+      max_positions: Math.round(toNum(localParams.max_positions ?? paramsData?.max_positions, 5)),
+      kelly_mult: toNum(localParams.kelly_mult ?? paramsData?.kelly_mult, 1.0),
+      signal_mult: toNum(localParams.signal_mult ?? paramsData?.signal_mult, 1.0),
+      is_override: overrideState !== "AUTO",
     };
     try {
       const res = await fetch(getApiUrl("strategy/regime-params"), {
@@ -373,12 +387,17 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}${errBody ? `: ${errBody.slice(0, 100)}` : ""}`);
+      }
       setSaveStatus("ok");
+      toast.success("Regime parameters saved");
       if (onOverride) onOverride(payload);
       log.info("Regime params saved", payload);
     } catch (e) {
       setSaveStatus("err");
+      toast.error(`Failed to save params: ${e.message}`);
       log.error("Failed to save regime params:", e);
     } finally {
       setSaving(false);
@@ -386,10 +405,10 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
     }
   };
 
-  const riskVal = paramsData?.risk_pct ?? currentParams.risk_pct;
-  const maxPosVal = paramsData?.max_positions ?? currentParams.max_positions;
-  const kellyVal = paramsData?.kelly_mult ?? currentParams.kelly_mult;
-  const signalVal = paramsData?.signal_mult ?? currentParams.signal_mult;
+  const riskVal = paramsData?.risk_pct ?? localParams.risk_pct;
+  const maxPosVal = paramsData?.max_positions ?? localParams.max_positions;
+  const kellyVal = paramsData?.kelly_mult ?? localParams.kelly_mult;
+  const signalVal = paramsData?.signal_mult ?? localParams.signal_mult;
 
   const paramRows = [
     { label: "Risk%", key: "risk_pct", val: riskVal },
@@ -411,6 +430,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
               onClick={() => {
                 setOverrideState(m === "MAN" ? regimeState : "AUTO");
                 setEditMode(m === "MAN");
+                onManualToggle?.(m === "MAN");
               }}
               className={clsx(
                 "px-2 py-0.5 text-[9px] font-bold",
@@ -445,7 +465,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
               <input
                 type="number"
                 step="0.1"
-                value={localParams[p.key] ?? p.val}
+                value={localParams[p.key] ?? p.val ?? ""}
                 onChange={(e) =>
                   setLocalParams({
                     ...localParams,
@@ -483,12 +503,12 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-gray-500">Risk%</span>
-            <span className="text-white font-mono">{riskVal}</span>
+              <span className="text-white font-mono">{riskVal ?? "\u2014"}</span>
           </div>
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-gray-500">Max Positions</span>
             <div className="flex items-center gap-2">
-              <span className="text-white font-mono">{maxPosVal}</span>
+              <span className="text-white font-mono">{maxPosVal ?? "\u2014"}</span>
               <span className="text-gray-600 text-[9px]">Fuel</span>
               <div className="flex gap-0.5">
                 {[...Array(6)].map((_, i) => (
@@ -496,7 +516,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
                     key={i}
                     className={clsx(
                       "w-1.5 h-2.5 rounded-sm",
-                      i < maxPosVal
+                      typeof maxPosVal === "number" && i < maxPosVal
                         ? REGIME_COLORS[regimeState]?.bg || "bg-cyan-500"
                         : "bg-gray-700",
                     )}
@@ -508,11 +528,11 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
           <div className="flex items-center text-[10px] gap-3">
             <div className="flex items-center gap-1">
               <span className="text-gray-500">Kelly</span>
-              <span className="text-white font-mono">{kellyVal}</span>
+              <span className="text-white font-mono">{kellyVal ?? "\u2014"}</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="text-gray-500">Signal Mult</span>
-              <span className="text-white font-mono">{signalVal}</span>
+              <span className="text-white font-mono">{signalVal ?? "\u2014"}</span>
             </div>
           </div>
         </div>
@@ -536,13 +556,6 @@ function PerformanceMatrix({ backtestData }) {
     { key: "sharpe", label: "Sharpe", fmt: (v) => v },
   ];
 
-  // Fallback data — mockup values when API empty
-  const fallbackData = {
-    GREEN: { win_rate: 72, avg_pnl: 245, sharpe: 2.1 },
-    YELLOW: { win_rate: 58, avg_pnl: 82, sharpe: 0.8 },
-    RED: { win_rate: 31, avg_pnl: -156, sharpe: -0.3 },
-  };
-
   const getColor = (key, val) => {
     if (key === "win_rate")
       return val > 60
@@ -560,49 +573,60 @@ function PerformanceMatrix({ backtestData }) {
     return "text-gray-300";
   };
 
+  // FIX #4: Check if any regime has actual data
+  const hasData = regimes.some((r) =>
+    metrics.some((m) => backtestData?.[r]?.[m.key] != null)
+  );
+
   return (
     <Panel className="h-full">
       <PanelTitle>Performance Matrix</PanelTitle>
-      <table className="w-full text-[10px]">
-        <thead>
-          <tr className="border-b border-gray-700/30">
-            <th className="text-left text-gray-500 pb-1" />
-            {regimes.map((r) => (
-              <th
-                key={r}
-                className={clsx(
-                  "text-right pb-1 font-bold",
-                  REGIME_COLORS[r].text,
-                )}
-              >
-                {r}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {metrics.map((m) => (
-            <tr key={m.key} className="border-b border-gray-800/30">
-              <td className="text-gray-500 py-1 pr-2">{m.label}</td>
-              {regimes.map((r) => {
-                const val =
-                  backtestData?.[r]?.[m.key] ?? fallbackData[r]?.[m.key];
-                return (
-                  <td
-                    key={r}
-                    className={clsx(
-                      "text-right font-mono py-1",
-                      getColor(m.key, val),
-                    )}
-                  >
-                    {val != null ? m.fmt(val) : "\u2014"}
-                  </td>
-                );
-              })}
+      {hasData ? (
+        <table className="w-full text-[10px]">
+          <thead>
+            <tr className="border-b border-gray-700/30">
+              <th className="text-left text-gray-500 pb-1" />
+              {regimes.map((r) => (
+                <th
+                  key={r}
+                  className={clsx(
+                    "text-right pb-1 font-bold",
+                    REGIME_COLORS[r].text,
+                  )}
+                >
+                  {r}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {metrics.map((m) => (
+              <tr key={m.key} className="border-b border-gray-800/30">
+                <td className="text-gray-500 py-1 pr-2">{m.label}</td>
+                {regimes.map((r) => {
+                  const val = backtestData?.[r]?.[m.key];
+                  return (
+                    <td
+                      key={r}
+                      className={clsx(
+                        "text-right font-mono py-1",
+                        getColor(m.key, val),
+                      )}
+                    >
+                      {val != null ? m.fmt(val) : "\u2014"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-4 text-gray-500">
+          <div className="text-[10px]">No per-regime performance data</div>
+          <div className="text-[9px] mt-0.5 text-gray-600">Run backtests to populate</div>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -611,16 +635,15 @@ function PerformanceMatrix({ backtestData }) {
 // REGIME FLOW DIAGRAM
 // ============================================================
 function RegimeFlowDiagram({ regimeState, paramsData }) {
-  const defaults = REGIME_PARAMS_DEFAULT[regimeState] || {};
-  const kellyMult = paramsData?.kelly_mult ?? defaults.kelly_mult ?? "?";
-  const signalMult = paramsData?.signal_mult ?? defaults.signal_mult ?? "?";
-  const riskPct = paramsData?.risk_pct ?? defaults.risk_pct;
+  const kellyMult = paramsData?.kelly_mult ?? "\u2014";
+  const signalMult = paramsData?.signal_mult ?? "\u2014";
+  const riskPct = paramsData?.risk_pct;
   const isRed = regimeState === "RED";
-  const maxPos = paramsData?.max_positions ?? defaults.max_positions ?? 0;
+  const maxPos = paramsData?.max_positions ?? 0;
 
   const nodes = [
     { id: "regime", label: "REGIME", value: regimeState },
-    { id: "sizer", label: "Sizer", value: `${riskPct ?? 2}x` },
+    { id: "sizer", label: "Sizer", value: riskPct != null ? `${riskPct}x` : "\u2014" },
     { id: "kelly", label: "Kelly", value: `${kellyMult}x` },
     { id: "signal", label: "Signal", value: maxPos === 0 ? "CLOSED" : "OPEN" },
     { id: "engine", label: "Engine", value: maxPos === 0 ? "OFF" : "ON" },
@@ -688,14 +711,11 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
 }
 
 // ============================================================
-// TRANSITION HISTORY (mockup: Time, FROM->TO, trigger, confidence, duration, P&L)
+// TRANSITION HISTORY (Time, FROM->TO, trigger, confidence, duration, P&L)
 // ============================================================
-// No fallback data — transitions come from real API only
-const FALLBACK_TRANSITIONS = [];
-
 function TransitionHistory({ transitionData, regimeData }) {
   const raw = transitionData?.transitions || regimeData?.transitions || [];
-  const transitions = raw.length ? raw : FALLBACK_TRANSITIONS;
+  const transitions = raw.slice(0, 8);
 
   return (
     <Panel>
@@ -713,7 +733,7 @@ function TransitionHistory({ transitionData, regimeData }) {
             </tr>
           </thead>
           <tbody>
-            {transitions.slice(0, 6).map((t, i) => (
+            {transitions.length ? transitions.map((t, i) => (
               <tr
                 key={i}
                 className="border-b border-gray-800/20 hover:bg-gray-800/20"
@@ -765,7 +785,13 @@ function TransitionHistory({ transitionData, regimeData }) {
                     : "—"}
                 </td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td colSpan={6} className="py-4 text-center text-gray-500 text-[10px]">
+                  No transition history
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -774,24 +800,29 @@ function TransitionHistory({ transitionData, regimeData }) {
 }
 
 // ============================================================
-// SECTOR ROTATION (mockup: horizontal bar chart - Tech, Healthcare, Energy, Financials)
+// SECTOR ROTATION — horizontal bars; clickable for drill-down
 // ============================================================
-// No fallback data — sectors come from real API only
-const FALLBACK_SECTORS = [];
-
-function SectorRotation({ sectorsData }) {
+function SectorRotation({ sectorsData, selectedSector, onSelectSector }) {
   const sectors = sectorsData?.sectors?.length
     ? sectorsData.sectors
     : sectorsData?.rankings?.length
       ? sectorsData.rankings
-      : FALLBACK_SECTORS;
+      : [];
 
   return (
     <Panel className="h-full">
       <PanelTitle>Sector Rotation</PanelTitle>
       <div className="space-y-2">
-        {sectors.map((s, i) => (
-          <div key={s.sector || i} className="flex items-center gap-2">
+        {sectors.length ? sectors.map((s, i) => (
+          <button
+            type="button"
+            key={s.sector || i}
+            onClick={() => onSelectSector?.(s.sector)}
+            className={clsx(
+              "w-full flex items-center gap-2 rounded px-1 py-0.5 transition-colors text-left",
+              selectedSector === s.sector ? "bg-cyan-500/10 ring-1 ring-cyan-400/50" : "hover:bg-gray-800/50",
+            )}
+          >
             <span className="text-[10px] text-gray-400 w-20 truncate shrink-0">
               {s.sector}
             </span>
@@ -800,20 +831,31 @@ function SectorRotation({ sectorsData }) {
                 className={clsx(
                   "h-full rounded transition-all",
                   (s.score || 0) > 70
-                    ? "bg-emerald-500"
+                    ? "bg-[#00FF00]/80"
                     : (s.score || 0) > 40
                       ? "bg-amber-500/80"
                       : "bg-gray-600",
                 )}
-                style={{ width: `${Math.min(s.score || 0, 100)}%` }}
+                style={{ width: `${Math.min(s.score ?? 0, 100)}%` }}
               />
             </div>
             <span className="text-[10px] font-mono text-gray-300 w-8 text-right shrink-0">
-              {s.score ?? 0}
+              {s.score != null ? s.score : "\u2014"}
             </span>
+          </button>
+        )) : (
+          <div className="flex flex-col items-center justify-center py-6 text-gray-500">
+            <div className="text-[10px]">No sector rotation data available</div>
+            <div className="text-[9px] mt-0.5 text-gray-600">Sector analysis pending</div>
           </div>
-        ))}
+        )}
       </div>
+      {selectedSector && (
+        <div className="mt-2 pt-2 border-t border-gray-700/30 text-[10px] text-gray-400">
+          Sector: <span className="text-cyan-400 font-mono">{selectedSector}</span>
+          <div className="text-[9px] text-gray-500 mt-0.5">Drill-down from sectors API</div>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -853,23 +895,58 @@ function CrashProtocol({ macroData }) {
   const armedCount = Object.values(armed).filter(Boolean).length;
   const isTriggered = triggers.some((t) => t.active && armed[t.key]);
 
+  // FIX #5: Toggle individual triggers with toast feedback
   const handleToggle = async (key) => {
     const updated = { ...armed, [key]: !armed[key] };
     setArmed(updated);
+    const label = triggers.find((t) => t.key === key)?.label || key;
+    toast.info(`${label}: ${updated[key] ? "Armed" : "Disarmed"}`);
     try {
-      await fetch(getApiUrl("risk/config"), {
+      const res = await fetch(getApiUrl("risk/config"), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ crash_triggers: updated }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     } catch (e) {
       log.error("Failed to update crash trigger config:", e);
+      toast.error("Failed to save trigger config");
+    }
+  };
+
+  // FIX #5: Clear all triggers at once
+  const handleClearAll = async () => {
+    if (!window.confirm("Disarm ALL crash protocol triggers?")) return;
+    const cleared = Object.fromEntries(Object.keys(armed).map((k) => [k, false]));
+    setArmed(cleared);
+    toast.info("All crash triggers disarmed");
+    try {
+      const res = await fetch(getApiUrl("risk/config"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ crash_triggers: cleared }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      log.error("Failed to clear triggers:", e);
+      toast.error("Failed to save trigger config");
     }
   };
 
   return (
     <Panel className="h-full">
-      <PanelTitle>Crash Protocol</PanelTitle>
+      <PanelTitle
+        right={
+          <button
+            onClick={handleClearAll}
+            className="text-[8px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-600/50 transition-colors"
+          >
+            DISARM ALL
+          </button>
+        }
+      >
+        Crash Protocol
+      </PanelTitle>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[9px] text-gray-500">
           {armedCount} armed triggers
@@ -890,7 +967,12 @@ function CrashProtocol({ macroData }) {
       </div>
       <div className="space-y-1.5">
         {triggers.map((t) => (
-          <div key={t.key} className="flex items-center justify-between">
+          <button
+            type="button"
+            key={t.key}
+            onClick={() => handleToggle(t.key)}
+            className="w-full flex items-center justify-between text-left rounded px-1 py-0.5 hover:bg-gray-800/50 transition-colors"
+          >
             <div className="flex items-center gap-1.5">
               <div
                 className={clsx(
@@ -929,7 +1011,7 @@ function CrashProtocol({ macroData }) {
                   ? "CLEAR"
                   : "OFF"}
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </Panel>
@@ -937,38 +1019,23 @@ function CrashProtocol({ macroData }) {
 }
 
 // ============================================================
-// AGENT CONSENSUS (mockup: Scanner, Analyst, Risk Mgr, Strategist, Memory IQ)
+// AGENT CONSENSUS — from useMemoryIntelligence
 // ============================================================
-function getFallbackAgents(regimeState) {
-  const r =
-    regimeState === "RED"
-      ? "RED"
-      : regimeState === "GREEN"
-        ? "GREEN"
-        : "YELLOW";
-  return [
-    { name: "Scanner", vote: r, confidence: 92 },
-    { name: "Analyst", vote: r, confidence: 88 },
-    { name: "Risk Mgr", vote: r, confidence: 85 },
-    {
-      name: "Strategist",
-      vote: r === "RED" ? "RED" : "YELLOW",
-      confidence: 72,
-    },
-  ];
-}
-
-function AgentConsensus({ memoryData, regimeState }) {
+function AgentConsensus({ memoryData, regimeState, councilData }) {
+  // FIX #6: Try multiple data sources for agent consensus
   const raw =
-    memoryData?.data?.agent_rankings || memoryData?.agent_rankings || [];
-  const agents = raw.length ? raw : getFallbackAgents(regimeState);
-  const memoryIq = memoryData?.data?.memory_iq ?? memoryData?.memory_iq ?? 847;
+    councilData?.votes ||
+    memoryData?.data?.agent_rankings ||
+    memoryData?.agent_rankings ||
+    [];
+  const agents = raw.slice(0, 8);
+  const memoryIq = memoryData?.data?.memory_iq ?? memoryData?.memory_iq;
 
   return (
     <Panel className="h-full">
       <PanelTitle>Agent Consensus</PanelTitle>
       <div className="space-y-1.5">
-        {agents.map((a, i) => (
+        {agents.length ? agents.map((a, i) => (
           <div
             key={a.name || i}
             className="flex items-center justify-between text-[10px]"
@@ -978,20 +1045,26 @@ function AgentConsensus({ memoryData, regimeState }) {
               className={clsx(
                 "font-mono font-bold",
                 a.vote === "GREEN"
-                  ? "text-emerald-400"
-                  : REGIME_COLORS[a.vote]?.text || "text-gray-400",
+                  ? "text-[#00FF00]"
+                  : a.vote === "RED"
+                    ? "text-[#FF4444]"
+                    : REGIME_COLORS[a.vote]?.text || "text-gray-400",
               )}
             >
-              {a.vote} {a.confidence ?? ""}
-              {a.confidence != null ? "%" : ""}
+              {a.vote} {a.confidence != null ? `${a.confidence}%` : ""}
             </span>
           </div>
-        ))}
+        )) : (
+          <div className="flex flex-col items-center py-3 text-gray-500">
+            <div className="text-[10px]">No agent consensus data</div>
+            <div className="text-[9px] mt-0.5 text-gray-600">Awaiting council evaluation</div>
+          </div>
+        )}
       </div>
       <div className="mt-2 pt-1.5 border-t border-gray-700/30 text-[10px] text-gray-500">
         Memory IQ{" "}
-        <span className="text-emerald-400 font-mono font-bold">
-          {memoryIq} (G)
+        <span className="text-[#00FF00] font-mono font-bold">
+          {memoryIq != null ? `${memoryIq} (G)` : "\u2014"}
         </span>
       </div>
     </Panel>
@@ -1009,20 +1082,6 @@ function FooterTicker({
 }) {
   const tickers = ["SPY", "QQQ", "DIA", "VIX", "IWM"];
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
-  const fallbackPrices = {
-    SPY: 598.42,
-    QQQ: 518.73,
-    DIA: 441.2,
-    VIX: 14.2,
-    IWM: 226.84,
-  };
-  const fallbackChanges = {
-    SPY: 0.34,
-    QQQ: 0.52,
-    DIA: 0.18,
-    VIX: -2.31,
-    IWM: 0.67,
-  };
 
   return (
     <div className="bg-[#0B0E14] border-t border-gray-800/50 px-4 py-2 flex items-center justify-between gap-4 shrink-0">
@@ -1036,12 +1095,12 @@ function FooterTicker({
             min="0"
             max="5"
             step="0.1"
-            value={biasMultiplier ?? 1.5}
+            value={biasMultiplier ?? 1}
             onChange={(e) => onBiasChange?.(parseFloat(e.target.value))}
             className="flex-1 h-1.5 accent-cyan-500 min-w-[60px] max-w-[80px]"
           />
           <span className="text-[10px] font-mono text-cyan-400 w-8 text-right">
-            {(biasMultiplier ?? 1.5).toFixed(1)}
+            {(biasMultiplier ?? 1).toFixed(1)}
           </span>
         </div>
         <div className="w-px h-4 bg-gray-700/50" />
@@ -1049,8 +1108,8 @@ function FooterTicker({
       <div className="flex items-center gap-4 overflow-x-auto">
         {tickers.map((t) => {
           const d = marketData?.indices?.[t] || marketData?.[t] || {};
-          const price = d.price ?? fallbackPrices[t];
-          const change = d.change_pct ?? d.change ?? fallbackChanges[t] ?? 0;
+          const price = d.price;
+          const change = d.change_pct ?? d.change ?? null;
           return (
             <div
               key={t}
@@ -1058,16 +1117,21 @@ function FooterTicker({
             >
               <span className="text-gray-500 font-semibold">{t}</span>
               <span className="text-white font-mono">
-                {price != null ? price.toFixed(2) : "—"}
+                {price != null ? price.toFixed(2) : "\u2014"}
               </span>
               <span
                 className={clsx(
                   "font-mono",
-                  change >= 0 ? "text-emerald-400" : "text-red-400",
+                  change != null
+                    ? change >= 0
+                      ? "text-[#00FF00]"
+                      : "text-[#FF4444]"
+                    : "text-gray-500",
                 )}
               >
-                {change >= 0 ? "+" : ""}
-                {change?.toFixed(2)}%
+                {change != null
+                  ? `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`
+                  : "\u2014"}
               </span>
             </div>
           );
@@ -1086,7 +1150,7 @@ function FooterTicker({
 // MAIN PAGE COMPONENT
 // ============================================================
 export default function MarketRegime() {
-  // --- Specialized API Hooks ---
+  // --- All 10 specialized hooks (spec) ---
   const {
     data: regimeData,
     loading: regimeLoading,
@@ -1098,46 +1162,88 @@ export default function MarketRegime() {
   const { data: backtestData } = useRegimePerformance();
   const { data: sectorsData } = useSectorRotation();
   const { data: transitionData } = useRegimeTransitions();
+  const { data: memoryData } = useMemoryIntelligence(30000);
+  const { data: whaleFlow } = useWhaleFlow(20000);
+  const { data: riskGauges } = useRiskGauges(15000);
+  const { data: bridgeHealth } = useBridgeHealth(30000);
 
-  // --- Additional API Hooks ---
+  // --- Additional ---
   const { data: scanData } = useApi("openclaw/scan", { pollIntervalMs: 30000 });
-  const { data: memoryData } = useApi("openclaw/memory", {
-    pollIntervalMs: 30000,
-  });
-  const { data: marketData, refetch: refetchMarket } = useApi("market", { pollIntervalMs: 5000 });
-  const { data: riskScore } = useApi("risk/risk-score", {
-    pollIntervalMs: 15000,
-  });
-  const { data: whaleFlow } = useApi("openclaw/whale-flow", {
-    pollIntervalMs: 20000,
-  });
+  // FIX #1: Reduce market polling from 5s to 15s to prevent storm; use marketIndices (returns 200)
+  const { data: marketData } = useApi("marketIndices", { pollIntervalMs: 15000 });
+  const { data: riskScore } = useApi("risk/risk-score", { pollIntervalMs: 15000 });
+  // FIX #6: Fetch council data for agent consensus
+  const { data: councilData } = useApi("councilLatest", { pollIntervalMs: 30000 });
 
   // --- WebSocket live updates for regime changes ---
+  // FIX #1: Removed WS-triggered refetchMarket to prevent cascading requests on every WS message
   useEffect(() => {
     const unsubs = [
       ws.on(WS_CHANNELS.macro, () => { refetchRegime(); refetchMacro(); }),
-      ws.on(WS_CHANNELS.market, () => refetchMarket()),
     ];
     return () => unsubs.forEach((fn) => fn());
-  }, [refetchRegime, refetchMacro, refetchMarket]);
+  }, [refetchRegime, refetchMacro]);
 
   // --- Local State ---
   const [timeframe, setTimeframe] = useState("1D");
-  const [biasMultiplier, setBiasMultiplier] = useState(1.5);
+  const [biasMultiplier, setBiasMultiplier] = useState(1);
+  const [selectedState, setSelectedState] = useState(null);
+  const [selectedSector, setSelectedSector] = useState(null);
+  const [overrideActive, setOverrideActive] = useState(false);
+  const [overrideExpiresAt, setOverrideExpiresAt] = useState(null);
+  const [overrideCountdown, setOverrideCountdown] = useState(null);
+  const [manualOverride, setManualOverride] = useState(false);
+
+  useEffect(() => {
+    if (!overrideExpiresAt) {
+      setOverrideCountdown(null);
+      return;
+    }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((overrideExpiresAt - Date.now()) / 1000));
+      setOverrideCountdown(left);
+      if (left <= 0) setOverrideActive(false);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [overrideExpiresAt]);
 
   // Derived
   const currentRegime = regimeData?.state || paramsData?.regime || "YELLOW";
   const rc = REGIME_COLORS[currentRegime] || REGIME_COLORS.YELLOW;
 
-  // --- Bias Override Handler ---
+  // --- Bias Override Handler — Manual Regime Override + 15 min countdown ---
+  const OVERRIDE_DURATION_MS = 15 * 60 * 1000;
   const handleBiasChange = useCallback(async (val) => {
     setBiasMultiplier(val);
     try {
       await postBiasOverride(val);
+      setOverrideActive(true);
+      setOverrideExpiresAt(Date.now() + OVERRIDE_DURATION_MS);
     } catch (e) {
       log.error("Failed to POST bias override:", e);
     }
   }, []);
+
+  // FIX #9: Force regime to a specific state via API when manual override is ON
+  const handleForceRegime = useCallback(async (state) => {
+    if (!window.confirm(`Force regime to ${state}?`)) return;
+    try {
+      const res = await fetch(getApiUrl("openclaw/macro/override"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ regime: state }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success(`Regime forced to ${state}`);
+      refetchRegime();
+      refetchParams();
+    } catch (e) {
+      toast.error(`Failed to force regime: ${e.message}`);
+      log.error("Force regime failed:", e);
+    }
+  }, [refetchRegime, refetchParams]);
 
   // Risk score calculations
   const riskScoreVal = riskScore?.score || 0;
@@ -1187,29 +1293,31 @@ export default function MarketRegime() {
             className={clsx(
               "inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-black tracking-wider text-white",
               currentRegime === "GREEN"
-                ? "bg-emerald-600"
+                ? "bg-[#00CC00]"
                 : currentRegime === "RED"
-                  ? "bg-red-600"
+                  ? "bg-[#CC3333]"
                   : currentRegime === "RED_RECOVERY"
                     ? "bg-orange-600"
-                    : "bg-amber-600",
+                    : currentRegime === "UNKNOWN"
+                      ? "bg-gray-600"
+                      : "bg-amber-600",
             )}
           >
             {currentRegime}
-            <span className="text-xs font-mono opacity-90">
-              {(regimeData?.hmm_confidence != null
-                ? regimeData.hmm_confidence * 100
-                : 87
-              ).toFixed(0)}
-              %
-            </span>
+            {/* FIX #7: Don't show confidence for UNKNOWN with no details */}
+            {regimeData?.hmm_confidence != null &&
+             !(currentRegime === "UNKNOWN" && !regimeData?.details) && (
+              <span className="text-xs font-mono opacity-90">
+                {(regimeData.hmm_confidence * 100).toFixed(0)}%
+              </span>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-3 flex-1 justify-end">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-400 font-medium">Risk Score:</span>
             <span className={clsx("font-mono font-bold", riskColor)}>
-              {riskScore?.score ?? 34}
+              {riskScore?.score ?? "\u2014"}
             </span>
             <span
               className={clsx(
@@ -1239,158 +1347,197 @@ export default function MarketRegime() {
         </div>
       </div>
 
+      {/* Manual Regime Override banner + countdown */}
+      {overrideActive && (
+        <div className="px-6 py-2 bg-[#00FF00]/10 border-b border-[#00FF00]/30 flex items-center justify-between">
+          <span className="text-sm font-bold text-[#00FF00]">
+            Manual Regime Override
+          </span>
+          <span className="text-xs font-mono text-gray-300">
+            {overrideCountdown != null && overrideCountdown > 0
+              ? `Expires in ${Math.floor(overrideCountdown / 60)}:${String(overrideCountdown % 60).padStart(2, "0")}`
+              : "Active"}
+          </span>
+        </div>
+      )}
+
       {/* ============ KPI STRIP ============ */}
       <div className="px-4 py-2 border-b border-gray-800/30 bg-[#0A0E17]">
         <div className="grid grid-cols-10 gap-1.5">
           <KpiCard
             label="VIX"
             value={
-              macroData?.vix?.toFixed(1) ??
-              regimeData?.vix?.toFixed(1) ??
-              "14.2"
+              macroData?.vix != null
+                ? macroData.vix.toFixed(1)
+                : regimeData?.vix != null
+                  ? regimeData.vix.toFixed(1)
+                  : "\u2014"
             }
             color={
-              (macroData?.vix ?? 14.2) > 25
-                ? "text-red-400"
-                : (macroData?.vix ?? 14.2) > 18
-                  ? "text-amber-400"
-                  : "text-emerald-400"
+              (macroData?.vix ?? regimeData?.vix) != null
+                ? (macroData?.vix ?? regimeData?.vix) > 25
+                  ? "text-[#FF4444]"
+                  : (macroData?.vix ?? regimeData?.vix) > 18
+                    ? "text-amber-400"
+                    : "text-[#00FF00]"
+                : "text-gray-400"
             }
           />
           <KpiCard
             label="HY Spread"
-            value={macroData?.hy_spread?.toFixed(2) ?? "3.45"}
+            value={macroData?.hy_spread != null ? macroData.hy_spread.toFixed(2) : "\u2014"}
             unit="bps"
             color={
-              (macroData?.hy_spread ?? 3.45) > 5
-                ? "text-red-400"
-                : "text-emerald-400"
+              macroData?.hy_spread != null
+                ? macroData.hy_spread > 5
+                  ? "text-[#FF4444]"
+                  : "text-[#00FF00]"
+                : "text-gray-400"
             }
           />
           <KpiCard
             label="Yield Curve"
             value={
-              macroData?.yield_curve?.toFixed(2) ??
-              regimeData?.macro_context?.yield_curve?.toFixed(2) ??
-              "0.82"
+              macroData?.yield_curve != null
+                ? macroData.yield_curve.toFixed(2)
+                : regimeData?.macro_context?.yield_curve != null
+                  ? regimeData.macro_context.yield_curve.toFixed(2)
+                  : "\u2014"
             }
             unit="%"
             color={
-              (macroData?.yield_curve ?? 0.82) < 0
-                ? "text-red-400"
-                : "text-emerald-400"
+              (macroData?.yield_curve ?? regimeData?.macro_context?.yield_curve) != null
+                ? (macroData?.yield_curve ?? regimeData?.macro_context?.yield_curve) < 0
+                  ? "text-[#FF4444]"
+                  : "text-[#00FF00]"
+                : "text-gray-400"
             }
           />
           <KpiCard
             label="Fear & Greed"
-            value={macroData?.fear_greed_index ?? 68}
+            value={macroData?.fear_greed_index ?? "\u2014"}
             color={
-              (macroData?.fear_greed_index ?? 68) < 25
-                ? "text-red-400"
-                : (macroData?.fear_greed_index ?? 68) > 75
-                  ? "text-emerald-400"
-                  : "text-amber-400"
+              macroData?.fear_greed_index != null
+                ? macroData.fear_greed_index < 25
+                  ? "text-[#FF4444]"
+                  : macroData.fear_greed_index > 75
+                    ? "text-[#00FF00]"
+                    : "text-amber-400"
+                : "text-gray-400"
             }
           />
           <KpiCard
             label="Hurst"
-            value={regimeData?.hurst?.toFixed(3) ?? "0.623"}
-            color={
-              (regimeData?.hurst ?? 0.623) > 0.5
-                ? "text-cyan-400"
-                : "text-purple-400"
-            }
+            value={regimeData?.hurst != null ? regimeData.hurst.toFixed(3) : "\u2014"}
+            color="text-cyan-400"
           />
           <KpiCard
             label="VELEZ SLAM"
-            value={macroData?.velez_score ?? scanData?.velez_breadth ?? "—"}
+            value={macroData?.velez_score ?? scanData?.velez_breadth ?? "\u2014"}
             color="text-purple-400"
           />
           <KpiCard
             label="Oscillator"
-            value={macroData?.oscillator?.toFixed(2) ?? "0.74"}
+            value={macroData?.oscillator != null ? macroData.oscillator.toFixed(2) : "\u2014"}
             color="text-purple-400"
           />
           <KpiCard
             label="Bias Mult"
-            value={macroData?.bias?.toFixed(2) ?? biasMultiplier.toFixed(2)}
+            value={
+              macroData?.bias != null
+                ? macroData.bias.toFixed(2)
+                : biasMultiplier != null
+                  ? biasMultiplier.toFixed(2)
+                  : "\u2014"
+            }
             color="text-amber-400"
           />
           <KpiCard
             label="Risk Score"
-            value={riskScore?.score ?? 34}
+            value={riskScore?.score ?? "\u2014"}
             color={
-              (riskScore?.score ?? 34) > 70
-                ? "text-red-400"
-                : (riskScore?.score ?? 34) > 40
-                  ? "text-amber-400"
-                  : "text-emerald-400"
+              riskScore?.score != null
+                ? riskScore.score > 70
+                  ? "text-[#FF4444]"
+                  : riskScore.score > 40
+                    ? "text-amber-400"
+                    : "text-[#00FF00]"
+                : "text-gray-400"
             }
           />
           <KpiCard
             label="Crash Proto"
             value={crashTriggered ? "TRIGGERED" : "CLEAR"}
-            color={crashTriggered ? "text-red-400" : "text-emerald-400"}
-            alert={(macroData?.vix || 0) > 40}
+            color={crashTriggered ? "text-[#FF4444]" : "text-[#00FF00]"}
+            alert={(macroData?.vix ?? 0) > 40}
           />
         </div>
+        {/* Risk Gauges & Bridge Health from hooks */}
+        {(riskGauges != null || bridgeHealth != null) && (
+          <div className="mt-2 pt-2 border-t border-gray-700/30 flex flex-wrap gap-2 text-[9px] text-gray-500">
+            {riskGauges != null && (
+              <span className="font-mono">
+                Gauges: {typeof riskGauges === "object" ? JSON.stringify(riskGauges).slice(0, 60) + "…" : String(riskGauges)}
+              </span>
+            )}
+            {bridgeHealth != null && (
+              <span className="font-mono">
+                Bridge: {typeof bridgeHealth === "object" ? (bridgeHealth.ok ? "OK" : "Degraded") : String(bridgeHealth)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ============ MAIN GRID ============ */}
+      {/* ============ MAIN GRID — 3-col layout: 20% | 40% | 40% = 2 | 5 | 5 (of 12) ============ */}
       <div className="flex-1 px-4 py-2 overflow-y-auto bg-[#0A0E17]">
         <div className="grid grid-cols-12 gap-2">
-          {/* ROW 1: State Machine (4 cols) + VIX Chart (8 cols) */}
-          <div className="col-span-4">
+          {/* LEFT (20%): State Machine + Params */}
+          <div className="col-span-2 flex flex-col gap-2">
             <RegimeStateMachine
               currentState={currentRegime}
               regimeData={regimeData}
+              selectedState={selectedState}
+              onSelectState={setSelectedState}
+              manualOverride={manualOverride}
+              onForceRegime={handleForceRegime}
+            />
+            <RegimeParamPanel
+              paramsData={paramsData}
+              regimeState={currentRegime}
+              onOverride={() => refetchParams()}
+              onManualToggle={setManualOverride}
             />
           </div>
-          <div className="col-span-8">
+          {/* CENTER (40%): VIX Chart, Regime Flow, Transition History */}
+          <div className="col-span-5 flex flex-col gap-2">
             <VixMacroChart
               macroData={macroData}
               regimeData={regimeData}
               timeframe={timeframe}
             />
-          </div>
-
-          {/* ROW 2: Params (4 cols) + Performance (4 cols) + Sector (4 cols) */}
-          <div className="col-span-4">
-            <RegimeParamPanel
-              paramsData={paramsData}
-              regimeState={currentRegime}
-              onOverride={() => refetchParams()}
-            />
-          </div>
-          <div className="col-span-4">
-            <PerformanceMatrix backtestData={backtestData} />
-          </div>
-          <div className="col-span-4">
-            <SectorRotation sectorsData={sectorsData} />
-          </div>
-
-          {/* ROW 3: Regime Flow (6 cols) + Crash Protocol (3 cols) + Agent Consensus (3 cols) */}
-          <div className="col-span-6">
             <RegimeFlowDiagram
               regimeState={currentRegime}
               paramsData={paramsData}
             />
-          </div>
-          <div className="col-span-3">
-            <CrashProtocol macroData={macroData} />
-          </div>
-          <div className="col-span-3">
-            <AgentConsensus
-              memoryData={memoryData}
-              regimeState={currentRegime}
-            />
-          </div>
-
-          {/* ROW 4: Transition History (full width) */}
-          <div className="col-span-12">
             <TransitionHistory
               transitionData={transitionData}
               regimeData={regimeData}
+            />
+          </div>
+          {/* RIGHT (40%): Performance, Sector, Crash, Agent Consensus */}
+          <div className="col-span-5 flex flex-col gap-2">
+            <PerformanceMatrix backtestData={backtestData} />
+            <SectorRotation
+              sectorsData={sectorsData}
+              selectedSector={selectedSector}
+              onSelectSector={setSelectedSector}
+            />
+            <CrashProtocol macroData={macroData} />
+            <AgentConsensus
+              memoryData={memoryData}
+              regimeState={currentRegime}
+              councilData={councilData}
             />
           </div>
         </div>

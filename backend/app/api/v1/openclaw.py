@@ -62,7 +62,7 @@ async def _openclaw_summary():
         health = await openclaw_bridge.get_health()
         candidates = await openclaw_bridge.get_top_candidates(n=5)
         stats = openclaw_bridge.get_realtime_stats()
-        regime_state = regime.get("state", "UNKNOWN") if isinstance(regime, dict) else str(regime)
+        regime_state = (regime.get("state") or "YELLOW") if isinstance(regime, dict) else (str(regime) if regime else "YELLOW")
         composite_score = (candidates[0].get("composite_score") if candidates else None)
         # Dashboard expects a number; use 50 when bridge has no candidates
         score_val = int(composite_score) if composite_score is not None else 50

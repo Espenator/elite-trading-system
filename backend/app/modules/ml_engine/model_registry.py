@@ -396,6 +396,61 @@ class ModelRegistry:
             "arena_result": arena_result.to_dict() if arena_result else None,
         }
 
+    def cleanup_old_runs(
+        self,
+        older_than_days: int = 30,
+        stages: Optional[List[str]] = None,
+        delete_artifacts: bool = False,
+    ) -> Dict[str, Any]:
+        """Remove candidate/archived runs older than N days to prevent unbounded growth.
+
+        Champions are never removed. By default only 'candidate' and 'archived' runs
+        are eligible for cleanup.
+
+        Args:
+            older_than_days: Remove runs created more than this many days ago.
+            stages: Run stages to consider for removal (default: candidate, archived).
+            delete_artifacts: If True, delete model artifact directories on disk.
+
+        Returns:
+            Dict with removed_count, removed_run_ids, and optional errors.
+        """
+        from datetime import timedelta
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
+        champion_ids = set(self._champions.values())
+        stages_to_remove = stages if stages is not None else ["candidate", "archived"]
+        removed = []
+        errors = []
+
+        for run in list(self._runs):
+            run_id = run.get("run_id") or ""
+            if run_id in champion_ids:
+                continue
+            if (run.get("stage") or "candidate") not in stages_to_remove:
+                continue
+            created = run.get("created_at") or ""
+            if created and created < cutoff:
+                self._runs.remove(run)
+                removed.append(run_id)
+                if delete_artifacts and run.get("model_path"):
+                    try:
+                        p = Path(run["model_path"])
+                        run_dir = p.parent if p.suffix else p
+                        if run_dir.exists() and _MODELS_DIR in run_dir.parents:
+                            shutil.rmtree(run_dir, ignore_errors=True)
+                    except Exception as e:
+                        errors.append(f"{run_id}: {e}")
+
+        if removed:
+            self._save_runs()
+            log.info("Registry cleanup: removed %d runs older than %d days", len(removed), older_than_days)
+        return {
+            "removed_count": len(removed),
+            "removed_run_ids": removed,
+            "errors": errors,
+        }
+
     def get_status(self) -> Dict[str, Any]:
         """Get registry status for API/dashboard."""
         return {

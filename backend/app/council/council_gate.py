@@ -1,9 +1,13 @@
 """Council Gate — bridges SignalEngine → Council → OrderExecutor.
 
 Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 33-agent council is invoked.
-If the council verdict is execution_ready the signal is re-published as
-council.verdict which the OrderExecutor listens on.
+with score >= gate_threshold (regime-adaptive: 55/65/75) the full 35-agent
+council is invoked. If the council verdict is execution_ready the result
+is published as council.verdict which the OrderExecutor subscribes to.
+
+Concurrency: _semaphore limits simultaneous council runs; overflow goes to
+a priority queue (by score). Per-symbol per-direction cooldown prevents
+rapid duplicate evaluations for the same symbol/side.
 
 Phase B enhancements (March 11 2026):
   B1: Regime-adaptive gate threshold (BULLISH=55, NEUTRAL=65, BEARISH=75)
@@ -269,7 +273,12 @@ class CouncilGate:
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
     ) -> None:
-        """Run the full 13-agent council for the symbol."""
+        """Run the full 33-agent council for the symbol."""
+        try:
+            from app.core.logging_config import trace_id, generate_trace_id
+            trace_id.set(generate_trace_id())
+        except Exception:
+            pass
         async with self._semaphore:
             direction = signal_data.get("direction", "buy")
             now_ts = time.time()
@@ -379,6 +388,25 @@ class CouncilGate:
                     from app.council.weight_learner import get_weight_learner
                     learner = get_weight_learner()
                     learner.record_decision(decision)
+                except Exception:
+                    pass
+
+                # LLM calibration: record hypothesis prediction for outcome matching
+                try:
+                    hyp = getattr(decision, "active_hypothesis", None) or {}
+                    meta = (hyp.get("metadata") or {}) if isinstance(hyp, dict) else {}
+                    if meta.get("llm_tier"):
+                        from app.services.llm_calibration import record_llm_prediction
+                        regime_val = getattr(decision, "regime", None) or regime or "UNKNOWN"
+                        record_llm_prediction(
+                            council_decision_id=getattr(decision, "council_decision_id", "") or "",
+                            symbol=symbol,
+                            regime=str(regime_val).upper(),
+                            llm_tier=str(meta.get("llm_tier", "ollama")).lower(),
+                            predicted_direction=str(meta.get("llm_direction", hyp.get("direction", "hold"))).lower(),
+                            predicted_confidence=float(meta.get("llm_confidence", hyp.get("confidence", 0.5))),
+                            llm_latency_ms=int(meta.get("llm_latency_ms", 0)),
+                        )
                 except Exception:
                     pass
 

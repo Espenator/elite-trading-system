@@ -77,6 +77,16 @@ def _run_overnight_refresh():
         log.exception("Scheduled overnight_refresh failed: %s", e)
 
 
+def _run_morning_briefing():
+    """9 AM ET weekdays: generate morning briefing and push to TradingView webhook."""
+    from app.jobs.morning_briefing_job import run_morning_briefing
+    try:
+        result = run_morning_briefing()
+        log.info("Scheduled morning_briefing: %s", result.get("status"))
+    except Exception as e:
+        log.exception("Scheduled morning_briefing failed: %s", e)
+
+
 def start_scheduler() -> Optional[object]:
     """Start the APScheduler with flywheel jobs.
 
@@ -141,6 +151,15 @@ def start_scheduler() -> Optional[object]:
         CronTrigger(hour=5, minute=0, timezone="UTC", day_of_week="mon-fri"),
         id="overnight_refresh",
         name="Overnight FRED/SEC Refresh",
+        replace_existing=True,
+    )
+
+    # 9 AM ET weekdays — morning briefing + TradingView webhook push
+    _scheduler.add_job(
+        _run_morning_briefing,
+        CronTrigger(hour=9, minute=0, day_of_week="mon-fri", timezone="America/New_York"),
+        id="morning_briefing",
+        name="Morning Briefing (9 AM ET)",
         replace_existing=True,
     )
 
