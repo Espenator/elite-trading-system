@@ -190,25 +190,32 @@ function ModelPerformanceLC({ data }) {
   useEffect(() => {
     if (!series1Ref.current || !data || !Array.isArray(data) || data.length === 0) return;
 
-    const chartData1 = data
-      .map((d) => {
-        const time = d.time || d.date || d.timestamp;
-        const value = d.value ?? d.accuracy ?? d.score;
-        if (!time || value == null) return null;
-        return { time, value: Number(value) };
-      })
-      .filter(Boolean)
-      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+    const dedup = (arr) =>
+      [...new Map(arr.map((d) => [d.time, d])).values()].sort((a, b) =>
+        a.time < b.time ? -1 : a.time > b.time ? 1 : 0
+      );
 
-    const chartData2 = data
-      .map((d) => {
-        const time = d.time || d.date || d.timestamp;
-        const value = d.value2 ?? 0;
-        if (!time || value == null) return null;
-        return { time, value: Number(value) };
-      })
-      .filter(Boolean)
-      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+    const chartData1 = dedup(
+      data
+        .map((d) => {
+          const time = d.time || d.date || d.timestamp;
+          const value = d.value ?? d.accuracy ?? d.score;
+          if (!time || value == null) return null;
+          return { time, value: Number(value) };
+        })
+        .filter(Boolean)
+    );
+
+    const chartData2 = dedup(
+      data
+        .map((d) => {
+          const time = d.time || d.date || d.timestamp;
+          const value = d.value2 ?? 0;
+          if (!time || value == null) return null;
+          return { time, value: Number(value) };
+        })
+        .filter(Boolean)
+    );
 
     if (chartData1.length > 0) {
       series1Ref.current.setData(chartData1);

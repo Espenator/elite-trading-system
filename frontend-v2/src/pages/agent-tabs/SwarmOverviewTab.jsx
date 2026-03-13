@@ -362,7 +362,8 @@ function QuickActions({ onRefetch }) {
       toast.success(`${label} completed`);
       if (typeof onRefetch === "function") setTimeout(onRefetch, 500);
     } catch (e) {
-      toast.error(`${label} failed: ${e?.message || "network error"}`);
+      const msg = typeof e === 'string' ? e : e?.message || e?.detail || (typeof e === 'object' ? JSON.stringify(e) : 'network error');
+      toast.error(`${label} failed: ${msg}`);
     } finally {
       setLoading(null);
     }
@@ -523,8 +524,8 @@ function ResourceMonitor({ agents = [] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
-            <tr className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
+          {rows.map((r, i) => (
+            <tr key={r.name || i} className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
               <td className="py-1 text-[#00D9FF] font-mono">{r.name}</td>
               <td className="font-mono">
                 <div className="flex items-center gap-1">

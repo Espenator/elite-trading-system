@@ -24,7 +24,7 @@ class AppWebSocket {
   }
 
   connect() {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
     this._intentionalClose = false;
     this.state = "connecting";
     const url = getWsBaseUrl();
@@ -88,10 +88,11 @@ class AppWebSocket {
           this._reconnectAttempts < MAX_RECONNECT_ATTEMPTS
         ) {
           this.state = "reconnecting";
-          const delay = Math.min(
+          const baseDelay = Math.min(
             RECONNECT_DELAY_MS * Math.pow(1.5, this._reconnectAttempts),
             MAX_RECONNECT_DELAY
           );
+          const delay = baseDelay + Math.random() * 1000;
           this._reconnectAttempts++;
           this.reconnectTimer = setTimeout(() => this.connect(), delay);
         }

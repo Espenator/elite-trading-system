@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
@@ -941,9 +942,17 @@ export default function Dashboard() {
   const handleRunScan = useCallback(async () => {
     try {
       const res = await fetch(getApiUrl("signals"), { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) log.error("Scan failed:", res.status);
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        const msg = detail?.detail || detail?.message || `HTTP ${res.status}`;
+        log.error("Scan failed:", msg);
+        toast?.error?.(`Scan failed: ${msg}`);
+        return;
+      }
+      toast?.success?.("Scan complete");
     } catch (e) {
-      log.error(e);
+      log.error("Scan error:", e);
+      toast?.error?.(`Scan error: ${e?.message || "network error"}`);
     }
   }, []);
   const handleExecTop5 = useCallback(async () => {
@@ -1109,7 +1118,7 @@ export default function Dashboard() {
   ].filter(Boolean);
 
   return (
-    <div className="-m-6 -mb-10 flex flex-col h-[calc(100%+3.5rem)] w-[calc(100%+3rem)] bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
+    <div className="-m-6 -mb-10 flex flex-col h-[calc(100%+3.5rem)] w-[calc(100%+3rem)] bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
       {/* API ERROR BANNER */}
       {criticalErrors.length > 0 && (
         <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0">

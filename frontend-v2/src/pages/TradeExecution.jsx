@@ -263,7 +263,6 @@ export default function TradeExecution() {
 
   /* ── Positions — real API data only ── */
   const displayPositions = posArr;
-  ];
 
   /* Strike helpers */
   const callIdx = orderForm.callStrikeIdx ?? 0;

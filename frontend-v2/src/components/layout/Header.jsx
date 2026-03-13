@@ -8,7 +8,8 @@
 //
 // All accent colour references use #00D9FF (primary) — NOT #06b6d4.
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Bell,
@@ -121,9 +122,17 @@ export default function Header() {
     regimePct,
   } = useCNS();
 
+  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu]           = useState(false);
   const [searchFocused, setSearchFocused]         = useState(false);
+  const [searchValue, setSearchValue]             = useState("");
+
+  const handleSearch = useCallback((e) => {
+    if (e.key === "Enter" && searchValue.trim()) {
+      navigate(`/signals?q=${encodeURIComponent(searchValue.trim())}`);
+    }
+  }, [searchValue, navigate]);
 
   const modeStyle = MODE_COLORS[mode] ?? MODE_COLORS.NORMAL;
 
@@ -153,6 +162,9 @@ export default function Header() {
             type="text"
             placeholder="Search tickers, signals…"
             className="w-full pl-9 pr-12 py-2 bg-transparent text-sm text-white placeholder-[#6B7280] outline-none"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            onKeyDown={handleSearch}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
           />

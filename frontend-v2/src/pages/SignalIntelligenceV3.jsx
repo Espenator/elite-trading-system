@@ -5,6 +5,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import log from "@/utils/logger";
@@ -238,6 +239,9 @@ const Toggle = ({ checked, onChange, size = "md", variant = "cyan" }) => {
 // MAIN DASHBOARD COMPONENT
 // ============================================================================
 export default function SignalIntelligenceV3() {
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get("q")?.toUpperCase() || "";
+
   // --- REAL API HOOKS (mapped to config/api.js endpoints) ---
   const { data: apiSignals, loading: sigLoading, refetch: refetchSignals } = useApi('signals', { pollIntervalMs: 15000 });
   const { data: apiAgents } = useApi('agents', { pollIntervalMs: 30000 });
@@ -817,6 +821,13 @@ export default function SignalIntelligenceV3() {
 
   const timeframes = ["1m", "5m", "15m", "1H", "4H", "D1", "W1"];
 
+  const filteredSignals = useMemo(() => {
+    if (!searchQuery) return signals;
+    return signals.filter((s) =>
+      (s.symbol || "").toUpperCase().includes(searchQuery)
+    );
+  }, [signals, searchQuery]);
+
   // --- RENDER ---
   return (
     <div className="min-h-screen bg-[#0B0E14] text-gray-200 font-mono flex flex-col overflow-hidden">
@@ -1051,7 +1062,7 @@ export default function SignalIntelligenceV3() {
             headerAction={
               <div className="flex items-center gap-2">
                 <span className="text-[7px] text-gray-600 font-mono">
-                  {signals.length} signals
+                  {filteredSignals.length}{searchQuery ? `/${signals.length}` : ""} signals
                 </span>
                 <button
                   onClick={refetchSignals}
@@ -1075,7 +1086,7 @@ export default function SignalIntelligenceV3() {
                   </tr>
                 </thead>
                 <tbody>
-                  {signals.map((sig, idx) => (
+                  {filteredSignals.map((sig, idx) => (
                     <tr
                       key={sig.id || idx}
                       className="border-b border-[rgba(42,52,68,0.5)]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
