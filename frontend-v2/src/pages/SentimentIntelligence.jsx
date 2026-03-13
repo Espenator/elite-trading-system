@@ -7,6 +7,7 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
 import { getApiUrl, getAuthHeaders } from '../config/api';
+import { toast } from 'react-toastify';
 import {
   Activity, TrendingUp, TrendingDown, AlertTriangle, Target,
   Newspaper, Twitter, MessageSquare, Server,
@@ -157,6 +158,7 @@ export default function SentimentIntelligence() {
   } = useSentiment();
 
   const [discovering, setDiscovering] = useState(false);
+  const [selectedTicker, setSelectedTicker] = useState(null);
 
   const handleAutoDiscover = useCallback(async () => {
     setDiscovering(true);
@@ -472,7 +474,8 @@ export default function SentimentIntelligence() {
                 return (
                   <div
                     key={item.sym}
-                    className="rounded-lg p-2.5 text-center cursor-pointer hover:scale-105 transition-transform"
+                    onClick={() => { setSelectedTicker(item.sym); toast.info(`${item.sym}: ${item.pct >= 0 ? '+' : ''}${item.pct.toFixed(1)}% sentiment`); }}
+                    className={`rounded-lg p-2.5 text-center cursor-pointer hover:scale-105 transition-transform ${selectedTicker === item.sym ? 'ring-2 ring-[#00D9FF]' : ''}`}
                     style={{ backgroundColor: getHeatmapCellBg(item.pct) }}
                   >
                     <div className="text-xs font-black text-white tracking-wider">{item.sym}</div>

@@ -326,7 +326,7 @@ export default function PerformanceAnalytics() {
               <div className="flex flex-col items-center gap-0.5">
                 <div className="text-[10px] text-gray-500 uppercase tracking-wider">Trading Grade Hero</div>
                 <TradingGradeHero grade={kpi.grade || 'A'} score={kpi.score ?? 87} size={90} />
-                <div className="text-[10px] font-semibold text-emerald-400">Excellent</div>
+                <div className={`text-[10px] font-semibold ${(kpi.score ?? 0) === 0 ? 'text-gray-500' : (kpi.score ?? 0) >= 80 ? 'text-emerald-400' : (kpi.score ?? 0) >= 60 ? 'text-cyan-400' : (kpi.score ?? 0) >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>{(kpi.score ?? 0) === 0 ? 'N/A' : (kpi.score ?? 0) >= 80 ? 'Excellent' : (kpi.score ?? 0) >= 60 ? 'Good' : (kpi.score ?? 0) >= 40 ? 'Fair' : 'Poor'}</div>
               </div>
               {/* Sharpe / Sortino / Calmar with change indicators */}
               <div className="grid grid-cols-3 gap-1 w-full">
@@ -796,7 +796,7 @@ export default function PerformanceAnalytics() {
 
       {/* ─── FOOTER (mockup: Embodier Trader - Performance Analytics v2.0 | Connected | Active filters in cyan | Data: Jan 1 - Feb 28, 2026 - 312 trades) ── */}
       <div className="px-4 py-2 border-t border-gray-800/50 flex items-center justify-between text-[10px] text-[#94a3b8] shrink-0 bg-[#0B0E14]">
-        <span>Embodier Trader - Performance Analytics v2.0 | Connected | Active filters in cyan | Data: Jan 1 - Feb 28, 2026 - 312 trades</span>
+        <span>Embodier Trader - Performance Analytics v2.0 | Connected | Active filters in cyan | {trades.length} trades loaded</span>
       </div>
     </div>
   );

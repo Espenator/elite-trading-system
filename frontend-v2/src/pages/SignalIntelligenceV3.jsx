@@ -9,6 +9,7 @@ import { useSearchParams } from "react-router-dom";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import log from "@/utils/logger";
+import { toast } from "react-toastify";
 import { createChart, CrosshairMode, LineStyle } from "lightweight-charts";
 import {
   Cpu,
@@ -709,9 +710,10 @@ export default function SignalIntelligenceV3() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      log.info("Profile saved successfully");
+      toast.success("Profile saved successfully");
     } catch (err) {
       log.error("Failed to save profile:", err);
+      toast.error(`Failed to save profile: ${err.message}`);
     }
   }, [
     agentStates,

@@ -268,7 +268,7 @@ export default function SettingsPage() {
           )}
         </div>
         <button
-          onClick={saveAllSettings}
+          onClick={async () => { try { await saveAllSettings(); toast.success("All settings saved", TOAST_CFG); } catch { toast.error("Failed to save settings", TOAST_CFG); } }}
           disabled={saving}
           className="bg-[#00D9FF] hover:bg-[#00D9FF]/80 text-black font-bold text-[11px] px-5 py-1.5 rounded uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5 transition-all hover:shadow-[0_0_12px_rgba(0,217,255,0.4)]"
         >
@@ -374,7 +374,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-1">
               <span className="text-[9px] text-emerald-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Connected</span>
               <span className="text-[9px] text-gray-500 font-mono">PK8V2****</span>
-              <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Test]</button>
+              <button onClick={() => onTestConn("alpaca")} className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Test]</button>
               <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300">[Edit]</button>
             </div>
           </div>
@@ -847,7 +847,7 @@ export default function SettingsPage() {
           </button>
         </div>
         <button
-          onClick={saveAllSettings}
+          onClick={async () => { try { await saveAllSettings(); toast.success("All settings saved", TOAST_CFG); } catch { toast.error("Failed to save settings", TOAST_CFG); } }}
           disabled={saving}
           className="bg-[#00D9FF] hover:bg-[#00D9FF]/80 text-black font-bold text-[10px] px-5 py-1.5 rounded uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5"
         >

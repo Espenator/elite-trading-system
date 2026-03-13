@@ -21,6 +21,8 @@ import { useApi } from "../hooks/useApi";
 import PageHeader from "../components/ui/PageHeader";
 import Slider from "../components/ui/Slider";
 import log from "@/utils/logger";
+import { toast } from "react-toastify";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 
 // ═══════════════════════════════════════════════════
 // CONFIG & CONSTANTS
@@ -406,11 +408,11 @@ function ScreeningEngine() {
 
         {/* Action buttons - mockup: + Spawn, Clone, Spawn Swarm (green), Swarm Templates (red), Kill All (red) */}
         <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-700/40">
-          <TealButton icon={Plus} onClick={() => log.info("Spawn scanner agent")}>+ Spawn New Scanner Agent</TealButton>
-          <TealButton icon={Copy} onClick={() => log.info("Clone agent")} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Clone Agent</TealButton>
-          <TealButton icon={Boxes} onClick={() => log.info("Spawn swarm")} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Spawn Swarm</TealButton>
-          <TealButton icon={Layers} variant="danger" onClick={() => log.info("Swarm template")}>Swarm Templates</TealButton>
-          <TealButton icon={Trash2} variant="danger" onClick={() => log.info("Kill all agents")}>Kill All Agents</TealButton>
+          <TealButton icon={Plus} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner", action: "spawn" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Scanner agent spawned"); } catch (e) { toast.error(`Spawn failed: ${e.message}`); } }}>+ Spawn New Scanner Agent</TealButton>
+          <TealButton icon={Copy} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner", action: "clone" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Agent cloned"); } catch (e) { toast.error(`Clone failed: ${e.message}`); } }} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Clone Agent</TealButton>
+          <TealButton icon={Boxes} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner", action: "spawn_swarm" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Swarm spawned"); } catch (e) { toast.error(`Spawn swarm failed: ${e.message}`); } }} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Spawn Swarm</TealButton>
+          <TealButton icon={Layers} variant="danger" onClick={() => toast.info("Swarm templates — coming soon")}>Swarm Templates</TealButton>
+          <TealButton icon={Trash2} variant="danger" onClick={async () => { if (!window.confirm("Kill ALL scanner agents?")) return; try { const r = await fetch(getApiUrl("agents") + "/batch/stop", { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("All scanner agents killed"); } catch (e) { toast.error(`Kill failed: ${e.message}`); } }}>Kill All Agents</TealButton>
         </div>
       </SectionBox>
     </div>
@@ -580,10 +582,10 @@ function PatternIntelligence() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-700/40">
-          <TealButton icon={Plus} onClick={() => log.info("Spawn pattern agent")}>+ Spawn New Pattern Agent</TealButton>
-          <TealButton icon={Boxes} onClick={() => log.info("Spawn discovery swarm")} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Spawn Discovery Swarm</TealButton>
+          <TealButton icon={Plus} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "pattern", action: "spawn" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Pattern agent spawned"); } catch (e) { toast.error(`Spawn failed: ${e.message}`); } }}>+ Spawn New Pattern Agent</TealButton>
+          <TealButton icon={Boxes} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "pattern", action: "spawn_swarm" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Discovery swarm spawned"); } catch (e) { toast.error(`Spawn swarm failed: ${e.message}`); } }} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Spawn Discovery Swarm</TealButton>
           <TealButton icon={Layers} variant="danger" onClick={() => log.info("Swarm template")}>Swarm Templates</TealButton>
-          <TealButton icon={Trash2} variant="danger" onClick={() => log.info("Kill all pattern agents")}>Kill All Pattern Agents</TealButton>
+          <TealButton icon={Trash2} variant="danger" onClick={async () => { if (!window.confirm("Kill ALL pattern agents?")) return; try { const r = await fetch(getApiUrl("agents") + "/batch/stop", { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "pattern" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("All pattern agents killed"); } catch (e) { toast.error(`Kill failed: ${e.message}`); } }}>Kill All Pattern Agents</TealButton>
         </div>
       </SectionBox>
     </div>
