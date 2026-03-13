@@ -330,6 +330,53 @@ Final hardening for 24/7 autonomous operation.
 
 ---
 
+### Phase F: TRADING ASSISTANT & TRADINGVIEW INTEGRATION
+**Priority: P1 | Estimated: 2-3 sessions | STATUS: IN PROGRESS (March 12, 2026)**
+
+Dual-system trading architecture: Embodier Trader (AI signals) + TradingView (charting + alerts).
+
+#### F1. TradersPost Connection — DONE
+- TradersPost account created (free tier, paper trading, $100K)
+- Alpaca paper account connected to TradersPost
+- Webhook URL configured in `.env`
+- Dual-webhook safety pattern: monitoring (webhook.site) always fires, execution (TradersPost) requires `execute=True`
+
+#### F2. Morning Trade Briefing Scheduled Task — DONE
+- `morning-trade-briefing` task created (9:00 AM ET, Mon-Fri)
+- Pulls top signals, regime status, open positions
+- Formats TradingView-compatible levels (entry, stop, target)
+- Posts to Slack #trade-alerts
+
+#### F3. Trading Assistant Plan & Research — DONE
+- `docs/TRADING-ASSISTANT-PLAN.md` — Full daily schedule, TradingView integration architecture, implementation roadmap
+- `docs/TRADING-ASSISTANT-RESEARCH.md` — Research on TradersPost, pre-market data sources, AI trading best practices, trade journaling
+- `docs/CURSOR-PROMPT-TRADING-ASSISTANT.md` — Cursor agent implementation prompt for 7 new files
+
+#### F4. BriefingService Backend — TODO
+- `services/briefing_service.py`: generate_morning_briefing(), get_position_review(), format_tradingview_levels(), generate_weekly_review()
+- `api/v1/briefing.py`: 5 endpoints (morning, positions, weekly, webhook/test, status)
+
+#### F5. TradingView Bridge — TODO
+- `services/tradingview_bridge.py`: Dual webhook (monitoring + execution), TradersPost payload formatting
+- `api/v1/tradingview.py`: 3 endpoints (push-signals, config, pine-script)
+- Safety: `execute=False` by default, explicit opt-in required
+
+#### F6. TradingView Bridge Frontend — TODO
+- `frontend-v2/src/pages/TradingViewBridge.jsx`: Trade idea cards, copy-to-clipboard, webhook push button
+- Registration in App.jsx, Sidebar.jsx, api.js
+
+#### F7. Additional Scheduled Tasks — TODO
+- `midday-pulse` (12:30 PM ET, Mon-Fri): Regime check, position review
+- `closing-review` (4:15 PM ET, Mon-Fri): Day's P&L, fills, journal entries
+- `weekly-performance` (10:00 AM ET, Saturday): Full weekly review with Sharpe, attribution
+
+#### F8. Pine Script Signal Overlay — TODO
+- Custom TradingView indicator plotting Embodier entry/stop/target levels
+- `alertcondition()` triggers for trade entries
+- One-click import from TradingView Bridge page
+
+---
+
 ## Execution Order
 
 ```
@@ -341,9 +388,11 @@ Phase C (Sharpen the Brain)      ← COMPLETE (3-4 sessions, March 12)
 Phase D (Continuous Intelligence) ← COMPLETE (3-4 sessions, March 12)
   ↓
 Phase E (Production Hardening)    ← COMPLETE (2-3 sessions)
+  ↓
+Phase F (Trading Assistant)       ← IN PROGRESS (2-3 sessions, March 12+)
 ```
 
-**Total estimated effort: 13-18 focused sessions. All phases completed March 11-12, 2026.**
+**Total estimated effort: 15-21 focused sessions. Phases A-E completed March 11-12, 2026. Phase F in progress.**
 
 ---
 

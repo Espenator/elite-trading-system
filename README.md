@@ -522,6 +522,8 @@ All API keys live in `backend/.env` (gitignored). Services degrade gracefully if
 | Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) | **ACTIVE** -- sonar-pro model |
 | Anthropic (Claude) | `ANTHROPIC_API_KEY` | No (LLM tier 3) | **ACTIVE** -- 6 deep-reasoning tasks |
 | Resend (email) | `RESEND_API_KEY` | No | **ACTIVE** |
+| TradersPost | `TRADERSPOST_WEBHOOK_URL` | No (execution bridge) | **ACTIVE** — paper, Alpaca connected |
+| Webhook.site | `TRADINGVIEW_WEBHOOK_URL` | No (monitoring) | **ACTIVE** — payload inspection |
 | StockGeist | `STOCKGEIST_API_KEY` | No | Not configured |
 | YouTube | `YOUTUBE_API_KEY` | No | Not configured |
 | X / Twitter | `X_API_KEY` | No | Not configured |
@@ -543,6 +545,43 @@ All API keys live in `backend/.env` (gitignored). Services degrade gracefully if
 | `#embodier-trader` | System alerts, health, circuit breakers, agent failures |
 
 All trading events are bridged from MessageBus to Slack via `slack_notification_service.py`. Tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env` (gitignored).
+
+## TradingView + TradersPost Integration (Phase F)
+
+Dual-system trading architecture: Embodier Trader generates AI signals via 35-agent council; TradingView provides visual charting, price alerts, and mobile notifications.
+
+### Architecture
+```
+Embodier Trader (BriefingService)
+     │
+     ├──► Webhook.site (monitoring — always fires)
+     │    Inspect payloads, debug, validate format
+     │
+     └──► TradersPost (execution — only with execute=True)
+          TradingView → Alpaca paper account → order execution
+```
+
+### Connection Status
+| Component | Status |
+|-----------|--------|
+| TradersPost account | **ACTIVE** — free tier, paper trading ($100K) |
+| Alpaca ↔ TradersPost | **CONNECTED** — paper account linked |
+| Webhook.site monitoring | **ACTIVE** — outbound payload inspection |
+| Morning briefing task | **ACTIVE** — 9 AM ET weekdays |
+| BriefingService backend | PLANNED — Cursor implementation prompt ready |
+| TradingView Bridge UI | PLANNED — frontend page designed |
+
+### Safety
+- `execute=False` by default — TradersPost webhook only fires with explicit opt-in
+- Monitoring webhook always fires for payload inspection
+- Human-in-the-loop confirmation before any live execution
+
+### Key Documents
+| File | Purpose |
+|------|---------|
+| `docs/TRADING-ASSISTANT-PLAN.md` | Full daily schedule + TradingView integration architecture |
+| `docs/TRADING-ASSISTANT-RESEARCH.md` | Research: TradersPost, pre-market sources, journaling |
+| `docs/CURSOR-PROMPT-TRADING-ASSISTANT.md` | Implementation prompt for 7 new files |
 
 ## Quick Start
 
@@ -801,14 +840,15 @@ async def evaluate(features: dict, context: dict = None) -> AgentVote:
 - Scraper services created (Benzinga, SqueezeMetrics, Capitol Trades)
 - Health monitoring + Slack notification service
 
-### Enhancement Phases (ALL COMPLETE — March 2026)
+### Enhancement Phases (A-E COMPLETE, F IN PROGRESS — March 2026)
 - **Phase A: Stop the Bleeding** ✅ — Scout crashes fixed, regime enforcement, circuit breakers, safety gates
 - **Phase B: Unlock Alpha** ✅ — Regime-adaptive gate, independent shorts, smart cooldowns, limit/TWAP orders
 - **Phase C: Sharpen the Brain** ✅ — Weight learner fix, Brier calibration, debate wiring, regime-adaptive thresholds
 - **Phase D: Continuous Intelligence** ✅ — Backfill orchestrator, rate limiter registry, DLQ resilience, session scanner
 - **Phase E: Production Hardening** ✅ — E2E test, emergency flatten, desktop packaging, metrics, auth
+- **Phase F: Trading Assistant** 🔄 — TradingView + TradersPost integration, morning briefing, dual-webhook bridge
 
-See `PLAN.md` for historical details on all 40 specific issues resolved.
+See `PLAN.md` for details on all phases.
 
 ---
 

@@ -318,8 +318,47 @@ Both IPs DHCP-reserved on AT&T BGW320-505 router (192.168.1.254). Connected via 
 | Notifications | `SLACK_BOT_TOKEN`, `RESEND_API_KEY`, `TELEGRAM_BOT_TOKEN` |
 | Auth | `API_AUTH_TOKEN`, `FERNET_KEY` |
 | Trading | `TRADING_MODE`, `KELLY_MAX_ALLOCATION`, `MAX_PORTFOLIO_HEAT`, `MAX_DAILY_TRADES` |
+| TradingView | `TRADINGVIEW_WEBHOOK_URL`, `TRADERSPOST_WEBHOOK_URL` |
 
 Full template: `backend/.env.example`
+
+## 12b. TradingView + TradersPost Integration (March 12, 2026)
+
+### Dual-System Architecture
+Embodier Trader + TradingView operate as complementary systems. Embodier generates signals via 35-agent council; TradingView provides visual charting, price alerts, and mobile notifications.
+
+### TradersPost Connection
+- **Service**: TradersPost (traderspost.io) — webhook relay TradingView → Alpaca
+- **Account**: Free tier, paper trading ($100K), Alpaca connected
+- **Safety**: Dual-webhook pattern — monitoring (webhook.site) always fires; execution (TradersPost) requires explicit `execute=True` flag
+
+### Webhook Bridge
+```
+Embodier Trader → webhook.site (monitoring, always)
+               → TradersPost (execution, only if execute=True) → Alpaca
+```
+
+### Planned Trading Assistant Module
+| File | Purpose |
+|------|---------|
+| `services/briefing_service.py` | Morning briefing, position review, weekly review |
+| `services/tradingview_bridge.py` | Dual webhook bridge (monitoring + execution) |
+| `api/v1/briefing.py` | Briefing endpoints (morning, positions, weekly, webhook/test) |
+| `api/v1/tradingview.py` | TradingView endpoints (push-signals, config, pine-script) |
+| `frontend-v2/src/pages/TradingViewBridge.jsx` | Trade idea cards, webhook push UI |
+
+### Scheduled Tasks
+| Task ID | Schedule | Purpose |
+|---------|----------|---------|
+| `morning-trade-briefing` | 9:00 AM ET, Mon-Fri | Top signals + TradingView levels |
+| `midday-pulse` | 12:30 PM ET, Mon-Fri | Regime check + position review (planned) |
+| `closing-review` | 4:15 PM ET, Mon-Fri | Day's P&L + journal entries (planned) |
+| `weekly-performance` | 10:00 AM ET, Saturday | Full weekly review (planned) |
+
+### Key Docs
+- `docs/TRADING-ASSISTANT-PLAN.md` — Full dual-system trading assistant plan
+- `docs/TRADING-ASSISTANT-RESEARCH.md` — Research compilation (TradersPost, pre-market sources, journaling)
+- `docs/CURSOR-PROMPT-TRADING-ASSISTANT.md` — Cursor agent implementation prompt (7 files)
 
 ## 13. Testing
 

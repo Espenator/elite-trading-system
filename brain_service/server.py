@@ -370,7 +370,9 @@ async def serve():
     brain_pb2_grpc.add_BrainServiceServicer_to_server(
         BrainServiceServicer(), server
     )
-    server.add_insecure_port(f"[::]:{PORT}")
+    # Use localhost on Windows (IPv6 [::] and 0.0.0.0 fail with grpc.aio on some Windows builds)
+    bind_addr = f"localhost:{PORT}" if sys.platform == "win32" else f"[::]:{PORT}"
+    server.add_insecure_port(bind_addr)
 
     logger.info("Brain Service starting on port %d (max_workers=%d)", PORT, MAX_WORKERS)
     logger.info(

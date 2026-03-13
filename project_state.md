@@ -11,7 +11,7 @@
 - **Status**: v5.0.0 — Phases A+B+C+E complete. Production-ready.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 - **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 981+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
-- **Latest Session Fixes**: Slack notification bridges wired (council.verdict, order.submitted, order.filled, signal.generated, alert.* → Slack channels). Fixed 3 broken Slack imports. Fixed device-config.js .env regeneration bug (hardcoded API key defaults). Fixed weight learner test_symmetric_penalty. All phases (A+B+C+D+E) complete.
+- **Latest Session (March 12, 2026)**: TradingView + TradersPost integration planned. TradersPost account created (paper, $100K, Alpaca connected). Dual-webhook bridge designed (webhook.site monitoring + TradersPost execution with safety gate). Morning trade briefing scheduled task created (9 AM ET weekdays). Trading assistant plan, research doc, and Cursor implementation prompt written. Previous: Slack notification bridges wired, device-config.js fix, weight learner test fix. All phases (A+B+C+D+E) complete.
 
 ## Two-PC Development Setup
 
@@ -69,6 +69,8 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 | Benzinga (scraper) | `BENZINGA_EMAIL` / `BENZINGA_PASSWORD` | No | **CONFIGURED** — web scraper |
 | SqueezeMetrics (scraper) | `SQUEEZEMETRICS_ENABLED` | No | **CONFIGURED** — public DIX/GEX |
 | Capitol Trades (scraper) | — (via UW API) | No | **CONFIGURED** — UW congress + scrape fallback |
+| TradersPost (webhook relay) | `TRADERSPOST_WEBHOOK_URL` | No (execution bridge) | **ACTIVE** — paper trading, Alpaca connected |
+| Webhook.site (monitoring) | `TRADINGVIEW_WEBHOOK_URL` | No (monitoring) | **ACTIVE** — outbound payload inspection |
 | StockGeist | `STOCKGEIST_API_KEY` | No | Not configured |
 | YouTube | `YOUTUBE_API_KEY` | No | Not configured |
 
@@ -323,7 +325,8 @@ AlpacaStreamService
 - Backend: 43 API route files (364+ endpoints), 72+ service files, all mounted and responding
 - Council: 35-agent DAG — all agents are real implementations (not stubs). Sub-1s latency.
 - All Phases Complete: Regime enforcement, circuit breakers, regime-adaptive signals, limit/TWAP orders, weight learner fix, Brier calibration, backfill orchestrator, rate limiting, E2E test, emergency flatten, desktop packaging
-- Remaining (Phase F): Replace frontend FALLBACK_* with skeleton loaders, add CodeQL/Dependabot, frontend unit tests, accessibility audit, Slack token auto-refresh, Docker staging
+- **TradingView Integration**: Dual-system architecture planned (Embodier signals + TradingView charting). TradersPost connected (paper, $100K, Alpaca). Dual-webhook bridge designed. Morning briefing scheduled task active (9 AM ET weekdays). Cursor implementation prompt ready for 7 new files (briefing_service, tradingview_bridge, 2 API routes, frontend page, tests).
+- Remaining (Phase F): TradingView bridge implementation, replace frontend FALLBACK_* with skeleton loaders, add CodeQL/Dependabot, frontend unit tests, accessibility audit, Slack token auto-refresh, Docker staging
 - LLM: 3-tier router (Ollama → Perplexity → Claude); Claude for 6 deep-reasoning tasks only
 - Auth: Bearer token, fail-closed for live trading
 - Kelly Sizing: Real DuckDB stats; Mock Guard active; R-multiple with actual stop_price

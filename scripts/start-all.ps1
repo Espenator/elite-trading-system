@@ -27,6 +27,8 @@ $LOG_DIR = Join-Path $REPO_ROOT "logs"
 $PID_FILE = Join-Path $REPO_ROOT "logs\services.pid"
 $BACKEND_PORT = 8001
 $FRONTEND_PORT = 3000
+$BRAIN_PORT = 50051
+$BRAIN_DIR = Join-Path $REPO_ROOT "brain_service"
 $MAX_RESTARTS = 10
 $RESTART_DELAY_SEC = 5
 $HEALTH_CHECK_INTERVAL = 15
@@ -263,6 +265,42 @@ function Start-Frontend {
     }
 }
 
+# ── Brain Service Startup ──
+function Start-BrainService {
+    # Check if already running
+    $existing = Get-NetTCPConnection -LocalPort $BRAIN_PORT -State Listen -ErrorAction SilentlyContinue
+    if ($existing) {
+        Write-Log "Brain Service already running on port $BRAIN_PORT (PID: $($existing.OwningProcess))" "OK"
+        return (Get-Process -Id $existing.OwningProcess -ErrorAction SilentlyContinue)
+    }
+
+    $python = Get-PythonPath
+    $brainLog = Join-Path $LOG_DIR "brain_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').log"
+
+    Write-Log "Starting Brain Service (gRPC on port $BRAIN_PORT)..."
+    try {
+        $brainProc = Start-Process -FilePath $python -ArgumentList "server.py" `
+            -WorkingDirectory $BRAIN_DIR `
+            -RedirectStandardOutput $brainLog `
+            -RedirectStandardError "$brainLog.err" `
+            -PassThru -NoNewWindow
+
+        for ($i = 0; $i -lt 15; $i++) {
+            Start-Sleep -Seconds 1
+            $check = Get-NetTCPConnection -LocalPort $BRAIN_PORT -State Listen -ErrorAction SilentlyContinue
+            if ($check) {
+                Write-Log "Brain Service READY on port $BRAIN_PORT (took ${i}s)" "OK"
+                return $brainProc
+            }
+        }
+        Write-Log "Brain Service failed to start within 15s" "WARN"
+        return $null
+    } catch {
+        Write-Log "Brain Service start failed: $_" "WARN"
+        return $null
+    }
+}
+
 # ── Health Monitor (infinite loop) ──
 function Start-HealthMonitor {
     param($BackendProc, $FrontendProc)
@@ -351,6 +389,8 @@ if ($backendHealthy -and $frontendHealthy) {
     $BackendProc = if ($backendPid) { Get-Process -Id $backendPid -ErrorAction SilentlyContinue } else { $null }
     $FrontendProc = if ($frontendPid) { Get-Process -Id $frontendPid -ErrorAction SilentlyContinue } else { $null }
     Save-PidFile -BackendPid ($BackendProc.Id) -FrontendPid ($FrontendProc.Id)
+    # Ensure Brain Service is also running
+    $brainProc = Start-BrainService
     Start-HealthMonitor -BackendProc $BackendProc -FrontendProc $FrontendProc
     exit 0
 }
@@ -381,6 +421,8 @@ if ($backendOk -and $frontendOk) {
     Write-Log "Backend:  http://localhost:$BACKEND_PORT"
     Write-Log "Frontend: http://localhost:$FRONTEND_PORT"
     Save-PidFile -BackendPid ($backendProc.Id) -FrontendPid ($frontendProc.Id)
+    # Start Brain Service (non-blocking, won't prevent health monitor if it fails)
+    $brainProc = Start-BrainService
     # Enter health monitor loop (infinite)
     Start-HealthMonitor -BackendProc $backendProc -FrontendProc $frontendProc
 } elseif ($backendOk) {
