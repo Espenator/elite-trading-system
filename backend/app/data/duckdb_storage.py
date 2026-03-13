@@ -28,7 +28,20 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 DB_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 DB_DIR.mkdir(parents=True, exist_ok=True)
-DUCKDB_PATH = DB_DIR / "analytics.duckdb"
+
+# Allow env-based override: set DUCKDB_PATH in .env to use a different file
+def _resolve_duckdb_path() -> Path:
+    try:
+        from app.core.config import settings
+        if settings.DUCKDB_PATH:
+            p = Path(settings.DUCKDB_PATH)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            return p
+    except Exception:
+        pass
+    return DB_DIR / "analytics.duckdb"
+
+DUCKDB_PATH = _resolve_duckdb_path()
 
 _lock = threading.Lock()
 
