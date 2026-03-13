@@ -283,7 +283,7 @@ function generateEnvFile(config) {
     `MAX_DAILY_TRADES=10`,
     "",
     "# --- Peer Devices ---",
-    `PC2_API_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : (isPrimary ? "http://192.168.1.116:8000" : "")}`,
+    `PC2_API_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : (isPrimary ? "http://192.168.1.116:8001" : "")}`,
     `BRAIN_SERVICE_URL=${isPrimary ? "192.168.1.116:50051" : "localhost:50051"}`,
     `AWARENESS_WORKER_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : ""}`,
     `REDIS_URL=${peerAddr ? `redis://${peerAddr}:6379/0` : ""}`,
