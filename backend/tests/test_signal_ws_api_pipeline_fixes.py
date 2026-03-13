@@ -34,13 +34,13 @@ def test_main_uses_signals_channel_not_signal():
 
 
 def test_ws_channel_registries_are_synced():
-    """Both backend WS channel registries should match and exclude singular signal."""
+    """Both backend WS channel registries should match and include signal channels."""
     from app.main import _VALID_WS_CHANNELS
 
-    assert "signal" not in _VALID_WS_CHANNELS
-    assert "signal" not in WS_ALLOWED_CHANNELS
     assert "signals" in _VALID_WS_CHANNELS
     assert "signals" in WS_ALLOWED_CHANNELS
+    assert "signal" in _VALID_WS_CHANNELS
+    assert "signal" in WS_ALLOWED_CHANNELS
     assert _VALID_WS_CHANNELS == frozenset(WS_ALLOWED_CHANNELS)
 
 
