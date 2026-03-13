@@ -45,6 +45,13 @@ const SCANNER_AGENTS = [];
 
 const PATTERN_AGENTS = [];
 
+const SWARM_TEMPLATES = [
+  { id: "aggressive", name: "Aggressive Momentum", agents: 5, type: "scanner", desc: "High-frequency momentum scanners for volatile markets" },
+  { id: "conservative", name: "Conservative Value", agents: 3, type: "scanner", desc: "Low-frequency value screeners for stable assets" },
+  { id: "pattern-discovery", name: "Pattern Discovery", agents: 4, type: "pattern", desc: "Multi-timeframe pattern recognition swarm" },
+  { id: "full-spectrum", name: "Full Spectrum", agents: 8, type: "both", desc: "Combined scanner + pattern agents for broad coverage" },
+];
+
 // Pattern Arsenal: display names + icons per mockup (Wyckoff, Elliot Wave, Head & Shoulders, etc.)
 const PATTERNS_ARSENAL_DISPLAY = [
   { id: "wyckoff", name: "Wyckoff Accumulation", icon: "W" },
@@ -63,25 +70,23 @@ const PATTERN_COMPLEXITY_OPTS = ["Simple", "Compound", "Multi-Timeframe"];
 // STYLED SUB-COMPONENTS
 // ═══════════════════════════════════════════════════
 
-/** Window controls (minimize, maximize, close) per mockup */
-function WindowControls() {
-  return (
-    <div className="flex items-center gap-0.5">
-      <button className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Minimize">
-        <Minimize2 size={10} />
-      </button>
-      <button className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Maximize">
-        <Maximize2 size={10} />
-      </button>
-      <button className="p-0.5 text-gray-500 hover:text-red-400 transition-colors" aria-label="Close">
-        <X size={10} />
-      </button>
-    </div>
-  );
-}
-
-/** Section wrapper with title bar and optional window controls */
+/** Section wrapper with title bar and window controls (minimize/maximize/close) */
 function SectionBox({ title, icon: Icon, children, className, headerRight, windowControls }) {
+  const [panelState, setPanelState] = useState("normal"); // "normal" | "minimized" | "hidden"
+
+  if (panelState === "hidden") {
+    return (
+      <button
+        onClick={() => setPanelState("normal")}
+        className="flex items-center gap-2 px-3 py-1.5 bg-[#1e293b] border border-[rgba(42,52,68,0.5)] rounded-lg text-[10px] text-gray-400 hover:text-cyan-300 transition-colors"
+      >
+        {Icon && <Icon size={11} className="text-gray-500" />}
+        <span>{title}</span>
+        <span className="text-[9px] text-gray-600">(click to restore)</span>
+      </button>
+    );
+  }
+
   return (
     <div className={clsx(
       "border border-[rgba(42,52,68,0.5)] rounded-lg bg-[#0B0E14]/90 overflow-hidden shadow-lg",
@@ -94,12 +99,26 @@ function SectionBox({ title, icon: Icon, children, className, headerRight, windo
         </div>
         <div className="flex items-center gap-2">
           {headerRight}
-          {windowControls && <WindowControls />}
+          {windowControls && (
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => setPanelState(panelState === "minimized" ? "normal" : "minimized")} className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Minimize">
+                <Minimize2 size={10} />
+              </button>
+              <button onClick={() => setPanelState("normal")} className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Maximize">
+                <Maximize2 size={10} />
+              </button>
+              <button onClick={() => setPanelState("hidden")} className="p-0.5 text-gray-500 hover:text-red-400 transition-colors" aria-label="Close">
+                <X size={10} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      <div className="p-2">
-        {children}
-      </div>
+      {panelState !== "minimized" && (
+        <div className="p-2">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -197,11 +216,48 @@ function ScannerAgentCard({ agent, selected, onSelect }) {
 // SCREENING ENGINE (LEFT COLUMN)
 // ═══════════════════════════════════════════════════
 
+function SwarmTemplateDropdown({ type, onClose }) {
+  const templates = SWARM_TEMPLATES.filter(t => t.type === type || t.type === "both");
+  const handleSelect = async (template) => {
+    try {
+      const r = await fetch(getApiUrl("agents"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ type, action: "spawn_swarm", config: { count: template.agents, template: template.id, name: template.name } }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(`Swarm "${template.name}" spawned (${template.agents} agents)`);
+    } catch (e) {
+      toast.error(`Spawn swarm failed: ${e.message}`);
+    }
+    onClose();
+  };
+  return (
+    <div className="absolute z-50 mt-1 w-64 bg-[#1e293b] border border-cyan-800/50 rounded-lg shadow-xl overflow-hidden">
+      <div className="px-3 py-2 bg-[#0B0E14] border-b border-gray-700/50 flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-cyan-300 uppercase">Swarm Templates</span>
+        <button onClick={onClose} className="text-gray-500 hover:text-red-400"><X size={12} /></button>
+      </div>
+      {templates.map(t => (
+        <button key={t.id} onClick={() => handleSelect(t)}
+          className="w-full text-left px-3 py-2 hover:bg-cyan-950/40 border-b border-gray-800/30 transition-colors">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold text-cyan-200">{t.name}</span>
+            <span className="text-[9px] text-gray-500">{t.agents} agents</span>
+          </div>
+          <p className="text-[9px] text-gray-500 mt-0.5">{t.desc}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ScreeningEngine() {
   const [selectedScanner, setSelectedScanner] = useState("s1");
   const [scannerName, setScannerName] = useState("AlphaHunter_V4");
   const [scannerType, setScannerType] = useState("Alpha Scanner");
   const [activeTimeframe, setActiveTimeframe] = useState("1M");
+  const [showScannerTemplates, setShowScannerTemplates] = useState(false);
 
   // Trading metric controls - mockup values
   const [betaThreshold, setBetaThreshold] = useState(1.2);
@@ -237,7 +293,11 @@ function ScreeningEngine() {
           <div className="bg-[#1e293b] rounded border border-gray-700/50 overflow-hidden">
             <div className="flex items-center justify-between px-2 py-1 bg-[#0B0E14] border-b border-gray-700/40">
               <span className="text-[10px] text-gray-400">Scanner Agent Cards</span>
-              <WindowControls />
+              <div className="flex items-center gap-0.5">
+                <button className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Minimize"><Minimize2 size={10} /></button>
+                <button className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Maximize"><Maximize2 size={10} /></button>
+                <button className="p-0.5 text-gray-500 hover:text-red-400 transition-colors" aria-label="Close"><X size={10} /></button>
+              </div>
             </div>
             <div className="p-2 space-y-2">
               {SCANNER_AGENTS.length > 0 && (
@@ -411,7 +471,10 @@ function ScreeningEngine() {
           <TealButton icon={Plus} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner", action: "spawn" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Scanner agent spawned"); } catch (e) { toast.error(`Spawn failed: ${e.message}`); } }}>+ Spawn New Scanner Agent</TealButton>
           <TealButton icon={Copy} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner", action: "clone" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Agent cloned"); } catch (e) { toast.error(`Clone failed: ${e.message}`); } }} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Clone Agent</TealButton>
           <TealButton icon={Boxes} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner", action: "spawn_swarm" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Swarm spawned"); } catch (e) { toast.error(`Spawn swarm failed: ${e.message}`); } }} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Spawn Swarm</TealButton>
-          <TealButton icon={Layers} variant="danger" onClick={() => toast.info("Swarm templates — coming soon")}>Swarm Templates</TealButton>
+          <div className="relative">
+            <TealButton icon={Layers} variant="danger" onClick={() => setShowScannerTemplates(v => !v)}>Swarm Templates</TealButton>
+            {showScannerTemplates && <SwarmTemplateDropdown type="scanner" onClose={() => setShowScannerTemplates(false)} />}
+          </div>
           <TealButton icon={Trash2} variant="danger" onClick={async () => { if (!window.confirm("Kill ALL scanner agents?")) return; try { const r = await fetch(getApiUrl("agents") + "/batch/stop", { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "scanner" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("All scanner agents killed"); } catch (e) { toast.error(`Kill failed: ${e.message}`); } }}>Kill All Agents</TealButton>
         </div>
       </SectionBox>
@@ -457,6 +520,7 @@ function PatternAgentCard({ agent, selected, onSelect }) {
 function PatternIntelligence() {
   const [selectedPattern, setSelectedPattern] = useState("p1");
   const [patternName, setPatternName] = useState("Fractal_Prophet_G4");
+  const [showPatternTemplates, setShowPatternTemplates] = useState(false);
   const [llmModel, setLlmModel] = useState("GPT-4");
   const [architecture, setArchitecture] = useState("Transformer");
 
@@ -492,7 +556,11 @@ function PatternIntelligence() {
           <div className="bg-[#1e293b] rounded border border-gray-700/50 overflow-hidden">
             <div className="flex items-center justify-between px-2 py-1 bg-[#0B0E14] border-b border-gray-700/40">
               <span className="text-[10px] text-gray-400">Pattern Agent Cards</span>
-              <WindowControls />
+              <div className="flex items-center gap-0.5">
+                <button className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Minimize"><Minimize2 size={10} /></button>
+                <button className="p-0.5 text-gray-500 hover:text-gray-400 transition-colors" aria-label="Maximize"><Maximize2 size={10} /></button>
+                <button className="p-0.5 text-gray-500 hover:text-red-400 transition-colors" aria-label="Close"><X size={10} /></button>
+              </div>
             </div>
             <div className="p-2 space-y-2">
               {PATTERN_AGENTS.length > 0 && (
@@ -584,7 +652,10 @@ function PatternIntelligence() {
         <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-700/40">
           <TealButton icon={Plus} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "pattern", action: "spawn" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Pattern agent spawned"); } catch (e) { toast.error(`Spawn failed: ${e.message}`); } }}>+ Spawn New Pattern Agent</TealButton>
           <TealButton icon={Boxes} onClick={async () => { try { const r = await fetch(getApiUrl("agents"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "pattern", action: "spawn_swarm" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("Discovery swarm spawned"); } catch (e) { toast.error(`Spawn swarm failed: ${e.message}`); } }} className="!text-emerald-400 !border-emerald-500/40 !bg-emerald-500/20">Spawn Discovery Swarm</TealButton>
-          <TealButton icon={Layers} variant="danger" onClick={() => log.info("Swarm template")}>Swarm Templates</TealButton>
+          <div className="relative">
+            <TealButton icon={Layers} variant="danger" onClick={() => setShowPatternTemplates(v => !v)}>Swarm Templates</TealButton>
+            {showPatternTemplates && <SwarmTemplateDropdown type="pattern" onClose={() => setShowPatternTemplates(false)} />}
+          </div>
           <TealButton icon={Trash2} variant="danger" onClick={async () => { if (!window.confirm("Kill ALL pattern agents?")) return; try { const r = await fetch(getApiUrl("agents") + "/batch/stop", { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ type: "pattern" }) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); toast.success("All pattern agents killed"); } catch (e) { toast.error(`Kill failed: ${e.message}`); } }}>Kill All Pattern Agents</TealButton>
         </div>
       </SectionBox>
@@ -620,9 +691,9 @@ function FormingDetectionCard({ pattern }) {
   );
 }
 
-// No fallback feed data — real API only
+// Consolidated Live Feed — pulls from /patterns/feed
 function ConsolidatedLiveFeed() {
-  const { data: feedData } = useApi('patternFeed', { pollIntervalMs: 10000 });
+  const { data: feedData, loading, error } = useApi('patternFeed', { pollIntervalMs: 30000 });
   const feedEntries = feedData?.entries || feedData?.feed || [];
   const feedRef = useRef(null);
 
@@ -631,14 +702,19 @@ function ConsolidatedLiveFeed() {
       <div ref={feedRef} className="flex-1 overflow-y-auto scrollbar-thin space-y-0 min-h-0 max-h-[200px]">
         {feedEntries.length === 0 ? (
           <div className="flex items-center justify-center h-full py-6">
-            <span className="text-[10px] text-gray-600">No feed data</span>
+            <span className="text-[10px] text-gray-600">
+              {loading ? "Loading feed..." : error ? "Feed unavailable — retrying..." : "No feed data — awaiting pattern detections"}
+            </span>
           </div>
-        ) : feedEntries.map(entry => (
-          <div key={entry.id} className="flex items-start gap-2 py-[3px] border-b border-gray-800/30 hover:bg-cyan-950/20 px-1 text-[10px] font-mono">
-            <span className="text-gray-600 whitespace-nowrap">{entry.timestamp}</span>
+        ) : feedEntries.map((entry, i) => (
+          <div key={entry.id ?? i} className="flex items-start gap-2 py-[3px] border-b border-gray-800/30 hover:bg-cyan-950/20 px-1 text-[10px] font-mono">
+            <span className="text-gray-600 whitespace-nowrap">{entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ""}</span>
             <span className="font-bold min-w-[36px] text-[#00D9FF]">{entry.symbol}</span>
-            <span className="text-gray-500">{entry.agent}</span>
-            <span className="text-gray-300 truncate">{entry.action}</span>
+            <span className={clsx("min-w-[12px]", entry.direction === "bullish" ? "text-emerald-400" : entry.direction === "bearish" ? "text-red-400" : "text-gray-400")}>
+              {entry.direction === "bullish" ? "▲" : entry.direction === "bearish" ? "▼" : "●"}
+            </span>
+            <span className="text-gray-300 truncate">{entry.pattern || entry.action}</span>
+            {entry.confidence > 0 && <span className="text-gray-500 ml-auto shrink-0">{entry.confidence}%</span>}
           </div>
         ))}
       </div>
@@ -646,26 +722,53 @@ function ConsolidatedLiveFeed() {
   );
 }
 
+// Pattern Arsenal — clickable pattern cards with detail view
 function PatternArsenalPanel() {
+  const [selectedPattern, setSelectedPattern] = useState(null);
+
   return (
     <SectionBox title="Pattern Arsenal" icon={Target} windowControls className="flex-1 min-h-0 flex flex-col">
-      <div className="grid grid-cols-3 gap-3 py-2">
-        {PATTERNS_ARSENAL_DISPLAY.map(p => (
-          <div key={p.id} className="flex flex-col items-center gap-1.5">
-            <div className="w-12 h-12 rounded-full bg-[#1e293b] border-2 border-[#00D9FF]/40 flex items-center justify-center text-white font-bold text-lg shadow-[0_0_8px_rgba(0,217,255,0.2)]">
-              {p.icon}
-            </div>
-            <span className="text-[10px] text-gray-300 text-center leading-tight">{p.name}</span>
+      {selectedPattern ? (
+        <div className="p-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-semibold text-cyan-200">{selectedPattern.name}</span>
+            <button onClick={() => setSelectedPattern(null)} className="text-gray-500 hover:text-gray-300"><X size={12} /></button>
           </div>
-        ))}
-      </div>
+          <div className="space-y-1.5 text-[10px] text-gray-400">
+            <p>{selectedPattern.name} is a classic chart pattern used to identify potential trend reversals or continuations.</p>
+            <div className="flex items-center justify-between">
+              <span>Category:</span>
+              <span className="text-cyan-300">{["Wyckoff Accumulation", "Elliot Wave 3"].includes(selectedPattern.name) ? "Continuation" : "Reversal"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Timeframes:</span>
+              <span className="text-cyan-300">1H, 4H, D</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Status:</span>
+              <span className="text-emerald-400">Active</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3 py-2">
+          {PATTERNS_ARSENAL_DISPLAY.map(p => (
+            <button key={p.id} onClick={() => setSelectedPattern(p)} className="flex flex-col items-center gap-1.5 group cursor-pointer">
+              <div className="w-12 h-12 rounded-full bg-[#1e293b] border-2 border-[#00D9FF]/40 flex items-center justify-center text-white font-bold text-lg shadow-[0_0_8px_rgba(0,217,255,0.2)] group-hover:border-[#00D9FF] group-hover:shadow-[0_0_12px_rgba(0,217,255,0.4)] transition-all">
+                {p.icon}
+              </div>
+              <span className="text-[10px] text-gray-300 text-center leading-tight group-hover:text-cyan-200 transition-colors">{p.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </SectionBox>
   );
 }
 
-// No fallback forming data — real API only
+// Forming Detections — pulls from /patterns/forming
 function FormingDetectionsPanel() {
-  const { data: formingData } = useApi('patternForming', { pollIntervalMs: 15000 });
+  const { data: formingData, loading, error } = useApi('patternForming', { pollIntervalMs: 30000 });
   const forming = formingData?.detections || formingData?.forming || [];
 
   return (
@@ -673,10 +776,12 @@ function FormingDetectionsPanel() {
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-1.5 max-h-[200px]">
         {forming.length === 0 ? (
           <div className="flex items-center justify-center h-full py-6">
-            <span className="text-[10px] text-gray-600">No forming detections</span>
+            <span className="text-[10px] text-gray-600">
+              {loading ? "Loading..." : error ? "Unavailable — retrying..." : "No forming detections — patterns below 70% confidence appear here"}
+            </span>
           </div>
-        ) : forming.map(f => (
-          <FormingDetectionCard key={f.id} pattern={f} />
+        ) : forming.map((f, i) => (
+          <FormingDetectionCard key={f.id ?? i} pattern={f} />
         ))}
       </div>
     </SectionBox>
@@ -688,6 +793,14 @@ function FormingDetectionsPanel() {
 // ═══════════════════════════════════════════════════
 
 export default function Patterns() {
+  const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
+  const { data: patternsData } = useApi("patterns", { pollIntervalMs: 30000 });
+  const { data: statusData } = useApi("status", { pollIntervalMs: 30000 });
+
+  const agentCount = agentsData?.agents?.length ?? "—";
+  const patternCount = patternsData?.count ?? "—";
+  const wsConnections = statusData?.websocket_connections ?? statusData?.connections ?? "—";
+
   return (
     <div className="flex flex-col h-full min-h-0 p-4 gap-3">
       {/* Page Title - centered per mockup */}
@@ -717,25 +830,25 @@ export default function Patterns() {
         <FormingDetectionsPanel />
       </div>
 
-      {/* Footer status bar - mockup: Connections | Agents | Patterns | Scans | GPU progress bar */}
+      {/* Footer status bar — sourced from real API data */}
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded text-[9px] text-gray-500">
         <div className="flex items-center gap-3">
-          <span>Connections: <span className="text-[#00D9FF]">47</span></span>
+          <span>Connections: <span className="text-[#00D9FF]">{wsConnections}</span></span>
           <span className="text-gray-600">|</span>
-          <span>Agents <span className="text-[#00D9FF]">42</span></span>
+          <span>Agents <span className="text-[#00D9FF]">{agentCount}</span></span>
           <span className="text-gray-600">|</span>
-          <span>Patterns <span className="text-[#00D9FF]">4847</span></span>
+          <span>Patterns <span className="text-[#00D9FF]">{patternCount}</span></span>
           <span className="text-gray-600">|</span>
-          <span>Scans <span className="text-[#00D9FF]">156000</span></span>
+          <span>Scans <span className="text-[#00D9FF]">—</span></span>
         </div>
         <div className="flex items-center gap-2">
-          <span>GPU <span className="text-emerald-400">78%</span></span>
+          <span>GPU <span className="text-gray-400">N/A</span></span>
           <div className="w-16 h-1.5 rounded-full bg-gray-700 overflow-hidden">
-            <div className="h-full rounded-full bg-emerald-500" style={{ width: "78%" }} />
+            <div className="h-full rounded-full bg-gray-600" style={{ width: "0%" }} />
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Live</span>
+            <div className={clsx("w-1.5 h-1.5 rounded-full", agentsData ? "bg-emerald-400 animate-pulse" : "bg-gray-500")} />
+            <span>{agentsData ? "Live" : "—"}</span>
           </div>
         </div>
       </div>

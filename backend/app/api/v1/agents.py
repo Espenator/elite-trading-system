@@ -22,6 +22,7 @@ import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from app.core.security import require_auth
 
 from app.websocket_manager import broadcast_ws
@@ -181,6 +182,7 @@ _AGENTS_TEMPLATE = [
 ]
 
 _DEFAULT_LOGS: list = []  # No mock logs — real activity populates via _append_log()
+_spawned_agents: list = []  # Virtual agents spawned via POST /agents
 
 
 def _get_all_agents():
@@ -343,6 +345,49 @@ async def _run_youtube_knowledge_tick():
 # --- Batch Agent Operations ---
 # NOTE: These MUST be registered BEFORE /{agent_id}/* routes to avoid
 # FastAPI matching "batch" as an agent_id integer and returning 422.
+
+class AgentSpawnRequest(BaseModel):
+    type: str = "scanner"  # "scanner" or "pattern"
+    action: str = "spawn"  # "spawn", "clone", "spawn_swarm"
+    config: dict = {}
+
+
+@router.post("", dependencies=[Depends(require_auth)])
+async def spawn_agent(data: AgentSpawnRequest):
+    """
+    Spawn a new virtual agent (scanner or pattern type).
+    Actions: spawn (new), clone (copy current), spawn_swarm (batch spawn).
+    These are logical agents tracked in-memory — not real OS processes.
+    """
+    agent_type = data.type.lower()
+    action = data.action.lower()
+    if agent_type not in ("scanner", "pattern"):
+        raise HTTPException(status_code=400, detail="type must be 'scanner' or 'pattern'")
+    if action not in ("spawn", "clone", "spawn_swarm"):
+        raise HTTPException(status_code=400, detail="action must be spawn, clone, or spawn_swarm")
+
+    count = data.config.get("count", 3) if action == "spawn_swarm" else 1
+    spawned = []
+    for i in range(min(count, 10)):
+        agent_id = 1000 + len(_spawned_agents) + i
+        name = data.config.get("name", f"{agent_type.title()}Agent-{agent_id}")
+        agent = {
+            "id": agent_id,
+            "name": name,
+            "type": agent_type,
+            "action": action,
+            "status": "running",
+            "spawned_at": datetime.now(timezone.utc).isoformat(),
+            "config": data.config,
+        }
+        _spawned_agents.append(agent)
+        spawned.append(agent)
+        _append_log(name, f"Agent spawned ({action})", "success")
+
+    await broadcast_ws("agents", {"type": "agent_spawned", "agents": spawned})
+    logger.info("Spawned %d %s agent(s) via %s", len(spawned), agent_type, action)
+    return {"ok": True, "spawned": spawned, "count": len(spawned)}
+
 
 @router.post("/batch/start", dependencies=[Depends(require_auth)])
 async def batch_start_agents():
