@@ -56,28 +56,7 @@ const SOURCE_LABELS = {
   sec: 'SEC',
 };
 
-// Default symbols for the heatmap grid - 3 columns x 4 rows = 12 tiles
-const HEATMAP_SYMBOLS = [
-  { sym: 'NVDA', pct: 4.2 },
-  { sym: 'TSLA', pct: -2.1 },
-  { sym: 'AAPL', pct: 1.8 },
-  { sym: 'AMD', pct: 3.5 },
-  { sym: 'MSFT', pct: 0.9 },
-  { sym: 'GOOG', pct: -0.4 },
-  { sym: 'AMZN', pct: 2.3 },
-  { sym: 'META', pct: 1.1 },
-  { sym: 'NFLX', pct: -1.5 },
-  { sym: 'PYPL', pct: -3.2 },
-  { sym: 'SQ', pct: 0.7 },
-  { sym: 'COIN', pct: -0.9 },
-];
-
-// Scanner matrix default symbols - dense grid with many symbols
-const SCANNER_SYMBOLS = [
-  'AAPL','AMD','NVDA','MSFT','TSLA','GOOG','AMZN','META',
-  'NFLX','PYPL','SQ','COIN','INTC','QCOM','CRM','ORCL',
-  'UBER','SHOP','SNAP','ROKU','PLTR','SOFI','RIVN','LCID',
-];
+// (Hardcoded HEATMAP_SYMBOLS and SCANNER_SYMBOLS removed — data comes from live API only)
 
 // Sentiment source bar colors (for the horizontal bar section)
 const SENTIMENT_SOURCE_BARS = [
@@ -168,6 +147,13 @@ export default function SentimentIntelligence() {
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json().catch(() => ({}));
+      // Backend uses soft-failure: returns 200 with { ok: false, error: "..." }
+      if (data.ok === false) {
+        toast.warning('Auto Discover: ' + (data.error || data.message || 'no new sources found'));
+      } else {
+        toast.success(`Auto Discover complete${data.discovered ? `: ${data.discovered} sources found` : ''}`);
+      }
       refetch();
     } catch (err) {
       console.error('Auto Discover failed:', err);
@@ -177,7 +163,7 @@ export default function SentimentIntelligence() {
     }
   }, [refetch]);
 
-  const moodValue = mood?.value ?? 87;
+  const moodValue = mood?.value ?? 0;
 
   // Build agent list from sourceHealth
   const agentList = useMemo(() => {
@@ -202,7 +188,7 @@ export default function SentimentIntelligence() {
     });
   }, [stats]);
 
-  // Heatmap grid from live data or defaults
+  // Heatmap grid from live data only (no fake fallback)
   const heatmapGrid = useMemo(() => {
     if (heatmap.length > 0) {
       return heatmap.slice(0, 12).map(h => ({
@@ -210,7 +196,7 @@ export default function SentimentIntelligence() {
         pct: h.score != null ? h.score * 10 : 0,
       }));
     }
-    return HEATMAP_SYMBOLS;
+    return [];
   }, [heatmap]);
 
   // 30-day sentiment chart data
@@ -219,19 +205,20 @@ export default function SentimentIntelligence() {
   // Sentiment sources timeline
   const sourcesTimeline = useMemo(() => generateSourcesTimeline(history), [history]);
 
-  // Radar chart data - primary layer
+  // Radar chart data - values from live data only (0 when no data, no hardcoded fallbacks)
   const radarData = useMemo(() => {
     const liveCount = sourceHealth.filter(s => s.status === 'LIVE').length;
     const totalSources = sourceHealth.length || 1;
+    const hasData = sourceHealth.length > 0 || signals.length > 0 || heatmap.length > 0;
     return [
-      { factor: 'Bullish', value: stats.bullish ? (stats.bullish / (stats.bullish + stats.bearish + (stats.neutral || 0))) * 100 : 72, prev: 58 },
-      { factor: 'Momentum', value: mood?.value ?? 65, prev: 50 },
-      { factor: 'Coverage', value: sourceHealth.length > 0 ? (liveCount / Math.max(totalSources, 1)) * 100 : 80, prev: 65 },
-      { factor: 'Signals', value: signals.length > 0 ? Math.min(100, signals.length * 10) : 55, prev: 42 },
-      { factor: 'Volume', value: stats.totalTickers ? Math.min(100, stats.totalTickers * 8) : 70, prev: 55 },
-      { factor: 'Confidence', value: mood?.value ? Math.min(100, Math.abs(mood.value - 50) * 2 + 50) : 60, prev: 48 },
-      { factor: 'Sentiment', value: heatmap.length > 0 ? Math.min(100, heatmap.reduce((a, h) => a + Math.abs(h.score), 0) / heatmap.length * 100) : 75, prev: 60 },
-      { factor: 'Divergence', value: divergences.length > 0 ? Math.min(100, divergences.length * 20) : 40, prev: 35 },
+      { factor: 'Bullish', value: stats.bullish ? (stats.bullish / (stats.bullish + stats.bearish + (stats.neutral || 0))) * 100 : 0 },
+      { factor: 'Momentum', value: mood?.value ?? 0 },
+      { factor: 'Coverage', value: sourceHealth.length > 0 ? (liveCount / Math.max(totalSources, 1)) * 100 : 0 },
+      { factor: 'Signals', value: signals.length > 0 ? Math.min(100, signals.length * 10) : 0 },
+      { factor: 'Volume', value: stats.totalTickers ? Math.min(100, stats.totalTickers * 8) : 0 },
+      { factor: 'Confidence', value: mood?.value ? Math.min(100, Math.abs(mood.value - 50) * 2 + 50) : 0 },
+      { factor: 'Sentiment', value: heatmap.length > 0 ? Math.min(100, heatmap.reduce((a, h) => a + Math.abs(h.score), 0) / heatmap.length * 100) : 0 },
+      { factor: 'Divergence', value: divergences.length > 0 ? Math.min(100, divergences.length * 20) : 0 },
     ];
   }, [stats, mood, sourceHealth, signals, heatmap, divergences]);
 
@@ -258,13 +245,11 @@ export default function SentimentIntelligence() {
     progress: divergences.length > 0 ? Math.min(100, divergences.length * 20) : 52,
   }), [divergences]);
 
-  // Scanner status matrix data - dense dot grid with 14 columns per row
+  // Scanner status matrix data - from live heatmap only (no fake fallback)
   const scannerData = useMemo(() => {
-    const syms = heatmap.length > 0
-      ? heatmap.slice(0, 24)
-      : SCANNER_SYMBOLS.map(s => ({ ticker: s, score: null }));
-    return syms.map((item, ri) => {
-      const score = typeof item === 'object' ? (item.score ?? null) : null;
+    if (heatmap.length === 0) return [];
+    return heatmap.slice(0, 24).map((item) => {
+      const score = item.score ?? null;
       const cols = Array.from({ length: 14 }, (_, ci) => {
         const variation = score != null ? score + (ci - 7) * 0.04 : 0;
         let color;
@@ -274,7 +259,7 @@ export default function SentimentIntelligence() {
         else color = '#ef4444';
         return { color, opacity: 0.5 + Math.abs(variation) * 0.5 };
       });
-      return { sym: typeof item === 'object' ? item.ticker : item, cols };
+      return { sym: item.ticker, cols };
     });
   }, [heatmap]);
 
@@ -364,10 +349,13 @@ export default function SentimentIntelligence() {
                 );
               })}
 
-              {/* Weight sliders */}
+              {/* Weight sliders (read-only — configured via backend) */}
               <div className="border-t border-[#1e293b] pt-1.5 mt-1.5 space-y-1">
+                <div className="flex items-center justify-between px-1 mb-0.5">
+                  <span className="text-[8px] text-slate-600 italic">Agent Weights (read-only)</span>
+                </div>
                 {weightSliders.map((w) => (
-                  <div key={w.label} className="flex items-center justify-between px-1">
+                  <div key={w.label} className="flex items-center justify-between px-1" title={`${w.label}: ${w.value}% (configured via backend)`}>
                     <span className="text-[9px] text-slate-500">{w.label}</span>
                     <div className="flex items-center gap-1.5">
                       <div className="w-12 bg-slate-800 rounded-full h-1">
@@ -469,7 +457,7 @@ export default function SentimentIntelligence() {
           <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
             <SectorTreemap />
             <div className="grid grid-cols-3 gap-1.5 mt-3">
-              {heatmapGrid.map((item) => {
+              {heatmapGrid.length > 0 ? heatmapGrid.map((item) => {
                 const isPositive = item.pct >= 0;
                 return (
                   <div
@@ -484,7 +472,11 @@ export default function SentimentIntelligence() {
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <div className="col-span-3 text-center py-6 text-[10px] text-[#64748b] font-mono">
+                  Awaiting sentiment heatmap data from agents...
+                </div>
+              )}
             </div>
           </div>
 
@@ -524,11 +516,11 @@ export default function SentimentIntelligence() {
               <div className="mt-3 space-y-1.5">
                 {[
                   { label: 'Consensus', g: 60, b: 25, p: 15 },
-                  { label: 'Dominating', g: 40, b: 35, p: 25 },
-                  { label: 'Tracies', g: 50, b: 30, p: 20 },
-                  { label: 'Content', g: 70, b: 20, p: 10 },
-                  { label: 'Intelligence', g: 45, b: 40, p: 15 },
-                  { label: 'Nckey', g: 55, b: 25, p: 20 },
+                  { label: 'Momentum', g: 40, b: 35, p: 25 },
+                  { label: 'Volatility', g: 50, b: 30, p: 20 },
+                  { label: 'Volume', g: 70, b: 20, p: 10 },
+                  { label: 'Divergence', g: 45, b: 40, p: 15 },
+                  { label: 'Confidence', g: 55, b: 25, p: 20 },
                 ].map((row, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="text-[9px] font-mono text-[#64748b] w-20 shrink-0">{row.label}</span>
@@ -587,9 +579,11 @@ export default function SentimentIntelligence() {
                   </tbody>
                 </table>
               ) : (
-                <p className="text-[9px] text-[#64748b] leading-relaxed">
-                  {tradeSignalText}
-                </p>
+                <div className="text-center py-4">
+                  <Target className="w-5 h-5 text-[#64748b] mx-auto mb-1.5" />
+                  <p className="text-[10px] text-[#64748b] font-mono">No active trade signals</p>
+                  <p className="text-[9px] text-[#475569] mt-0.5">Signals appear when agents detect actionable sentiment patterns</p>
+                </div>
               )}
             </div>
           </div>
@@ -612,21 +606,19 @@ export default function SentimentIntelligence() {
                   );
                 })
               ) : (
-                <>
-                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:33</span><span>Market regime update</span></div>
-                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:29</span><span>Sentiment feed normalized</span></div>
-                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:30</span><span>Cross-source consensus refresh</span></div>
-                </>
+                <div className="text-center py-3 text-[9px] text-[#64748b] font-mono">
+                  No recent market events
+                </div>
               )}
             </div>
           </div>
 
           {/* Prediction Markets Row — mockup: Progress green/blue, Probability green */}
           <div className="grid grid-cols-2 gap-2">
-            {/* Prediction Market 1 — Probability green, Progress green */}
+            {/* Prediction Market 1 — Bull Probability */}
             <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
               <div className="px-2.5 py-1.5 border-b border-[#1e293b]">
-                <h3 className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Prediction Market</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Bull Probability</h3>
               </div>
               <div className="p-2.5 flex flex-col items-center">
                 <div className="relative w-14 h-14 mb-1.5">
@@ -661,10 +653,10 @@ export default function SentimentIntelligence() {
               </div>
             </div>
 
-            {/* Prediction Market 2 — Probability green, Progress blue */}
+            {/* Prediction Market 2 — Reversal Risk */}
             <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
               <div className="px-2.5 py-1.5 border-b border-[#1e293b]">
-                <h3 className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Prediction Market</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Reversal Risk</h3>
               </div>
               <div className="p-2.5 flex flex-col items-center">
                 <div className="relative w-14 h-14 mb-1.5">
@@ -709,16 +701,6 @@ export default function SentimentIntelligence() {
                     <PolarGrid stroke="rgba(51,65,85,0.5)" />
                     <PolarAngleAxis dataKey="factor" tick={{ fontSize: 8, fill: '#94a3b8' }} />
                     <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
-                    {/* Previous period — purple polygon per mockup */}
-                    <Radar
-                      name="Previous"
-                      dataKey="prev"
-                      stroke="#8b5cf6"
-                      fill="rgba(139,92,246,0.12)"
-                      strokeWidth={1}
-                      strokeDasharray="4 3"
-                      dot={false}
-                    />
                     {/* Current period — green filled polygon */}
                     <Radar
                       name="Current"
@@ -734,39 +716,29 @@ export default function SentimentIntelligence() {
             </div>
           </div>
 
-          {/* Divergence Alert cards — mockup: orange warning, "Divergence Alert" title */}
+          {/* Divergence Alert cards — dynamic from API data */}
           <div className="space-y-2">
-            {/* Emergency Alert 1 */}
-            <div className="bg-[#78350f]/30 border border-[#f59e0b]/40 rounded-md p-2.5 relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#f59e0b]" />
-              <div className="flex items-start gap-2 pl-2">
-                <AlertTriangle className="w-4 h-4 text-[#f59e0b] shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-[#f59e0b] text-[10px] mb-0.5">Divergence Alert</div>
-                  <p className="text-[9px] text-[#94a3b8] leading-relaxed">
-                    {divergences.length > 0
-                      ? `${divergences[0].ticker}: ${divergences[0].conflict} (Spread: ${divergences[0].spread})`
-                      : 'Cross-source sentiment divergence detected. Social vs news sentiment misalignment may indicate reversal opportunity.'}
-                  </p>
+            {divergences.length > 0 ? (
+              divergences.slice(0, 3).map((div, i) => (
+                <div key={i} className="bg-[#78350f]/30 border border-[#f59e0b]/40 rounded-md p-2.5 relative overflow-hidden">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#f59e0b]" />
+                  <div className="flex items-start gap-2 pl-2">
+                    <AlertTriangle className="w-4 h-4 text-[#f59e0b] shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-[#f59e0b] text-[10px] mb-0.5">Divergence Alert</div>
+                      <p className="text-[9px] text-[#94a3b8] leading-relaxed">
+                        {div.ticker}: {div.conflict}{div.spread ? ` (Spread: ${div.spread})` : ''}
+                      </p>
+                    </div>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3 text-center">
+                <p className="text-[10px] text-[#64748b] font-mono">No active divergence alerts</p>
+                <p className="text-[9px] text-[#475569] mt-0.5">Alerts appear when cross-source sentiment conflicts are detected</p>
               </div>
-            </div>
-
-            {/* Emergency Alert 2 */}
-            <div className="bg-[#78350f]/30 border border-[#f59e0b]/40 rounded-md p-2.5 relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#f59e0b]" />
-              <div className="flex items-start gap-2 pl-2">
-                <AlertTriangle className="w-4 h-4 text-[#f59e0b] shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-[#f59e0b] text-[10px] mb-0.5">Divergence Alert</div>
-                  <p className="text-[9px] text-[#94a3b8] leading-relaxed">
-                    {divergences.length > 1
-                      ? `${divergences[1].ticker}: ${divergences[1].conflict}`
-                      : 'Elevated volatility regime detected. Risk management protocols are active and monitoring all positions.'}
-                  </p>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -783,22 +755,28 @@ export default function SentimentIntelligence() {
               <ScannerStatusMatrix />
             </div>
             <div className="p-2.5 overflow-x-auto">
-              <div className="grid gap-y-[3px]">
-                {scannerData.map((row) => (
-                  <div key={row.sym} className="flex items-center gap-1">
-                    <span className="text-[8px] font-mono font-bold text-white w-8 shrink-0 truncate">{row.sym}</span>
-                    <div className="flex gap-[2px] flex-1">
-                      {row.cols.map((dot, ci) => (
-                        <div
-                          key={ci}
-                          className="w-2.5 h-2.5 rounded-full transition-all"
-                          style={{ backgroundColor: dot.color, opacity: dot.opacity }}
-                        />
-                      ))}
+              {scannerData.length > 0 ? (
+                <div className="grid gap-y-[3px]">
+                  {scannerData.map((row) => (
+                    <div key={row.sym} className="flex items-center gap-1">
+                      <span className="text-[8px] font-mono font-bold text-white w-8 shrink-0 truncate">{row.sym}</span>
+                      <div className="flex gap-[2px] flex-1">
+                        {row.cols.map((dot, ci) => (
+                          <div
+                            key={ci}
+                            className="w-2.5 h-2.5 rounded-full transition-all"
+                            style={{ backgroundColor: dot.color, opacity: dot.opacity }}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-[10px] text-[#64748b] font-mono">
+                  Scanner awaiting sentiment data from agents...
+                </div>
+              )}
             </div>
           </div>
         </div>
