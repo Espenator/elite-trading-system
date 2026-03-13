@@ -1,10 +1,10 @@
 # Elite Trading System - Backend API
 
-**Last Updated: March 12, 2026**
+**Last Updated: March 13, 2026**
 
 FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provides REST API endpoints for trading signals, order execution, agent management, ML training, backtesting, and real-time WebSocket data.
 
-> **Status: All route files and services coded. 982+ tests passing. CI green (see `.github/workflows/ci.yml`). Auth (Bearer token, fail-closed), WebSocket, and backend startup are operational.**
+> **Status: All route files and services coded. 1043+ tests passing. CI green (see `.github/workflows/ci.yml`). Auth (Bearer token, fail-closed), WebSocket, and backend startup are operational.**
 
 ---
 
@@ -20,12 +20,12 @@ FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provi
 - **WebSocket**: FastAPI WebSocket manager (active; 5 frontend pages wired)
 - **Auth**: Bearer token authentication (fail-closed)
 - **LLM**: 3-tier router (Ollama → Perplexity → Claude); brain_service (gRPC + Ollama) for local inference
-- **Council**: 35-agent DAG, 7 stages; SignalEngine → CouncilGate → Council → OrderExecutor
+- **Council**: 32-agent DAG, 7 stages; SignalEngine → CouncilGate → Council → OrderExecutor
 - **Infra**: Redis (caching/sessions where applicable)
 
 ### Production request flow
 
-Signals flow: **SignalEngine** → **CouncilGate** → **35-agent Council** (7 stages) → **OrderExecutor** → Alpaca; real-time updates to frontend via **WebSocket**.
+Signals flow: **SignalEngine** → **CouncilGate** → **32-agent Council** (7 stages) → **OrderExecutor** → Alpaca; real-time updates to frontend via **WebSocket**.
 
 ---
 
@@ -61,7 +61,7 @@ backend/
         system.py          # System config + /gpu endpoint
         training.py        # ML model training jobs
         youtube_knowledge.py # YouTube research data
-    council/               # 35-agent DAG (7 stages), CouncilGate, arbiter, weight_learner
+    council/               # 32-agent DAG (7 stages), CouncilGate, arbiter, weight_learner
     core/                  # Config, message bus
     data/                  # DuckDB storage layer
     models/                # LSTM trainer, inference

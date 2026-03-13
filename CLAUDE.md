@@ -38,14 +38,14 @@
 | Metric | Value |
 |--------|-------|
 | Version | v5.0.0 |
-| Tests | 981+ passing (pytest), CI GREEN |
-| Council agents | 35 (7-stage DAG) |
+| Tests | 1043+ passing (pytest), CI GREEN |
+| Council agents | 32 (7-stage DAG) |
 | Backend services | 72+ (incl. subdirs) |
 | API route files | 43 in api/v1/ (364+ endpoints) |
 | Frontend pages | 14 (React 18 + Vite) |
 | Data sources | 10 (Alpaca, UW, Finviz, FRED, EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades, Senate Stock Watcher) |
 | Discovery scouts | 12 (continuous, not polling) |
-| Production readiness | ~95% (Phase A+B+C+E complete, D deferred) |
+| Production readiness | ~95% (Phase A+B+C+D+E complete) |
 | Commits | 1,424+ |
 
 ## 3. Architecture Overview — CNS Layers
@@ -53,7 +53,7 @@
 | CNS Layer | Speed | Component | Status |
 |-----------|-------|-----------|--------|
 | Brainstem | <50ms | `reflexes/circuit_breaker.py` — auto-protective reflexes | Gate 2c enforced (leverage 2x, concentration 25%) |
-| Spinal Cord | ~1500ms | 35-agent council DAG (7 parallel stages) | BUILT — all agents are real implementations |
+| Spinal Cord | ~1500ms | 32-agent council DAG (7 parallel stages) | BUILT — all agents are real implementations |
 | Cortex | 300-800ms | 3-tier LLM: Ollama → Perplexity → Claude | WIRED — hypothesis + critic via brain gRPC |
 | Thalamus | — | `blackboard.py` shared memory across DAG stages | BUILT |
 | Autonomic | nightly | WeightLearner Bayesian Beta(α,β) + scheduler jobs | BUILT — confidence floor too strict (0.5) |
@@ -69,7 +69,7 @@ C:\Users\Espen\elite-trading-system\
 │   ├── app/
 │   │   ├── main.py                 # 44 router registrations, 6-phase lifespan startup
 │   │   ├── api/v1/                 # 43 route files (364+ endpoints)
-│   │   ├── council/                # 35-agent DAG + 15 orchestration files
+│   │   ├── council/                # 32-agent DAG + 19 orchestration files
 │   │   │   ├── agents/             # 32 agent files (35 registered agents)
 │   │   │   ├── debate/             # debate_engine, scorer, utils
 │   │   │   ├── regime/             # bayesian_regime
@@ -92,7 +92,7 @@ C:\Users\Espen\elite-trading-system\
 │   │   ├── jobs/                   # scheduler, daily_outcome, walkforward
 │   │   ├── modules/                # openclaw/, ml_engine/
 │   │   └── websocket_manager.py    # 25 channels, token auth, heartbeat
-│   └── tests/                      # 981+ tests passing
+│   └── tests/                      # 1043+ tests passing
 ├── frontend-v2/                    # React 18 + Vite + TailwindCSS
 │   └── src/
 │       ├── pages/                  # 14 route pages
@@ -124,7 +124,7 @@ AlpacaStreamService
   → market_data.bar (MessageBus)
   → EventDrivenSignalEngine (feature computation + ML scoring)
   → signal.generated (score >= 65)
-  → CouncilGate (invokes 35-agent council)
+  → CouncilGate (invokes 32-agent council)
       → Stage 1: Perception + Academic Edge (13 agents, parallel)
       → Stage 2: Technical + Data Enrichment (8 agents, parallel)
       → Stage 3: Hypothesis + Memory (2 agents, parallel)
@@ -139,7 +139,7 @@ AlpacaStreamService
   → WebSocket bridges → Frontend
 ```
 
-## 6. Council Architecture (35 Agents, 7 Stages)
+## 6. Council Architecture (32 Agents, 7 Stages)
 
 ### Core (11 Agents)
 
@@ -193,25 +193,29 @@ AlpacaStreamService
 | Bear Debater | bear_debater.py | 5.5 |
 | Red Team | red_team_agent.py | 5.5 |
 
-### Orchestration (15 files in council/)
+### Orchestration (19 files in council/)
 
 | File | Purpose |
 |------|---------|
-| runner.py (29.4 KB) | 7-stage parallel DAG orchestrator |
-| weight_learner.py (14.8 KB) | Bayesian Beta(α,β) self-learning weights |
-| hitl_gate.py (12.0 KB) | Human-in-the-loop approval gate |
-| blackboard.py (11.1 KB) | Shared memory state across stages |
-| self_awareness.py (10.8 KB) | System metacognition |
-| task_spawner.py (10.7 KB) | Dynamic agent registry |
-| overfitting_guard.py (9.4 KB) | ML overfitting detection |
-| data_quality.py (9.0 KB) | Data quality scoring |
-| council_gate.py (8.9 KB) | Signal → Council → OrderExecutor bridge |
-| shadow_tracker.py (8.0 KB) | Shadow portfolio (paper vs live) |
-| schemas.py (7.6 KB) | AgentVote + DecisionPacket |
-| feedback_loop.py (7.5 KB) | Post-trade feedback |
-| homeostasis.py (6.3 KB) | System stability + auto-healing |
-| arbiter.py (6.4 KB) | Bayesian-weighted BUY/SELL/HOLD |
-| agent_config.py (5.4 KB) | Settings-driven thresholds |
+| runner.py (39.4 KB) | 7-stage parallel DAG orchestrator |
+| weight_learner.py (30.9 KB) | Bayesian Beta(α,β) self-learning weights |
+| council_coordinator.py (24.0 KB) | High-level council coordination + distributed execution |
+| arbiter.py (23.0 KB) | Bayesian-weighted BUY/SELL/HOLD |
+| council_gate.py (16.4 KB) | Signal → Council → OrderExecutor bridge |
+| hitl_gate.py (11.7 KB) | Human-in-the-loop approval gate |
+| task_spawner.py (11.3 KB) | Dynamic agent registry |
+| blackboard.py (10.9 KB) | Shared memory state across stages |
+| self_awareness.py (10.5 KB) | System metacognition |
+| overfitting_guard.py (9.2 KB) | ML overfitting detection |
+| data_quality.py (8.8 KB) | Data quality scoring |
+| feedback_loop.py (8.5 KB) | Post-trade feedback |
+| shadow_tracker.py (7.8 KB) | Shadow portfolio (paper vs live) |
+| schemas.py (7.4 KB) | AgentVote + DecisionPacket |
+| homeostasis.py (6.1 KB) | System stability + auto-healing |
+| regime_publisher.py (5.6 KB) | Regime state publisher to MessageBus |
+| agent_config.py (5.6 KB) | Settings-driven thresholds |
+| calibration.py (4.5 KB) | Brier score confidence calibration |
+| registry.py (2.2 KB) | Agent registration + lookup registry |
 
 ## 7. Key Code Patterns
 
@@ -325,7 +329,7 @@ Full template: `backend/.env.example`
 ## 12b. TradingView + TradersPost Integration (March 12, 2026)
 
 ### Dual-System Architecture
-Embodier Trader + TradingView operate as complementary systems. Embodier generates signals via 35-agent council; TradingView provides visual charting, price alerts, and mobile notifications.
+Embodier Trader + TradingView operate as complementary systems. Embodier generates signals via 32-agent council; TradingView provides visual charting, price alerts, and mobile notifications.
 
 ### TradersPost Connection
 - **Service**: TradersPost (traderspost.io) — webhook relay TradingView → Alpaca
@@ -364,7 +368,7 @@ Embodier Trader → webhook.site (monitoring, always)
 
 ```bash
 cd backend
-python -m pytest --tb=short -q       # Run all 666+ tests
+python -m pytest --tb=short -q       # Run all 1043+ tests
 python -m pytest tests/test_api.py -v # Run specific test file
 ```
 
@@ -423,13 +427,13 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 
 ### What IS Working Well (Do NOT Break)
 
-1. All 35 council agents are real implementations (not stubs)
+1. All 32 council agents are real implementations (not stubs)
 2. Bayesian weight updates are mathematically correct
 3. VETO agents (risk, execution) properly enforced
 4. Event-driven architecture achieves sub-1s council latency
 5. Kelly criterion implementation is mathematically sound
 6. 3-tier LLM router (Ollama → Perplexity → Claude)
-7. 981+ tests passing, CI GREEN
+7. 1043+ tests passing, CI GREEN
 8. HITL gate, bracket orders, shadow tracking all working
 
 ## 16. Coding Rules for AI Sessions

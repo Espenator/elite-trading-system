@@ -1,16 +1,16 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 5.0.0** | Last Updated: March 12, 2026
+**Version 5.0.0** | Last Updated: March 13, 2026
 
-> **Version**: v5.0.0 | **Status**: Production-Ready (~95%) | **CI**: 981+ tests GREEN
+> **Version**: v5.0.0 | **Status**: Production-Ready (~95%) | **CI**: 1043+ tests GREEN
 >
 > The system IS profit. A conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 
 ---
 
-React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0-P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
+React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **32-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0-P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
-## Current State (March 12, 2026) — v5.0.0 Production-Ready
+## Current State (March 13, 2026) — v5.0.0 Production-Ready
 
 | Area | Count | Status |
 |------|-------|--------|
@@ -18,10 +18,10 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
 | Backend API routes | **43** files in api/v1/ | All mounted in main.py (including brain, triage, ingestion firehose, awareness) |
 | Backend services | **72+** (incl. subdirs) | llm_clients, data_sources, scanning, trading, scrapers, etc. |
-| Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0-P4) + 6 Supplemental + 3 Debate + 3 others |
+| Council agents | **32 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0-P4) + 6 Supplemental + 3 Debate |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
-| Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
-| Tests | **981+ passing** | Backend pytest + frontend build |
+| Council subsystems | 19 orchestration files | runner, arbiter, blackboard, council_coordinator, task_spawner, shadow_tracker, etc. |
+| Tests | **1043+ passing** | Backend pytest + frontend build |
 | LLM Intelligence | 3-tier router | Ollama -> Perplexity -> Claude; Claude reserved for 6 deep-reasoning tasks |
 | Brain service | gRPC + Ollama | **WIRED** -- hypothesis_agent calls brain gRPC |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT -- council-controlled trading |
@@ -52,9 +52,9 @@ A line-by-line audit of the entire codebase (council, execution, risk, data, inf
 
 **See `PLAN.md` for the complete 5-phase enhancement plan (Phases A-E, 13-18 sessions).**
 
-## Council Architecture (35 Agents)
+## Council Architecture (32 Agents)
 
-The council is the profit-critical decision engine. Every trade signal passes through the full 35-agent DAG before execution.
+The council is the profit-critical decision engine. Every trade signal passes through the full 32-agent DAG before execution.
 
 ### Core Council (11 Agents -- Original Spine)
 
@@ -108,25 +108,29 @@ The council is the profit-critical decision engine. Every trade signal passes th
 | Bear Debater | bear_debater.py | Argues bearish case against trade |
 | Red Team | red_team_agent.py | Adversarial stress-testing of council decisions |
 
-### Council Orchestration (15 files in backend/app/council/)
+### Council Orchestration (19 files in backend/app/council/)
 
 | File | Size | Purpose |
 |------|------|---------|
-| runner.py | 29.4 KB | 7-stage parallel DAG orchestrator -- the profit spine |
-| weight_learner.py | 14.8 KB | Bayesian self-learning agent weights |
-| hitl_gate.py | 12.0 KB | Human-in-the-loop approval gate |
-| blackboard.py | 11.1 KB | Shared memory state across DAG stages |
-| self_awareness.py | 10.8 KB | System metacognition + Bayesian tracking |
-| task_spawner.py | 10.7 KB | Dynamic agent registry + spawning |
-| overfitting_guard.py | 9.4 KB | Overfitting detection for ML models |
-| data_quality.py | 9.0 KB | Data quality scoring for agent inputs |
-| council_gate.py | 8.9 KB | Bridge: SignalEngine -> Council -> OrderExecutor |
-| shadow_tracker.py | 8.0 KB | Shadow portfolio tracking (paper vs live) |
-| schemas.py | 7.6 KB | AgentVote + DecisionPacket dataclasses |
-| feedback_loop.py | 7.5 KB | Post-trade feedback to agents |
-| homeostasis.py | 6.3 KB | System stability + auto-healing |
-| arbiter.py | 6.4 KB | Deterministic BUY/SELL/HOLD with Bayesian weights |
-| agent_config.py | 5.4 KB | Settings-driven thresholds for all 35 agents |
+| runner.py | 39.4 KB | 7-stage parallel DAG orchestrator -- the profit spine |
+| weight_learner.py | 30.9 KB | Bayesian self-learning agent weights |
+| council_coordinator.py | 24.0 KB | High-level council coordination + distributed execution |
+| arbiter.py | 23.0 KB | Deterministic BUY/SELL/HOLD with Bayesian weights |
+| council_gate.py | 16.4 KB | Bridge: SignalEngine -> Council -> OrderExecutor |
+| hitl_gate.py | 11.7 KB | Human-in-the-loop approval gate |
+| task_spawner.py | 11.3 KB | Dynamic agent registry + spawning |
+| blackboard.py | 10.9 KB | Shared memory state across DAG stages |
+| self_awareness.py | 10.5 KB | System metacognition + Bayesian tracking |
+| overfitting_guard.py | 9.2 KB | Overfitting detection for ML models |
+| data_quality.py | 8.8 KB | Data quality scoring for agent inputs |
+| feedback_loop.py | 8.5 KB | Post-trade feedback to agents |
+| shadow_tracker.py | 7.8 KB | Shadow portfolio tracking (paper vs live) |
+| schemas.py | 7.4 KB | AgentVote + DecisionPacket dataclasses |
+| homeostasis.py | 6.1 KB | System stability + auto-healing |
+| regime_publisher.py | 5.6 KB | Regime state publisher to MessageBus |
+| agent_config.py | 5.6 KB | Settings-driven thresholds for all 32 agents |
+| calibration.py | 4.5 KB | Brier score confidence calibration |
+| registry.py | 2.2 KB | Agent registration + lookup registry |
 
 ## Trade Pipeline (v5.0.0 -- Council-Controlled)
 
@@ -135,7 +139,7 @@ AlpacaStreamService
   -> market_data.bar
   -> EventDrivenSignalEngine
   -> signal.generated (score >= 65)
-  -> CouncilGate (invokes 35-agent council)
+  -> CouncilGate (invokes 32-agent council)
   -> council.verdict (BUY/SELL/HOLD with Bayesian-weighted confidence)
   -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
   -> order.submitted
@@ -143,9 +147,9 @@ AlpacaStreamService
   -> Frontend
 ```
 
-Every signal passes through the full 35-agent council before any trade is executed. No hardcoded data -- Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
+Every signal passes through the full 32-agent council before any trade is executed. No hardcoded data -- Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
 
-## Council DAG (35 Agents, 7 Stages)
+## Council DAG (32 Agents, 7 Stages)
 
 ```
 Stage 1 (Parallel -- Perception + Academic Edge P0/P1/P2 -- 13 agents):
@@ -204,7 +208,7 @@ brain_service (gRPC + Ollama) is wired; the router directs traffic by task type.
 - All 12 Academic Edge agents wired into runner.py DAG stages
 - 666 tests passing (100% pass rate, backend pytest)
 
-**System Status:** Council now runs 35 agents across 7 stages. All P0 and P1 tasks complete.
+**System Status:** Council now runs 32 agents across 7 stages (Stage 5.5 debate expanded DAG). All P0 and P1 tasks complete.
 
 ### v3.5.0 (March 8, 2026) -- 35-Agent Council + Brain Consciousness Audit *(historical)*
 
@@ -246,13 +250,13 @@ elite-trading-system/
 ├── backend/                    # FastAPI backend (Python 3.11)
 │   ├── app/
 │   │   ├── api/v1/             # 43 route files (agents, council, market, risk, etc.)
-│   │   ├── council/            # 35-agent DAG (runner, arbiter, agents/, schemas)
+│   │   ├── council/            # 32-agent DAG (runner, arbiter, agents/, schemas)
 │   │   │   ├── runner.py       # Orchestrates 7-stage council DAG via asyncio
 │   │   │   ├── arbiter.py      # Deterministic weighted vote + Bayesian weights
 │   │   │   ├── schemas.py      # AgentVote + DecisionPacket schemas
 │   │   │   ├── council_gate.py # Bridge: signal.generated → council → order.submitted
 │   │   │   ├── weight_learner.py # Bayesian Beta(α,β) weight updater per agent
-│   │   │   └── agents/         # 35 agent files
+│   │   │   └── agents/         # 32 agent files
 │   │   ├── core/
 │   │   │   ├── message_bus.py  # Pub/sub event bus
 │   │   │   ├── config.py       # Settings (pydantic BaseSettings)
@@ -275,7 +279,7 @@ elite-trading-system/
 │   │       ├── unusual_whales_service.py
 │   │       ├── sec_edgar_service.py
 │   │       └── signal_engine.py
-│   ├── tests/                  # 981+ pytest tests (CI GREEN)
+│   ├── tests/                  # 1043+ pytest tests (CI GREEN)
 │   └── requirements.txt
 ├── brain_service/              # gRPC LLM inference server (PC2 / RTX GPU)
 │   ├── server.py               # gRPC server
@@ -399,14 +403,25 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | alerts.py | Drawdown alerts, system alerts |
 | alignment.py | Alignment/consensus endpoints |
 | alpaca.py | Alpaca API proxy for frontend |
+| awareness.py | Awareness endpoints |
 | backtest_routes.py | Strategy backtesting |
+| blackboard_routes.py | Blackboard state |
+| brain.py | Brain gRPC proxy / LLM |
+| cluster.py | Cluster / node management |
+| cns.py | CNS architecture endpoints |
+| cognitive.py | Cognitive dashboard |
 | council.py | Council evaluate, status, weights endpoints |
 | data_sources.py | Data source health |
 | features.py | Feature aggregator endpoints |
 | flywheel.py | ML flywheel metrics |
+| health.py | System health checks |
+| ingestion_firehose.py | Ingestion firehose |
+| llm_health.py | LLM health monitor |
 | logs.py | System logs |
 | market.py | Market data, regime, indices |
+| metrics_api.py | Comprehensive metrics + council latency percentiles |
 | ml_brain.py | ML model management |
+| mobile_api.py | Mobile API |
 | openclaw.py | OpenClaw bridge |
 | orders.py | Alpaca order CRUD |
 | patterns.py | Pattern/screener (DB-backed) |
@@ -421,20 +436,12 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | status.py | System health |
 | stocks.py | Finviz screener |
 | strategy.py | Regime-based strategies |
+| swarm.py | Swarm intelligence |
 | system.py | System config, GPU |
 | training.py | ML training jobs |
-| youtube_knowledge.py | YouTube research |
-| brain.py | Brain gRPC proxy / LLM |
 | triage.py | Triage / prioritization |
-| ingestion_firehose.py | Ingestion firehose |
-| awareness.py | Awareness endpoints |
-| blackboard_routes.py | Blackboard state |
-| mobile_api.py | Mobile API |
-| llm_health.py | LLM health monitor |
-| cognitive.py | Cognitive dashboard |
-| cns.py | CNS architecture |
-| cluster.py | Cluster / node |
-| swarm.py | Swarm intelligence |
+| webhooks.py | TradingView + TradersPost webhook bridge |
+| youtube_knowledge.py | YouTube research |
 
 ## Tech Stack
 
@@ -443,7 +450,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | Frontend | React 18, Vite, TailwindCSS, Lightweight Charts, lucide-react |
 | Backend | Python 3.11+, FastAPI, DuckDB, pydantic-settings |
 | AI/ML | XGBoost, scikit-learn, HMM (hmmlearn), Kelly criterion, FinBERT |
-| Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Council | 32-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | LLM Intelligence | 3-tier router: Ollama (routine) -> Perplexity -> Claude (6 deep-reasoning tasks) |
 | Brain Service | gRPC + Ollama (local LLM on RTX GPU); brain_service in architecture |
 | Broker | Alpaca Markets (paper + live via alpaca-py) |
@@ -452,7 +459,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | Authentication | Bearer token auth, fail-closed for live trading |
 | Event Pipeline | MessageBus -> CouncilGate -> Council -> OrderExecutor |
 | Desktop | Electron (desktop/) -- BUILD-READY |
-| CI/CD | GitHub Actions -- pytest + npm build (981+ tests) |
+| CI/CD | GitHub Actions -- pytest + npm build (1043+ tests) |
 | Infra | Docker, docker-compose.yml, Redis (where used) |
 
 ## Data Sources
@@ -548,7 +555,7 @@ All trading events are bridged from MessageBus to Slack via `slack_notification_
 
 ## TradingView + TradersPost Integration (Phase F)
 
-Dual-system trading architecture: Embodier Trader generates AI signals via 35-agent council; TradingView provides visual charting, price alerts, and mobile notifications.
+Dual-system trading architecture: Embodier Trader generates AI signals via 32-agent council; TradingView provides visual charting, price alerts, and mobile notifications.
 
 ### Architecture
 ```
@@ -659,7 +666,7 @@ pwsh .\start-embodier.ps1
                                           │
               ┌───────────────────────────┼──────────────────────────┐
               │                           │                          │
-    [AlpacaStreamService]    [35-Agent Council DAG]     [brain_service gRPC]
+    [AlpacaStreamService]    [32-Agent Council DAG]     [brain_service gRPC]
     WS + snapshot fallback   runner → arbiter            Ollama on RTX GPU
     market_data.bar ──►      ↑ CouncilGate               hypothesis_agent
     EventDrivenSignalEngine  signal.generated                     │
@@ -675,7 +682,7 @@ pwsh .\start-embodier.ps1
 | Layer | Speed | Component | Status |
 |-------|-------|-----------|--------|
 | Brainstem | <50ms | CircuitBreaker reflexes | ✅ ENFORCED (10 circuit breakers active) |
-| Spinal Cord | ~1500ms | 35-agent council DAG | ✅ BUILT -- all agents real implementations |
+| Spinal Cord | ~1500ms | 32-agent council DAG | ✅ BUILT -- all agents real implementations |
 | Cortex | 300-800ms | hypothesis + critic via gRPC | ✅ WIRED |
 | Thalamus | — | BlackboardState shared memory | ✅ WIRED to sizing |
 | Autonomic | nightly | WeightLearner + jobs/scheduler | ✅ TUNED (floor 0.2, regime-stratified) |
@@ -685,7 +692,7 @@ pwsh .\start-embodier.ps1
 
 ---
 
-## 🤖 Council Architecture (35-Agent DAG, 7 Stages)
+## 🤖 Council Architecture (32-Agent DAG, 7 Stages)
 
 ```
 Stage 1 (Parallel): perception + Academic Edge P0/P1/P2 (13 agents)
@@ -746,11 +753,11 @@ AgentVote(
 | Frontend | React 18, Vite, Tailwind CSS, Lightweight Charts |
 | Database | DuckDB (WAL mode, connection pooling) |
 | ML | XGBoost, scikit-learn (no PyTorch in prod) |
-| Council | 35-agent DAG, Bayesian-weighted arbiter |
+| Council | 32-agent DAG, Bayesian-weighted arbiter |
 | Brain Service | gRPC + Ollama on RTX GPU (PC2) |
 | LLM Router | Ollama (routine) → Perplexity → Claude (6 deep tasks) |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions, 981+ tests, pytest |
+| CI/CD | GitHub Actions, 1043+ tests, pytest |
 | Auth | Bearer token, fail-closed for live trading |
 | Desktop | Electron (desktop/) — BUILD-READY |
 | Infra | Docker, docker-compose.yml |
@@ -877,4 +884,4 @@ See `PLAN.md` for details on all phases.
 7. ✅ New agents do NOT get veto power
 8. ✅ CouncilGate is the ONLY path to order execution
 9. ✅ Read `project_state.md` before every coding session
-10. ✅ CI must stay GREEN (981+ tests)
+10. ✅ CI must stay GREEN (1043+ tests)

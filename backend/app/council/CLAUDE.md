@@ -4,7 +4,7 @@
 
 ## Architecture
 
-The council is a **35-agent Directed Acyclic Graph (DAG)** executed in 7 parallel stages. Every trade signal passes through the full council before execution. Sub-1s latency.
+The council is a **32-agent Directed Acyclic Graph (DAG)** executed in 7 parallel stages. Every trade signal passes through the full council before execution. Sub-1s latency.
 
 ```
 Stage 1 (Parallel — 13 agents): Perception + Academic Edge P0/P1/P2
@@ -60,14 +60,14 @@ class AgentVote:
 
 1. **VETO**: If `risk` or `execution` sets `veto=True` → HOLD, `vetoed=True`
 2. **REQUIRED**: `regime`, `risk`, `strategy` must vote non-hold for any trade
-3. **Confidence**: Bayesian-weighted aggregation across all 35 agent votes
+3. **Confidence**: Bayesian-weighted aggregation across all 32 agent votes
 4. **Execution threshold**: confidence > 0.4 AND `execution_ready=True`
 5. **VETO_AGENTS** = `{"risk", "execution"}` — ONLY these can veto
 6. **New agents do NOT get veto power**
 
 ## WeightLearner — Bayesian Beta(α,β)
 
-**File**: `weight_learner.py` (14.8 KB)
+**File**: `weight_learner.py` (30.9 KB)
 
 Each agent has a learned weight via Bayesian Beta distribution:
 - `α` = successful predictions, `β` = failed predictions
@@ -79,7 +79,7 @@ Each agent has a learned weight via Bayesian Beta distribution:
 
 ## CouncilGate — Signal → Council Bridge
 
-**File**: `council_gate.py` (8.9 KB)
+**File**: `council_gate.py` (16.4 KB)
 
 - Subscribes to `signal.generated` on MessageBus
 - Filters signals by threshold (currently 65 — known to be too aggressive)
@@ -127,25 +127,29 @@ Each agent has a learned weight via Bayesian Beta distribution:
 - Handle errors gracefully — return HOLD with low confidence on failure
 - Use `features.get("features", features)` pattern for feature access
 
-## Orchestration Files (15 total)
+## Orchestration Files (19 total)
 
 | File | Size | Purpose |
 |------|------|---------|
-| **runner.py** | 29.4 KB | 7-stage parallel DAG orchestrator — the profit spine |
-| **arbiter.py** | 6.4 KB | Deterministic BUY/SELL/HOLD with Bayesian weights |
-| **schemas.py** | 7.6 KB | AgentVote + DecisionPacket dataclasses |
-| **council_gate.py** | 8.9 KB | Signal → Council → OrderExecutor bridge |
-| **weight_learner.py** | 14.8 KB | Bayesian Beta(α,β) self-learning weights |
-| **blackboard.py** | 11.1 KB | Shared memory state across DAG stages (Thalamus) |
-| **shadow_tracker.py** | 8.0 KB | Shadow portfolio — tracks what council WOULD do |
-| **self_awareness.py** | 10.8 KB | System metacognition + Bayesian accuracy tracking |
-| **homeostasis.py** | 6.3 KB | System stability + auto-healing |
-| **overfitting_guard.py** | 9.4 KB | ML overfitting detection for agent predictions |
-| **hitl_gate.py** | 12.0 KB | Human-in-the-loop approval gate |
-| **feedback_loop.py** | 7.5 KB | Post-trade outcome feedback to agents |
-| **task_spawner.py** | 10.7 KB | Dynamic agent registry + spawning |
-| **data_quality.py** | 9.0 KB | Data quality scoring for agent inputs |
-| **agent_config.py** | 5.4 KB | Settings-driven thresholds for all 35 agents |
+| **runner.py** | 39.4 KB | 7-stage parallel DAG orchestrator — the profit spine |
+| **weight_learner.py** | 30.9 KB | Bayesian Beta(α,β) self-learning weights |
+| **council_coordinator.py** | 24.0 KB | High-level council coordination + distributed execution |
+| **arbiter.py** | 23.0 KB | Deterministic BUY/SELL/HOLD with Bayesian weights |
+| **council_gate.py** | 16.4 KB | Signal → Council → OrderExecutor bridge |
+| **hitl_gate.py** | 11.7 KB | Human-in-the-loop approval gate |
+| **task_spawner.py** | 11.3 KB | Dynamic agent registry + spawning |
+| **blackboard.py** | 10.9 KB | Shared memory state across DAG stages (Thalamus) |
+| **self_awareness.py** | 10.5 KB | System metacognition + Bayesian accuracy tracking |
+| **overfitting_guard.py** | 9.2 KB | ML overfitting detection for agent predictions |
+| **data_quality.py** | 8.8 KB | Data quality scoring for agent inputs |
+| **feedback_loop.py** | 8.5 KB | Post-trade outcome feedback to agents |
+| **shadow_tracker.py** | 7.8 KB | Shadow portfolio — tracks what council WOULD do |
+| **schemas.py** | 7.4 KB | AgentVote + DecisionPacket dataclasses |
+| **homeostasis.py** | 6.1 KB | System stability + auto-healing |
+| **regime_publisher.py** | 5.6 KB | Regime state publisher to MessageBus |
+| **agent_config.py** | 5.6 KB | Settings-driven thresholds for all 32 agents |
+| **calibration.py** | 4.5 KB | Brier score confidence calibration |
+| **registry.py** | 2.2 KB | Agent registration + lookup registry |
 
 ### Subsystem Directories
 

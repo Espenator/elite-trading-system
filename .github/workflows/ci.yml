@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Backend: 898 tests (as of March 2026). Fail if pytest exits non-zero.
+      # Backend: 1043 tests (as of March 2026). Fail if pytest exits non-zero.
       - name: Run pytest
         run: pytest tests/ -v --cov=app --cov-report=term-missing
         env:

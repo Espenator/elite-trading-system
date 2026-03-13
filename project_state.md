@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 12, 2026 (v5.0.0 — Phases A+B+C+E complete)
+> Last updated: March 13, 2026 (v5.0.0 — Phases A+B+C+D+E complete)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -8,9 +8,9 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: v5.0.0 — Phases A+B+C+E complete. Production-ready.
+- **Status**: v5.0.0 — Phases A+B+C+D+E complete. Production-ready.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 981+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
+- **Current Focus**: Council runs 32-agent DAG; 43 API route files (364+ endpoints); 72+ services; 1043+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
 - **Latest Session (March 12, 2026)**: TradingView + TradersPost integration planned. TradersPost account created (paper, $100K, Alpaca connected). Dual-webhook bridge designed (webhook.site monitoring + TradersPost execution with safety gate). Morning trade briefing scheduled task created (9 AM ET weekdays). Trading assistant plan, research doc, and Cursor implementation prompt written. Previous: Slack notification bridges wired, device-config.js fix, weight learner test fix. All phases (A+B+C+D+E) complete.
 
 ## Two-PC Development Setup
@@ -83,12 +83,12 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 Slack tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env`.
 
-## LATEST STATE (March 12, 2026) — v5.0.0 (All Phases Complete: A+B+C+D+E)
+## LATEST STATE (March 13, 2026) — v5.0.0 (All Phases Complete: A+B+C+D+E)
 
 ### Current Architecture Snapshot
-- **Council**: 35-agent DAG in 7 stages. All agents are real implementations (not stubs). CouncilGate invokes full council on every signal (score >= 65).
+- **Council**: 32-agent DAG in 7 stages (19 orchestration files in council/). All agents are real implementations (not stubs). CouncilGate invokes full council on every signal (score >= 65).
 - **Backend**: 43 API route files in api/v1/ (364+ endpoints); 72+ services (incl. subdirs: scouts, llm_clients, channel_agents, firehose_agents, integrations). brain_service wired (hypothesis_agent → gRPC).
-- **Tests**: 981+ passing (backend pytest, 52 test files). CI GREEN.
+- **Tests**: 1043+ passing (backend pytest, 54 test files). CI GREEN.
 - **Auth**: Bearer token auth, fail-closed for live trading.
 - **WebSocket**: Active; 25 channels with token auth, heartbeat (30s/60s). 5 pages wired.
 - **Desktop**: Electron app in `desktop/` — BUILD-READY.
@@ -105,7 +105,7 @@ A line-by-line audit of the entire codebase found 40 specific issues in 4 catego
 - **10 Unenforced Safeguards**: 9 of 10 circuit breakers advisory-only, regime params ignored, no paper/live safety check
 - **10 Intelligence Gaps**: no regime-adaptive thresholds, no confidence calibration, debate not wired to learning
 
-**What IS working well**: All 35 agents real, Bayesian weights correct, VETO enforced, sub-1s latency, Kelly math sound, 3-tier LLM router, 981+ tests GREEN.
+**What IS working well**: All 32 agents real, Bayesian weights correct, VETO enforced, sub-1s latency, Kelly math sound, 3-tier LLM router, 1043+ tests GREEN.
 
 **See `PLAN.md` for the complete 5-phase enhancement plan (Phases A-E, 13-18 sessions).**
 
@@ -117,7 +117,7 @@ A line-by-line audit of the entire codebase found 40 specific issues in 4 catego
 - Mock data — all removed, replaced with real data sources.
 
 ### Historical: v3.2.0 (March 5, 2026) — Council-Controlled Pipeline
-Council was expanded to 17 agents; CouncilGate bridged SignalEngine → Council → OrderExecutor. Pipeline is now 35-agent (see Council Architecture below).
+Council was expanded to 17 agents; CouncilGate bridged SignalEngine → Council → OrderExecutor. Pipeline is now 32-agent (see Council Architecture below).
 
 ## CRITICAL ARCHITECTURE AUDIT (March 4, 2026)
 
@@ -131,11 +131,11 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - **Problem**: These are NOT real agents. No daemon lifecycle, no health monitoring, no inter-agent communication.
 - **Status**: UNRESOLVED — needs P6
 
-#### System 2: Council (35-agent DAG) ← CONNECTED TO SYSTEM 4
+#### System 2: Council (32-agent DAG) ← CONNECTED TO SYSTEM 4
 - **Location**: `backend/app/council/` (runner.py, arbiter.py, schemas.py, council_gate.py, weight_learner.py, agents/)
 - **What it is**: 35 council agents in a 7-stage DAG with deterministic arbiter + Bayesian weight learning (11 Core + 12 Academic Edge + 6 Supplemental + 3 Debate + 3 others)
 - **How it works**: CouncilGate subscribes to signal.generated, auto-invokes run_council(), publishes council.verdict
-- **Status**: CONNECTED to event pipeline via CouncilGate; all 35 agents wired in runner DAG
+- **Status**: CONNECTED to event pipeline via CouncilGate; all 32 agents wired in runner DAG
 
 #### System 3: OpenClaw (copied Flask/Slack multi-agent system)
 - **Location**: `backend/app/modules/openclaw/` (9 subdirectories)
@@ -225,10 +225,10 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 | Frontend | React 18 (Vite), Tailwind CSS, Lightweight Charts |
 | Database | DuckDB (WAL mode, connection pooling) |
 | ML | XGBoost, scikit-learn, LSTM (no PyTorch in prod) |
-| Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Council | 32-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Brain Service | gRPC + Ollama (PC2) for LLM inference |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions (981+ tests passing, backend pytest + frontend build + E2E) |
+| CI/CD | GitHub Actions (1043+ tests passing, backend pytest + frontend build + E2E) |
 | Infra | Docker, docker-compose.yml, Redis (where used) |
 | Local AI | Ollama on RTX GPU cluster; 3-tier router (Ollama → Perplexity → Claude) |
 | Auth | Bearer token, fail-closed for live trading |
@@ -248,7 +248,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - StockGeist / News API / Discord / X — Social sentiment (via council agents)
 - YouTube — Transcript intelligence (via council agent)
 
-## Council Architecture (35-Agent DAG, 7 Stages)
+## Council Architecture (32-Agent DAG, 7 Stages)
 ```
 Stage 1 (Parallel): perception + Academic Edge P0/P1/P2 (13 agents)
 Stage 2 (Parallel): technical + data enrichment (8 agents)
@@ -273,7 +273,7 @@ Agent Schema: `AgentVote(agent_name, direction, confidence, reasoning, veto, vet
 
 ## CNS Architecture (Central Nervous System)
 - **Brainstem** (<50ms): CircuitBreaker reflexes [BUILT — Gate 2c enforced, leverage 2x, concentration 25%]
-- **Spinal Cord** (~1500ms): 35-agent council DAG [BUILT]
+- **Spinal Cord** (~1500ms): 32-agent council DAG [BUILT]
 - **Cortex** (300-800ms): hypothesis + critic via brain_service gRPC [WIRED]
 - **Thalamus**: BlackboardState shared memory [BUILT]
 - **Autonomic**: Bayesian WeightLearner [BUILT] — learns from trade outcomes, Brier-calibrated
@@ -289,7 +289,7 @@ AlpacaStreamService
   -> market_data.bar
   -> EventDrivenSignalEngine
   -> signal.generated (score >= 65)
-  -> CouncilGate (invokes 35-agent council)
+  -> CouncilGate (invokes 32-agent council)
   -> council.verdict (BUY/SELL/HOLD)
   -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
   -> order.submitted
@@ -301,8 +301,8 @@ AlpacaStreamService
 
 ```
 [React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
-14 pages, 34 API route files, WebSocket active (5 pages), Bearer auth fail-closed
-35-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics, Redis where used
+14 pages, 43 API route files, WebSocket active (5 pages), Bearer auth fail-closed
+32-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics, Redis where used
 [Brain Service gRPC] <-- Ollama LLM inference on PC2; 3-tier router (Ollama → Perplexity → Claude)
 [Electron Desktop — desktop/] BUILD-READY, spawns backend + serves frontend
 ```
@@ -317,13 +317,13 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (March 12, 2026 — v5.0.0, All Phases Complete)
-- CI: 981+ tests passing (backend pytest, 52 test files), GREEN
+## Current State (March 13, 2026 — v5.0.0, All Phases Complete)
+- CI: 1043+ tests passing (backend pytest, 54 test files), GREEN
 - Version: v5.0.0. All 5 phases (A+B+C+D+E) complete. Production readiness audit passed.
 - Production Readiness: ~95%. Ready for live paper trading, approaching live capital deployment.
 - Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks, 156+ buttons verified
 - Backend: 43 API route files (364+ endpoints), 72+ service files, all mounted and responding
-- Council: 35-agent DAG — all agents are real implementations (not stubs). Sub-1s latency.
+- Council: 32-agent DAG — all agents are real implementations (not stubs). Sub-1s latency.
 - All Phases Complete: Regime enforcement, circuit breakers, regime-adaptive signals, limit/TWAP orders, weight learner fix, Brier calibration, backfill orchestrator, rate limiting, E2E test, emergency flatten, desktop packaging
 - **TradingView Integration**: Dual-system architecture planned (Embodier signals + TradingView charting). TradersPost connected (paper, $100K, Alpaca). Dual-webhook bridge designed. Morning briefing scheduled task active (9 AM ET weekdays). Cursor implementation prompt ready for 7 new files (briefing_service, tradingview_bridge, 2 API routes, frontend page, tests).
 - Remaining (Phase F): TradingView bridge implementation, replace frontend FALLBACK_* with skeleton loaders, add CodeQL/Dependabot, frontend unit tests, accessibility audit, Slack token auto-refresh, Docker staging
@@ -397,7 +397,7 @@ A comprehensive pixel-by-pixel audit was performed comparing all 23 mockup image
 4. ALWAYS use 4-space indentation in Python
 5. Council agents MUST return AgentVote schema
 6. The ONE repo is Espenator/elite-trading-system — do NOT commit to Embodier-Trader
-7. Council has 35 agents in 7 stages — see Council Architecture section
+7. Council has 32 agents in 7 stages — see Council Architecture section
 8. Read CRITICAL ARCHITECTURE AUDIT section before making changes
 9. Agent pattern: module-level NAME + WEIGHT + async def evaluate() -> AgentVote
 10. VETO_AGENTS = {"risk", "execution"} — only these can veto
