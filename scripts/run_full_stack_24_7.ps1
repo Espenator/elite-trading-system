@@ -11,7 +11,7 @@ param(
     [int]$BackendPortMax = 8010,
     [int]$FrontendPortMax = 5183,
     [int]$RestartDelaySeconds = 3,
-    [int]$BackendWaitSeconds = 60,
+    [int]$BackendWaitSeconds = 120,
     [int]$SupervisorCheckSeconds = 15,
     [switch]$CleanPorts,
     [switch]$NoCleanPorts,
@@ -120,7 +120,7 @@ if (Test-Path $frontendEnv) {
 if (-not (Test-Path $BackendAutorestart)) { Write-Host "ERROR: $BackendAutorestart not found." -ForegroundColor Red; exit 1 }
 if (-not (Test-Path $FrontendAutorestart)) { Write-Host "ERROR: $FrontendAutorestart not found." -ForegroundColor Red; exit 1 }
 
-$HealthUrl = "http://127.0.0.1:${BackendPort}/health"
+$HealthUrl = "http://127.0.0.1:${BackendPort}/api/v1/health"
 
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor DarkCyan
@@ -135,8 +135,25 @@ if ($Supervisor) {
 Write-Host "  Dashboard: http://localhost:${FrontendPort}/dashboard" -ForegroundColor Green
 Write-Host ""
 
+# Clean stale PID file before starting backend
+$pidFile = Join-Path $BackendDir ".embodier.pid"
+if (Test-Path $pidFile) {
+    try {
+        $pidContent = Get-Content $pidFile -ErrorAction SilentlyContinue
+        $pidLine = $pidContent | Where-Object { $_ -match "^pid=" }
+        if ($pidLine) {
+            $stalePid = [int]($pidLine -replace "^pid=", "")
+            $proc = Get-Process -Id $stalePid -ErrorAction SilentlyContinue
+            if (-not $proc) {
+                Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                Write-Host "  Cleaned stale PID file (PID $stalePid)" -ForegroundColor Gray
+            }
+        }
+    } catch {}
+}
+
 # Start backend in new window (with -PassThru when Supervisor so we can monitor/restart)
-$backendArgs = @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", $BackendAutorestart, "-Port", $BackendPort.ToString(), "-RestartDelaySeconds", $RestartDelaySeconds)
+$backendArgs = @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", $BackendAutorestart, "-Port", $BackendPort.ToString(), "-RestartDelaySeconds", $RestartDelaySeconds, "-StartupGraceSeconds", "120")
 $backendProc = Start-Process powershell -ArgumentList $backendArgs -WorkingDirectory $Root -PassThru
 Write-Host "  Backend window started (PID $($backendProc.Id))." -ForegroundColor Gray
 
@@ -185,16 +202,24 @@ if (-not $NoElectron -and (Test-Path $ElectronAutorestart)) {
 # Supervisor loop: keep this window open and restart any component that exits
 if ($Supervisor) {
     Write-Host ""
-    Write-Host "  --- 24/7 Supervisor active. Next check in ${SupervisorCheckSeconds}s. Press Ctrl+C to stop all. ---" -ForegroundColor Cyan
+    Write-Host "  --- 24/7 Supervisor active. Check every ${SupervisorCheckSeconds}s + health every 60s. Ctrl+C to stop. ---" -ForegroundColor Cyan
     Write-Host ""
+    $supervisorHealthFailCount = 0
+    $supervisorCheckCount = 0
+    $healthCheckEveryN = [math]::Max(1, [math]::Floor(60 / $SupervisorCheckSeconds))  # Health check every ~60s
+    $supervisorStartTime = Get-Date
+
     while ($true) {
         Start-Sleep -Seconds $SupervisorCheckSeconds
         $restarted = $false
+        $supervisorCheckCount++
 
         if ($backendProc -and $backendProc.HasExited) {
             Write-Host "  [$(Get-Date -Format 'HH:mm:ss')] Backend exited (code $($backendProc.ExitCode)). Restarting..." -ForegroundColor Magenta
             $backendProc = Start-Process powershell -ArgumentList $backendArgs -WorkingDirectory $Root -PassThru
             Write-Host "  Backend restarted (PID $($backendProc.Id))." -ForegroundColor Green
+            $supervisorHealthFailCount = 0
+            $supervisorStartTime = Get-Date
             $restarted = $true
         }
         if ($frontendProc -and $frontendProc.HasExited) {
@@ -208,6 +233,30 @@ if ($Supervisor) {
             $electronProc = Start-Process powershell -ArgumentList $electronArgs -WorkingDirectory $Root -PassThru
             Write-Host "  Electron restarted (PID $($electronProc.Id))." -ForegroundColor Green
             $restarted = $true
+        }
+
+        # Periodic health check: detect hung backends (process alive but not responding)
+        $elapsed = ((Get-Date) - $supervisorStartTime).TotalSeconds
+        if ((-not $restarted) -and ($supervisorCheckCount % $healthCheckEveryN -eq 0) -and ($elapsed -gt 120) -and ($backendProc -and -not $backendProc.HasExited)) {
+            try {
+                $r = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                if ($r.StatusCode -eq 200) {
+                    $supervisorHealthFailCount = 0
+                }
+            } catch {
+                $supervisorHealthFailCount++
+                Write-Host "  [$(Get-Date -Format 'HH:mm:ss')] Supervisor health check failed ($supervisorHealthFailCount/3)" -ForegroundColor DarkYellow
+                if ($supervisorHealthFailCount -ge 3) {
+                    Write-Host "  [$(Get-Date -Format 'HH:mm:ss')] Backend hung (process alive but API unresponsive). Killing autorestart window..." -ForegroundColor Red
+                    try { Stop-Process -Id $backendProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+                    Start-Sleep -Seconds 3
+                    $backendProc = Start-Process powershell -ArgumentList $backendArgs -WorkingDirectory $Root -PassThru
+                    Write-Host "  Backend restarted (PID $($backendProc.Id))." -ForegroundColor Green
+                    $supervisorHealthFailCount = 0
+                    $supervisorStartTime = Get-Date
+                    $restarted = $true
+                }
+            }
         }
 
         if (-not $restarted) {

@@ -28,6 +28,13 @@ _BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 _PID_FILE = _BACKEND_DIR / ".embodier.pid"
 _LOCK_ACQUIRED = False
 
+# Health check timeout (seconds). Must be long enough for a loaded backend to respond.
+_HEALTH_CHECK_TIMEOUT = 5.0
+# Number of health check retries before declaring a process dead.
+_HEALTH_CHECK_RETRIES = 3
+# Delay between retries (seconds).
+_HEALTH_CHECK_RETRY_DELAY = 2.0
+
 
 def _is_process_alive(pid: int) -> bool:
     """Check if a process with given PID is still running."""
@@ -41,16 +48,39 @@ def _is_process_alive(pid: int) -> bool:
         return False
 
 
-def _is_healthy_backend(port: int, timeout: float = 2.0) -> bool:
-    """Check if a healthy Embodier backend is responding on the given port."""
-    try:
-        import urllib.request
-        url = f"http://127.0.0.1:{port}/health"
-        req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status == 200
-    except Exception:
-        return False
+def _is_healthy_backend(port: int) -> bool:
+    """Check if a healthy Embodier backend is responding on the given port.
+
+    Uses /api/v1/health (reliable JSON endpoint) with retries.
+    Falls back to /health if /api/v1/health doesn't respond.
+    """
+    import urllib.request
+
+    # Try /api/v1/health first (always returns JSON, most reliable)
+    for attempt in range(_HEALTH_CHECK_RETRIES):
+        try:
+            url = f"http://127.0.0.1:{port}/api/v1/health"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=_HEALTH_CHECK_TIMEOUT) as resp:
+                if resp.status == 200:
+                    return True
+        except Exception:
+            pass
+
+        # On last retry, try /health as fallback
+        if attempt == _HEALTH_CHECK_RETRIES - 1:
+            try:
+                url = f"http://127.0.0.1:{port}/health"
+                req = urllib.request.Request(url, method="GET")
+                with urllib.request.urlopen(req, timeout=_HEALTH_CHECK_TIMEOUT) as resp:
+                    if resp.status == 200:
+                        return True
+            except Exception:
+                pass
+        else:
+            time.sleep(_HEALTH_CHECK_RETRY_DELAY)
+
+    return False
 
 
 def _read_pid_file() -> dict:
@@ -69,35 +99,36 @@ def _read_pid_file() -> dict:
         return {}
 
 
-def _get_master_pid() -> int:
-    """Get the master process PID (parent uvicorn for multi-worker, self for single)."""
-    ppid = os.getppid()
-    # In multi-worker mode, parent is the uvicorn master that binds the port.
-    # In single-worker/reload mode, we ARE the process that binds the port.
-    # Heuristic: if parent is also a python/uvicorn process, use parent PID.
-    if ppid > 1 and _is_process_alive(ppid):
-        try:
-            # Check if parent is uvicorn (not init/systemd/shell)
-            import pathlib
-            cmdline = pathlib.Path(f"/proc/{ppid}/cmdline").read_bytes().decode(errors="ignore")
-            if "uvicorn" in cmdline or "python" in cmdline:
-                return ppid
-        except (FileNotFoundError, PermissionError):
-            # Not on Linux or no /proc — Windows doesn't have /proc
-            # On Windows, multi-worker uses subprocess spawning, parent is python
-            pass
-    return os.getpid()
-
-
 def _write_pid_file(port: int) -> None:
-    """Write current process info to PID file."""
-    master_pid = _get_master_pid()
-    _PID_FILE.write_text(
-        f"pid={master_pid}\n"
+    """Write current process info to PID file with file locking on Windows."""
+    pid = os.getpid()
+    content = (
+        f"pid={pid}\n"
         f"port={port}\n"
         f"started={time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
-        f"worker_pid={os.getpid()}\n"
     )
+
+    # On Windows, use msvcrt file locking to prevent race conditions
+    if sys.platform == "win32":
+        try:
+            import msvcrt
+
+            fd = os.open(str(_PID_FILE), os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                os.write(fd, content.encode())
+                try:
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                except OSError:
+                    pass
+            finally:
+                os.close(fd)
+            return
+        except (ImportError, OSError):
+            pass  # Fall through to simple write
+
+    # Non-Windows or fallback: simple write
+    _PID_FILE.write_text(content)
 
 
 def acquire_lock(port: int) -> None:
@@ -105,21 +136,20 @@ def acquire_lock(port: int) -> None:
     Acquire the process lock. If another healthy instance is running, exit.
 
     Decision logic:
-    1. No PID file → we're first, take the lock
-    2. PID file exists, process dead → stale lock, take over
-    3. PID file exists, process alive, health check passes → ABORT (duplicate)
-    4. PID file exists, process alive, health check fails → zombie, take over
+    1. No PID file -> we're first, take the lock
+    2. PID file exists, process dead -> stale lock, take over
+    3. PID file exists, process alive, health check passes -> ABORT (duplicate)
+    4. PID file exists, process alive, health check fails -> zombie, take over
     """
     global _LOCK_ACQUIRED
 
     existing = _read_pid_file()
-    our_master = _get_master_pid()
 
-    # If we're a worker of the same master process, skip (don't fight siblings)
+    # If we already hold the lock (same PID), skip
     if existing:
         old_pid = int(existing.get("pid", 0))
-        if old_pid == our_master:
-            log.info("Process lock already held by our master (PID %d), worker skipping", our_master)
+        if old_pid == os.getpid():
+            log.info("Process lock already held by us (PID %d), skipping", old_pid)
             _LOCK_ACQUIRED = True
             return
 
@@ -156,7 +186,7 @@ def acquire_lock(port: int) -> None:
                 # Try to kill the zombie
                 try:
                     os.kill(old_pid, signal.SIGTERM)
-                    time.sleep(1)
+                    time.sleep(2)
                 except (OSError, ProcessLookupError):
                     pass
         else:
@@ -188,6 +218,22 @@ def release_lock() -> None:
     except Exception as e:
         log.warning("Failed to release process lock: %s", e)
     _LOCK_ACQUIRED = False
+
+
+def cleanup_stale_lock() -> bool:
+    """Remove PID file if the process it references is dead. Returns True if cleaned."""
+    existing = _read_pid_file()
+    if not existing:
+        return False
+    old_pid = int(existing.get("pid", 0))
+    if old_pid > 0 and not _is_process_alive(old_pid):
+        try:
+            _PID_FILE.unlink(missing_ok=True)
+            log.info("Cleaned stale process lock (PID %d)", old_pid)
+            return True
+        except Exception:
+            pass
+    return False
 
 
 def is_locked() -> bool:

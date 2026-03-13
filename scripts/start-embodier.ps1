@@ -5,8 +5,8 @@
 # ============================================================
 
 param(
-    [int]$BackendPort  = 8001,
-    [int]$FrontendPort = 3000,
+    [int]$BackendPort  = 8000,
+    [int]$FrontendPort = 5173,
     [switch]$NoElectron,
     [switch]$SkipFrontend
 )
@@ -133,7 +133,7 @@ Clear-Host
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Magenta
 Write-Host "    EMBODIER TRADER v5.0.0" -ForegroundColor Magenta
-Write-Host "    PC: ProfitTrader (secondary)" -ForegroundColor Magenta
+Write-Host "    Embodied Intelligence" -ForegroundColor Magenta
 Write-Host "    Backend: :$BackendPort  Frontend: :$FrontendPort" -ForegroundColor DarkGray
 Write-Host "  ============================================" -ForegroundColor Magenta
 Write-Host ""
@@ -248,6 +248,29 @@ if (-not $SkipFrontend) {
 $stepNum++
 Write-Step $stepNum $totalSteps "Starting backend on port $BackendPort..."
 
+# Clean stale PID file
+$pidFile = Join-Path $BackendDir ".embodier.pid"
+if (Test-Path $pidFile) {
+    try {
+        $pidContent = Get-Content $pidFile -ErrorAction SilentlyContinue
+        $pidLine = $pidContent | Where-Object { $_ -match "^pid=" }
+        if ($pidLine) {
+            $stalePid = [int]($pidLine -replace "^pid=", "")
+            $proc = Get-Process -Id $stalePid -ErrorAction SilentlyContinue
+            if (-not $proc) {
+                Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                Write-Ok "Cleaned stale PID file (PID $stalePid)"
+            }
+        }
+    } catch {}
+}
+
+# Write .embodier-ports.json for Electron and other tools
+$portsFile = Join-Path $Root ".embodier-ports.json"
+@{ backendPort = $BackendPort; frontendPort = $FrontendPort; updated = (Get-Date).ToString("o") } |
+    ConvertTo-Json | Set-Content -Path $portsFile -Encoding utf8 -Force
+Write-Ok "Ports saved to .embodier-ports.json (backend:$BackendPort, frontend:$FrontendPort)"
+
 # Activate venv and start
 if (Test-Path $venvPython) {
     $activateScript = Join-Path $BackendDir "venv\Scripts\Activate.ps1"
@@ -263,7 +286,7 @@ if (Test-Path $venvPython) {
 }
 
 # Wait for backend health (backend loads 20+ services, typically takes 30-60s)
-$healthy = Wait-ForUrl "http://localhost:$BackendPort/healthz" 90 "Backend"
+$healthy = Wait-ForUrl "http://localhost:$BackendPort/api/v1/health" 120 "Backend"
 if (-not $healthy) {
     # Double-check: maybe /healthz is slow but API works
     try {

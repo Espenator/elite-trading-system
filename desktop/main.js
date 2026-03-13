@@ -16,18 +16,30 @@ const { peerMonitor } = require('./peer-monitor');
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let appQuitting = false;
 
-// In dev, frontend URL from .embodier-ports.json (from run_full_stack_24_7 / start-embodier) or default 5173
-function getDevFrontendUrl() {
+// Read ports from .embodier-ports.json (written by run_full_stack_24_7 / start-embodier)
+function _readPortsJson() {
   const portsPath = path.join(__dirname, '..', '.embodier-ports.json');
   try {
     if (fs.existsSync(portsPath)) {
       const raw = fs.readFileSync(portsPath, 'utf8');
-      const ports = JSON.parse(raw);
-      const port = ports.frontendPort || 5173;
-      return `http://localhost:${port}`;
+      return JSON.parse(raw);
     }
   } catch (_) {}
-  return 'http://localhost:5173';
+  return {};
+}
+
+// In dev, frontend URL from .embodier-ports.json or default 5173
+function getDevFrontendUrl() {
+  const ports = _readPortsJson();
+  const port = ports.frontendPort || 5173;
+  return `http://localhost:${port}`;
+}
+
+// Backend port from .embodier-ports.json, then device-config store, then default 8000
+function getResolvedBackendPort() {
+  const ports = _readPortsJson();
+  if (ports.backendPort) return ports.backendPort;
+  return deviceConfig.getBackendPort() || 8000;
 }
 
 // Fix Electron cache permission error — set cache path before any window creation
@@ -112,7 +124,7 @@ function createSetupWindow() {
 
 // ── Main Window ───────────────────────────────────────────────────────────
 async function createMainWindow() {
-  const port = deviceConfig.getBackendPort();
+  const port = getResolvedBackendPort();
 
   mainWindow = new BrowserWindow({
     width: 1920,
