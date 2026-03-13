@@ -1,0 +1,17 @@
+{
+  "agent": "infrastructure",
+  "tests_passing": 1122,
+  "tests_failed": 7,
+  "backend_boots": true,
+  "duckdb_init": true,
+  "brain_service_reachable": false,
+  "brain_service_fallback_works": true,
+  "env_vars_loaded": true,
+  "directives_loaded": true,
+  "errors": [
+    "7 pytest failures: 4x test_feature_store (DuckDB file locked by another process), 1x test_jobs idempotent_skips_second_run (assertion status completed vs skipped), 2x test_redis_bridge (Redis connected when test expected no URL / disconnected)",
+    "DuckDB init skipped at backend startup when analytics.duckdb already open by another process; schema code creates postmortems/trade_outcomes when DB not locked",
+    "brain_service has no client.py (server.py, ollama_client.py, proto/); backend uses app.services.brain_client.BrainClient; PC2 gRPC unreachable at 192.168.1.116:50051 — fallback returns stub (degraded_mode true, low confidence) without crash",
+    "RegimePublisher published to invalid topic 'regime.current' (not in MessageBus allowlist)"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "agent": "self_awareness",
+  "bayesian_weights_update": false,
+  "bayesian_save_load_duckdb": false,
+  "streak_probation_at_5": true,
+  "streak_hibernation_at_10": true,
+  "streak_reset_on_win": false,
+  "health_monitor_detects_unhealthy": true,
+  "postmortem_insert_query": false,
+  "arbiter_uses_bayesian_weights": true,
+  "hibernated_agents_skipped": true,
+  "task_spawner_checks_health": true,
+  "errors": [
+    "bayesian_weights_update: 'BayesianAgentWeights' object has no attribute 'update'",
+    "bayesian_save_load_duckdb: 'BayesianAgentWeights' object has no attribute 'update'",
+    "postmortem_insert_query: IO Error: File is already open in \nC:\\Python313\\python.exe (PID 51016)"
+  ]
+}

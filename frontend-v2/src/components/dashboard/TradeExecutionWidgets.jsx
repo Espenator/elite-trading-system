@@ -815,9 +815,9 @@ export function CouncilDecisionPanel({
           background: C.bg0,
         }}
       >
-        {/* Execute Trade */}
+        {/* Execute Trade — pass verdict data so parent can submit order */}
         <button
-          onClick={d ? onExecute : undefined}
+          onClick={d ? () => onExecute(d) : undefined}
           disabled={!d}
           className="flex-1 font-mono font-bold uppercase transition-all"
           style={{
@@ -838,9 +838,9 @@ export function CouncilDecisionPanel({
           Execute Trade
         </button>
 
-        {/* Override */}
+        {/* Override — pass verdict data */}
         <button
-          onClick={d ? onOverride : undefined}
+          onClick={d ? () => onOverride(d) : undefined}
           disabled={!d}
           className="font-mono font-semibold uppercase transition-all"
           style={{

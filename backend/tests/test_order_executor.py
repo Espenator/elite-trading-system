@@ -231,3 +231,55 @@ class TestServiceLoading:
         exe = OrderExecutor(message_bus=mock_bus, max_single_position=0.05)
         sizer = exe._get_kelly_sizer()
         assert sizer.max_allocation == 0.05
+
+
+# ---------------------------------------------------------------------------
+# Order type selection (limit for > $5K notional)
+# ---------------------------------------------------------------------------
+
+class TestOrderTypeSelection:
+    def test_market_for_small_notional(self, executor):
+        """Notional <= $5K uses market order."""
+        order_type, limit_price = executor._select_order_type(price=100.0, qty=40)
+        assert order_type == "market"
+        assert limit_price is None
+
+    def test_limit_for_notional_above_5k(self, executor):
+        """Notional > $5K uses limit order."""
+        order_type, limit_price = executor._select_order_type(price=100.0, qty=60)
+        assert order_type == "limit"
+        assert limit_price == 100.0
+
+    def test_twap_for_notional_above_25k(self, executor):
+        """Notional > $25K uses twap."""
+        order_type, limit_price = executor._select_order_type(price=100.0, qty=300)
+        assert order_type == "twap"
+        assert limit_price == 100.0
+
+
+# ---------------------------------------------------------------------------
+# Kelly sizing uses DuckDB stats
+# ---------------------------------------------------------------------------
+
+class TestKellyUsesDuckDBStats:
+    @pytest.mark.anyio
+    async def test_kelly_result_includes_stats_source(self, executor, mock_bus):
+        """_compute_kelly_size returns stats_source from trade_stats when available."""
+        mock_stats = MagicMock()
+        mock_stats.get_stats.return_value = {
+            "win_rate": 0.55,
+            "avg_win_pct": 0.02,
+            "avg_loss_pct": 0.015,
+            "trade_count": 30,
+            "data_source": "duckdb",
+        }
+        executor._get_trade_stats = MagicMock(return_value=mock_stats)
+        executor._get_alpaca_service = MagicMock()
+        executor._get_alpaca_service.return_value.get_account = AsyncMock(
+            return_value={"equity": "100000"}
+        )
+        executor._get_alpaca_service.return_value._cache_get = MagicMock(return_value=None)
+
+        result = await executor._compute_kelly_size("AAPL", 75.0, "GREEN", 150.0, "buy")
+        assert "stats_source" in result
+        assert result["stats_source"] == "duckdb"

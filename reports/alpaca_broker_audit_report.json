@@ -1,0 +1,17 @@
+{
+  "agent": "alpaca_broker",
+  "client_initialized": true,
+  "paper_mode_confirmed": true,
+  "account_active": true,
+  "positions_endpoint_ok": true,
+  "orders_endpoint_ok": true,
+  "test_order_submitted": false,
+  "test_order_cancelled": false,
+  "kelly_sizing_correct": true,
+  "hold_blocks_order": true,
+  "low_confidence_blocks_order": true,
+  "live_trading_blocked": true,
+  "errors": [
+    "API_AUTH_TOKEN not set \u2014 skip test order submit"
+  ]
+}

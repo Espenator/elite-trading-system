@@ -257,6 +257,28 @@ class OrderExecutor:
             )
             return
 
+        # -- Gate 0: Decision TTL 30s — stale verdicts cannot execute (Swarm invariant #4) --
+        verdict_ts = verdict_data.get("timestamp")
+        if verdict_ts:
+            try:
+                from datetime import datetime, timezone
+                if isinstance(verdict_ts, (int, float)):
+                    verdict_dt = datetime.fromtimestamp(verdict_ts, tz=timezone.utc)
+                else:
+                    verdict_dt = datetime.fromisoformat(
+                        verdict_ts.replace("Z", "+00:00")
+                    ).astimezone(timezone.utc)
+                elapsed = (datetime.now(timezone.utc) - verdict_dt).total_seconds()
+                if elapsed > 30:
+                    self._reject(
+                        symbol, score,
+                        f"Council decision expired (TTL 30s, age={elapsed:.0f}s)",
+                        ExecutionDenyReason.STALE_VERDICT,
+                    )
+                    return
+            except (ValueError, TypeError):
+                pass
+
         # -- Gate 1: Council must approve --
         if direction == "hold":
             self._reject(symbol, score, "Council hold", ExecutionDenyReason.COUNCIL_HOLD)
@@ -453,6 +475,13 @@ class OrderExecutor:
             )
             return
 
+        # -- Thompson exploration: reduce position size to 50% (Agent 8) --
+        is_exploration = verdict_data.get("metadata", {}).get("is_exploration", False)
+        if is_exploration:
+            kelly_result["qty"] = max(1, int(kelly_result["qty"] * 0.5))
+            kelly_result["kelly_pct"] = kelly_result["kelly_pct"] * 0.5
+            logger.info("Exploration trade: %s sized at 50%%", symbol)
+
         # -- Gate 6b: Homeostasis position scaling (Phase C, C6) --
         # Multiply Kelly qty by homeostasis mode multiplier:
         # AGGRESSIVE=1.5x, NORMAL=1.0x, DEFENSIVE=0.5x, HALTED=0x
@@ -465,7 +494,7 @@ class OrderExecutor:
                 self._reject(
                     symbol, score,
                     f"Homeostasis HALTED mode — no new positions (mode={homeo_mode})",
-                    ExecutionDenyReason.REGIME_BLOCKED,
+                    ExecutionDenyReason.HOMEOSTASIS_HALTED,
                 )
                 return
             if homeo_scale != 1.0:
@@ -558,6 +587,7 @@ class OrderExecutor:
             return
 
         side = "buy" if direction == "buy" else "sell"
+        council_decision_id = verdict_data.get("council_decision_id") or ""
         decision = ExecutionDecision(
             symbol=symbol,
             side=side,
@@ -581,6 +611,7 @@ class OrderExecutor:
             },
             risk_checks_passed=drawdown_ok,
             verdict_timestamp=time.time(),
+            council_decision_id=council_decision_id or None,
         )
 
         if self.auto_execute:
@@ -919,10 +950,10 @@ class OrderExecutor:
             alpaca = self._get_alpaca_service()
             snapshot = await alpaca.get_latest_quote(symbol)
             if snapshot:
-                bid = snapshot.get("bid_price", 0)
-                ask = snapshot.get("ask_price", 0)
-                if bid > 0 and ask > 0:
-                    return round((bid + ask) / 2, 2)  # NBBO midpoint
+                bid = snapshot.get("bid_price") or snapshot.get("bp", 0)
+                ask = snapshot.get("ask_price") or snapshot.get("ap", 0)
+                if bid and ask and float(bid) > 0 and float(ask) > 0:
+                    return round((float(bid) + float(ask)) / 2, 2)  # NBBO midpoint
         except Exception:
             pass
         return None

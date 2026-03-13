@@ -1,0 +1,9 @@
+=== Critical audit tests (execution auth, council pipeline, e2e audit, order executor) ===
+Command: cd backend && python -m pytest tests/test_execution_auth_boundary.py tests/test_council_pipeline.py tests/test_e2e_audit_enhancements.py tests/test_order_executor.py -v --tb=short
+Exit: 0
+Result: 37 passed, 9 warnings in 0.86s
+
+=== Full test suite (reference) ===
+Command: cd backend && python -m pytest tests/ --tb=short -q
+Result: 7 failed, 1085 passed, 1 skipped, 118 warnings in 125.59s
+Failures: test_feature_store.py (4 - DuckDB file lock), test_jobs.py (1), test_redis_bridge.py (2)

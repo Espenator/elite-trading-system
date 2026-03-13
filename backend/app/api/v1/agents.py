@@ -21,7 +21,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from app.core.security import require_auth
 
@@ -185,14 +185,26 @@ _DEFAULT_LOGS: list = []  # No mock logs — real activity populates via _append
 _spawned_agents: list = []  # Virtual agents spawned via POST /agents
 
 
+def _get_dynamic_agents():
+    """Return list of dynamically spawned agents (from Patterns/ACC spawn/clone)."""
+    return db_service.get_config("dynamic_agents") or []
+
+
+def _set_dynamic_agents(agents: list):
+    """Persist dynamically spawned agents."""
+    db_service.set_config("dynamic_agents", agents)
+
+
 def _get_all_agents():
-    """Return the full agent template list. Used by swarm/team/alert/resource endpoints."""
-    return _AGENTS_TEMPLATE
+    """Return the full agent list: template + dynamic. Used by swarm/team/alert/resource endpoints."""
+    return _AGENTS_TEMPLATE + _get_dynamic_agents()
 
 
 def _effective_status(agent_id: int) -> str:
-    """Get persisted status for a single agent, falling back to template default."""
+    """Get persisted status for a single agent, falling back to template or dynamic default."""
     a = next((x for x in _AGENTS_TEMPLATE if x["id"] == agent_id), None)
+    if not a:
+        a = next((x for x in _get_dynamic_agents() if x["id"] == agent_id), None)
     default = a["status"] if a else "stopped"
     return _get_agent_status().get(str(agent_id), default)
 
@@ -208,7 +220,7 @@ async def get_agents():
 
     real_metrics = _get_process_metrics()
     agents = []
-    for a in _AGENTS_TEMPLATE:
+    for a in _get_all_agents():
         status = status_overrides.get(str(a["id"]), a["status"])
         last_actions = [
             {
@@ -220,6 +232,7 @@ async def get_agents():
             if log.get("agent") == a["name"]
         ][:100]
         payload = {**a, "status": status, "last_actions": last_actions}
+        payload["type"] = a.get("type", "general")  # Same shape for template + dynamic agents
         if real_metrics:
             payload["cpuPercent"] = real_metrics["cpuPercent"]
             payload["memoryMb"] = real_metrics["memoryMb"]
@@ -237,6 +250,8 @@ async def get_agents():
 
 def _agent_by_id(agent_id: int):
     a = next((x for x in _AGENTS_TEMPLATE if x["id"] == agent_id), None)
+    if not a:
+        a = next((x for x in _get_dynamic_agents() if x["id"] == agent_id), None)
     if not a:
         raise HTTPException(status_code=404, detail="Agent not found")
     return a
@@ -547,6 +562,129 @@ async def restart_agent(agent_id: int):
     return {"ok": True, "agent_id": agent_id, "status": "running"}
 
 
+# --- Agent spawn / clone / swarm / kill-all (Patterns page & Agent Command Center) ---
+@router.post("/spawn", dependencies=[Depends(require_auth)])
+async def spawn_agent(request: Request):
+    """Body: { name?: string, type?: string }. Response: { ok: true, agent: { id, name, type } }."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    name = body.get("name") or "Scanner"
+    agent_type = body.get("type") or "scanner"
+    dynamic = _get_dynamic_agents()
+    next_id = 1000 + len(dynamic)
+    new_agent = {
+        "id": next_id,
+        "name": name,
+        "type": agent_type,
+        "status": "running",
+        "cpuPercent": 0,
+        "memoryMb": 0,
+        "uptime": "0m",
+        "lastActionTimestamp": None,
+        "lastAction": "Spawned",
+        "currentTask": "Idle",
+        "description": f"Dynamically spawned {agent_type} agent.",
+        "config": {},
+    }
+    dynamic.append(new_agent)
+    _set_dynamic_agents(dynamic)
+    _set_agent_status(next_id, "running")
+    _append_log(name, f"Spawned {agent_type} agent (id={next_id})", "success")
+    await broadcast_ws("agents", {"type": "agent_spawned", "agent_id": next_id, "name": name, "type": agent_type})
+    return {"ok": True, "agent": {"id": next_id, "name": name, "type": agent_type}}
+
+
+@router.post("/clone", dependencies=[Depends(require_auth)])
+async def clone_agent(request: Request):
+    """Body: { agent_id: number }. Response: { ok: true, agent: { id, name, type } }."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    source_id = body.get("agent_id")
+    if source_id is None:
+        raise HTTPException(status_code=400, detail="agent_id required")
+    source = _agent_by_id(int(source_id))
+    dynamic = _get_dynamic_agents()
+    next_id = 1000 + len(dynamic)
+    clone = {
+        "id": next_id,
+        "name": f"{source.get('name', 'Agent')} (clone)",
+        "type": source.get("type", "general"),
+        "status": "running",
+        "cpuPercent": 0,
+        "memoryMb": 0,
+        "uptime": "0m",
+        "lastActionTimestamp": None,
+        "lastAction": "Cloned",
+        "currentTask": "Idle",
+        "description": source.get("description", ""),
+        "config": dict(source.get("config") or {}),
+    }
+    dynamic.append(clone)
+    _set_dynamic_agents(dynamic)
+    _set_agent_status(next_id, "running")
+    _append_log(clone["name"], f"Cloned from agent {source_id}", "success")
+    await broadcast_ws("agents", {"type": "agent_spawned", "agent_id": next_id, "name": clone["name"], "type": clone["type"]})
+    return {"ok": True, "agent": {"id": next_id, "name": clone["name"], "type": clone["type"]}}
+
+
+@router.post("/swarm/spawn", dependencies=[Depends(require_auth)])
+async def swarm_spawn(request: Request):
+    """Body: { team_type?: string }. Response: { ok: true, message, team_type?, openclaw? }."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    team_type = body.get("team_type") or "momentum"
+    try:
+        import httpx
+        from app.core.config import get_settings
+        settings = get_settings()
+        openclaw_url = getattr(settings, "OPENCLAW_API_URL", None) or os.environ.get("OPENCLAW_API_URL", "")
+        if openclaw_url:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{openclaw_url.rstrip('/')}/api/v1/openclaw/spawn-team",
+                    params={"team_type": team_type, "action": "spawn"},
+                )
+                if resp.status_code == 200:
+                    _append_log("Swarm", f"Spawned team {team_type} via OpenClaw", "success")
+                    return {"ok": True, "message": "Swarm spawn requested", "team_type": team_type, "openclaw": resp.json()}
+    except Exception as e:
+        logger.debug("OpenClaw swarm spawn not available: %s", e)
+    _append_log("Swarm", f"Swarm spawn ({team_type}) acknowledged (no OpenClaw)", "info")
+    return {"ok": True, "message": "Swarm spawn acknowledged", "team_type": team_type}
+
+
+@router.get("/swarm/templates", dependencies=[Depends(require_auth)])
+async def swarm_templates():
+    """GET, no body. Response: { templates: [{ id, name, type, description }] }."""
+    templates = [
+        {"id": "momentum", "name": "Momentum", "type": "team", "description": "Momentum-focused agent team"},
+        {"id": "value", "name": "Value", "type": "team", "description": "Value-focused agent team"},
+        {"id": "scanner", "name": "Scanner", "type": "team", "description": "Scanner agent team"},
+        {"id": "pattern", "name": "Pattern", "type": "team", "description": "Pattern detection team"},
+    ]
+    return {"templates": templates}
+
+
+@router.post("/kill-all", dependencies=[Depends(require_auth)])
+async def kill_all_agents():
+    """POST, no body. Response: { ok: true, message, count }. Pauses all template + dynamic agents."""
+    status = _get_agent_status()
+    all_agents = _get_all_agents()
+    for a in all_agents:
+        status[str(a["id"])] = "paused"
+    db_service.set_config("agent_status", status)
+    for a in all_agents:
+        _append_log(a["name"], "Paused by Kill All", "warning")
+    await broadcast_ws("agents", {"type": "kill_all", "status": "paused"})
+    return {"ok": True, "message": "All agents paused", "count": len(all_agents)}
+
+
 # --- Swarm Topology & ELO Leaderboard ---
 @router.get("/swarm-topology")
 async def get_swarm_topology():
@@ -643,7 +781,11 @@ async def get_consensus():
          "confidence": (v.get("confidence", 50) if isinstance(v, dict) else 50)}
         for agent, v in votes_obj.items()
     ] if isinstance(votes_obj, dict) else []
-    verdict = last.get("verdict", "N/A")
+    # Dashboard Swarm Consensus: when no conference votes, show template agents so panel always has rows
+    if not votes_array:
+        for a in _get_all_agents():
+            votes_array.append({"name": a["name"], "vote": "HOLD", "confidence": 50})
+    verdict = last.get("verdict", "HOLD")
     confidence = last.get("confidence", 0)
     return {
         "votes": votes_array,
@@ -892,18 +1034,14 @@ async def get_all_agent_config():
 @router.put("/{agent_id}/config", dependencies=[Depends(require_auth)])
 async def update_agent_config(agent_id: int, payload: dict):
     """Update agent config: weight, confidence_threshold, temperature, context_window, priority."""
+    agent = _agent_by_id(agent_id)
     allowed_keys = {"weight", "confidence_threshold", "temperature", "context_window", "priority", "load_pct"}
     config = _agent_configs.get(str(agent_id), {})
     for k, v in payload.items():
         if k in allowed_keys:
             config[k] = v
     _agent_configs[str(agent_id)] = config
-    agent_name = f"Agent-{agent_id}"
-    for a in _AGENTS_TEMPLATE:
-        if a["id"] == agent_id:
-            agent_name = a["name"]
-            break
-    _append_log(agent_name, f"Config updated: {list(payload.keys())}", "info")
+    _append_log(agent["name"], f"Config updated: {list(payload.keys())}", "info")
     await broadcast_ws("agents", {"type": "config_updated", "agent_id": agent_id, "config": config})
     return {"ok": True, "agent_id": agent_id, "config": config}
 
@@ -1023,13 +1161,13 @@ async def get_flow_anomalies():
 @router.put("/{agent_id}/weight", dependencies=[Depends(require_auth)])
 async def update_agent_weight(agent_id: int, payload: dict):
     """Update the weight/priority of an agent, scanner, or intel module."""
+    agent = _agent_by_id(agent_id)
     weight = payload.get("weight", 1.0)
     config = _agent_configs.get(str(agent_id), {})
     config["weight"] = float(weight)
     _agent_configs[str(agent_id)] = config
     db_service.set_config(f"agent_{agent_id}_weight", weight)
-    agent_name = next((a["name"] for a in _AGENTS_TEMPLATE if a["id"] == agent_id), f"Agent-{agent_id}")
-    _append_log(agent_name, f"Weight updated to {weight}", "info")
+    _append_log(agent["name"], f"Weight updated to {weight}", "info")
     await broadcast_ws("agents", {"type": "weight_updated", "agent_id": agent_id, "weight": weight})
     return {"ok": True, "agent_id": agent_id, "weight": weight}
 
@@ -1037,10 +1175,10 @@ async def update_agent_weight(agent_id: int, payload: dict):
 @router.post("/{agent_id}/toggle", dependencies=[Depends(require_auth)])
 async def toggle_agent(agent_id: int, payload: dict = {}):
     """Toggle an agent, scanner, or intel module active/inactive."""
+    agent = _agent_by_id(agent_id)
     active = payload.get("active", True)
     new_status = "running" if active else "stopped"
     _set_agent_status(agent_id, new_status)
-    agent_name = next((a["name"] for a in _AGENTS_TEMPLATE if a["id"] == agent_id), f"Agent-{agent_id}")
-    _append_log(agent_name, f"Toggled to {new_status}", "info")
+    _append_log(agent["name"], f"Toggled to {new_status}", "info")
     await broadcast_ws("agents", {"type": "status_changed", "agent_id": agent_id, "status": new_status})
     return {"ok": True, "agent_id": agent_id, "status": new_status, "active": active}

@@ -57,3 +57,26 @@ def test_no_prediction_excluded_from_accuracy(clean_resolver):
     resolver.record_outcome("AAPL", "2026-01-01", outcome=1)  # no prediction
     data = store["ml_outcome_resolver"]
     assert data["accuracy_30d"] is None  # can't compute without prediction
+
+
+def test_partial_fill_scenario_multiple_outcomes_same_symbol_counted(clean_resolver):
+    """Partial fills can produce multiple orders (e.g. 80% fill + 20% remainder).
+    Outcome resolver records by symbol/signal_date; all outcomes with prediction count toward accuracy."""
+    resolver, store = clean_resolver
+    # Simulate two legs for same symbol (e.g. partial fill then remainder)
+    resolver.record_outcome("AAPL", "2026-01-15", outcome=1, prediction=1)  # leg 1 correct
+    resolver.record_outcome("AAPL", "2026-01-15", outcome=1, prediction=1)  # leg 2 same signal date
+    data = store["ml_outcome_resolver"]
+    assert len(data["resolved"]) == 2
+    # Both have prediction -> accuracy = 2/2 = 1.0
+    assert data["accuracy_30d"] == 1.0
+
+
+def test_partial_fill_scenario_mixed_correct_incorrect(clean_resolver):
+    """With partial-fill-like multiple outcomes, accuracy is (correct / total) over all with prediction."""
+    resolver, store = clean_resolver
+    resolver.record_outcome("MSFT", "2026-01-10", outcome=1, prediction=1)
+    resolver.record_outcome("MSFT", "2026-01-10", outcome=0, prediction=1)  # second leg wrong
+    data = store["ml_outcome_resolver"]
+    assert len(data["resolved"]) == 2
+    assert data["accuracy_30d"] == 0.5

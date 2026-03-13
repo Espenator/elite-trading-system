@@ -268,6 +268,22 @@ class TestCouncilEvaluate:
         )
         assert r.status_code in (200, 400, 502)
 
+    def test_council_evaluate_returns_direction_confidence_decision_id(self, client, auth_headers):
+        """POST /api/v1/council/evaluate with symbol, score, direction; assert 200 and response shape."""
+        r = client.post(
+            "/api/v1/council/evaluate",
+            json={"symbol": "AAPL", "score": 80, "direction": "buy"},
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "final_direction" in data, data
+        assert "final_confidence" in data, data
+        assert "council_decision_id" in data, data
+        assert data["final_direction"] in ("buy", "sell", "hold")
+        assert isinstance(data["final_confidence"], (int, float))
+        assert data["council_decision_id"] != ""
+
 
 class TestOrderAdvancedRequiresAuth:
     def test_orders_advanced_requires_auth(self, client):

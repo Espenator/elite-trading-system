@@ -154,6 +154,7 @@ def _normalize_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 async def get_candles(
     ticker: str = Path(..., description="Stock ticker symbol"),
     timeframe: Optional[str] = Query("1h", description="Timeframe: 1m, 5m, 15m, 1h, 4h, 1D, 1W"),
+    limit: Optional[int] = Query(None, description="Max bars (default 100 intraday, 365 daily). Max 1000."),
 ):
     """
     Get OHLCV candles for the Dashboard Price Action chart.
@@ -176,7 +177,10 @@ async def get_candles(
             logger.warning("Finviz candle fetch failed for %s, trying Alpaca: %s", ticker, e)
 
     # Alpaca Market Data API fallback (works 24/7 including weekends)
-    alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=timeframe or "1h")
+    effective_tf = timeframe or "1h"
+    bar_limit = limit if limit is not None else (365 if effective_tf in ("1D", "d", "1Day") else 100)
+    bar_limit = min(max(bar_limit, 1), 1000)
+    alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=effective_tf, limit=bar_limit)
     if alpaca_bars:
         return {"candles": alpaca_bars, "bars": alpaca_bars, "source": "alpaca"}
 
@@ -189,11 +193,13 @@ async def get_order_book(
 ) -> Dict[str, Any]:
     """
     Order book stub for Dashboard. Returns empty bids/asks when no live book is available.
+    Always includes spread (0 when no book) so the UI can display a value.
     """
     return {
-        "symbol": ticker,
+        "symbol": ticker.upper() if ticker else "?",
         "bids": [],
         "asks": [],
+        "spread": 0.0,
         "timestamp": None,
     }
 
@@ -218,6 +224,10 @@ async def get_quote_data(
         None,
         description="Timeframe: 1m, 5m, 15m, 1h, 4h, 1D, 1W (Signal Intelligence / charts)"
     ),
+    limit: Optional[int] = Query(
+        None,
+        description="Max number of bars (e.g. 500 for ~2 years daily). Default 100 intraday, 365 daily."
+    ),
     p: Optional[str] = Query(
         None,
         description="Timeframe/unit: i1, i3, i5, i15, i30, h, d, w, m (legacy)"
@@ -240,6 +250,10 @@ async def get_quote_data(
         r = r_map.get(timeframe, "d5")
     p = p or "i15"
     r = r or "d5"
+    effective_tf = timeframe or p or "1D"
+    # Default bar count: high for daily (symbol detail charts), moderate for intraday
+    bar_limit = limit if limit is not None else (500 if effective_tf in ("1D", "d", "1Day") else 100)
+    bar_limit = min(max(bar_limit, 1), 1000)
 
     # Try Finviz first (if API key is configured)
     if _finviz_available:
@@ -257,8 +271,7 @@ async def get_quote_data(
             logger.warning("Quote fetch failed for %s (timeframe=%s), trying Alpaca: %s", ticker, timeframe or p, e)
 
     # Alpaca Market Data API fallback (works 24/7 including weekends)
-    effective_tf = timeframe or p or "1D"
-    alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=effective_tf)
+    alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=effective_tf, limit=bar_limit)
     if alpaca_bars:
         return {"bars": alpaca_bars, "data": alpaca_bars, "source": "alpaca"}
 

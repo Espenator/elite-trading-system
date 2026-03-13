@@ -1,0 +1,6 @@
+-- Run from backend with DuckDB available (e.g. after trades have been recorded).
+-- Trade outcomes are stored by trade_stats_service.record_outcome() in trade_outcomes table.
+-- Example (adjust path to your DuckDB file if not default):
+--   duckdb backend/data/analytics.duckdb
+
+SELECT * FROM trade_outcomes ORDER BY timestamp DESC LIMIT 20;
