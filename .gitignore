@@ -79,6 +79,12 @@ htmlcov/
 .deps-hash
 .build-hash
 
+# ── Cross-PC auto-generated (Cursor/Claude Code merge conflict prevention) ──
+backend/app/modules/ml_engine/drift_log.json
+backend/app/modules/ml_engine/reference_stats.json
+backend/app/data/*.lock
+backend/app/data/*.wal
+
 # ── Misc ──
 *.bak
 *.tmp
