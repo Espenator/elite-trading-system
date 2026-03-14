@@ -8,6 +8,8 @@ import clsx from 'clsx';
 import { Minus, Plus } from 'lucide-react';
 import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
 import SectionErrorBoundary from '../components/ui/SectionErrorBoundary';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { logTradeAction } from '../utils/tradeAudit';
 
 /* ────────────────────────────────────────────────────────────
    Shared tiny components used only in this page
@@ -119,6 +121,8 @@ export default function TradeExecution() {
   const [builderTab, setBuilderTab] = useState('Advanced');
   const [positionsTab, setPositionsTab] = useState('positions'); // 'positions' | 'history'
   const [orderHistory, setOrderHistory] = useState([]);
+  const [pendingTrade, setPendingTrade] = useState(null); // { type, label, action }
+  const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
 
   /* -- Chart init -- */
   useEffect(() => {
@@ -192,12 +196,19 @@ export default function TradeExecution() {
     }
   };
 
+  const pendingPreflightRef = useRef(null);
   const withPreflight = async (side, action) => {
     const verdict = await runAlignmentPreflight(side);
     if (verdict?.allowed === false) {
-      if (!window.confirm(`Alignment blocked: ${verdict.summary || verdict.blockedBy}\n\nOverride and execute anyway?`)) return;
+      logTradeAction({ action: `preflight_blocked_${side}`, details: verdict.summary || verdict.blockedBy, confirmed: false });
+      pendingPreflightRef.current = action;
+      setShowOverrideConfirm(true);
+      return;
     }
-    return action();
+    logTradeAction({ action: `execute_${side}`, details: `${orderForm.symbol} x${orderForm.quantity}`, confirmed: true });
+    const result = await action();
+    logTradeAction({ action: `execute_${side}`, details: `${orderForm.symbol} completed`, confirmed: true, result: 'success' });
+    return result;
   };
 
   /* -- Keyboard Shortcuts -- */
@@ -205,12 +216,12 @@ export default function TradeExecution() {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (!e.ctrlKey && !e.metaKey) return;
     switch (e.key.toUpperCase()) {
-      case 'B': e.preventDefault(); if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); break;
-      case 'S': e.preventDefault(); if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); break;
-      case 'L': e.preventDefault(); withPreflight('buy', executeLimitBuy); break;
-      case 'O': e.preventDefault(); withPreflight('sell', executeLimitSell); break;
-      case 'T': e.preventDefault(); executeStopLoss(); break;
-      case 'E': e.preventDefault(); withPreflight('buy', executeAdvancedOrder); break;
+      case 'B': e.preventDefault(); setPendingTrade({ type: 'market_buy', label: `Market BUY ${orderForm.symbol} x${orderForm.quantity}`, action: () => withPreflight('buy', executeMarketBuy) }); break;
+      case 'S': e.preventDefault(); setPendingTrade({ type: 'market_sell', label: `Market SELL ${orderForm.symbol} x${orderForm.quantity}`, action: () => withPreflight('sell', executeMarketSell) }); break;
+      case 'L': e.preventDefault(); setPendingTrade({ type: 'limit_buy', label: `Limit BUY ${orderForm.symbol} x${orderForm.quantity}`, action: () => withPreflight('buy', executeLimitBuy) }); break;
+      case 'O': e.preventDefault(); setPendingTrade({ type: 'limit_sell', label: `Limit SELL ${orderForm.symbol} x${orderForm.quantity}`, action: () => withPreflight('sell', executeLimitSell) }); break;
+      case 'T': e.preventDefault(); setPendingTrade({ type: 'stop_loss', label: `Stop Loss ${orderForm.symbol}`, action: () => executeStopLoss() }); break;
+      case 'E': e.preventDefault(); setPendingTrade({ type: 'advanced', label: `Advanced Order ${orderForm.symbol}`, action: () => withPreflight('buy', executeAdvancedOrder) }); break;
       default: break;
     }
   }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder, orderForm.symbol, orderForm.quantity]);
@@ -316,31 +327,31 @@ export default function TradeExecution() {
         <span className="font-mono text-[9px] text-gray-500 uppercase tracking-[1px] mr-2">Quick Execution</span>
         {/* Market Buy */}
         <button
-          onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); }}
+          onClick={() => setPendingTrade({ type: 'market_buy', label: `Market BUY ${orderForm.symbol} x${orderForm.quantity}`, action: () => withPreflight('buy', executeMarketBuy) })}
           disabled={loading || preflightLoading}
           className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00e676] text-black hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
         >Market Buy <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">B</span></button>
         {/* Market Sell */}
         <button
-          onClick={() => { if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); }}
+          onClick={() => setPendingTrade({ type: 'market_sell', label: `Market SELL ${orderForm.symbol} x${orderForm.quantity}`, action: () => withPreflight('sell', executeMarketSell) })}
           disabled={loading || preflightLoading}
           className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#ff3860] text-white hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
         >Market Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">S</span></button>
         {/* Limit Buy */}
         <button
-          onClick={() => withPreflight('buy', executeLimitBuy)}
+          onClick={() => setPendingTrade({ type: 'limit_buy', label: `Limit BUY ${orderForm.symbol} x${orderForm.quantity} @ ${orderForm.limitPrice}`, action: () => withPreflight('buy', executeLimitBuy) })}
           disabled={loading || preflightLoading}
           className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#00e676] text-[#00e676] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
         >Limit Buy <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">L</span></button>
         {/* Limit Sell */}
         <button
-          onClick={() => withPreflight('sell', executeLimitSell)}
+          onClick={() => setPendingTrade({ type: 'limit_sell', label: `Limit SELL ${orderForm.symbol} x${orderForm.quantity} @ ${orderForm.limitPrice}`, action: () => withPreflight('sell', executeLimitSell) })}
           disabled={loading || preflightLoading}
           className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#ff3860] text-[#ff3860] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
         >Limit Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">O</span></button>
         {/* Stop Loss */}
         <button
-          onClick={executeStopLoss}
+          onClick={() => setPendingTrade({ type: 'stop_loss', label: `Stop Loss ${orderForm.symbol} @ ${orderForm.stopPrice}`, action: () => executeStopLoss() })}
           disabled={loading || preflightLoading}
           className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#ffab00] text-[#ffab00] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
         >Stop Loss <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">T</span></button>
@@ -481,7 +492,7 @@ export default function TradeExecution() {
 
             {/* Execute button -- cyan/teal gradient matching mockup */}
             <button
-              onClick={() => withPreflight('buy', executeAdvancedOrder)}
+              onClick={() => setPendingTrade({ type: 'advanced', label: `Execute Advanced Order: ${orderForm.symbol} x${orderForm.quantity}`, action: () => withPreflight('buy', executeAdvancedOrder) })}
               disabled={loading}
               className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-wait shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)] flex items-center justify-center gap-2"
             >{loading ? 'Executing...' : <>Execute Order <span className="text-[9px] bg-black/25 px-[4px] py-px rounded-sm">E</span></>}</button>
@@ -659,8 +670,8 @@ export default function TradeExecution() {
                       <td className={clsx('px-2 py-1 font-mono text-[9px] font-semibold border-b border-[rgba(26,39,68,0.3)]', pnlClr)}>{(pnl >= 0 ? '+' : '') + fmtUsd(pnl)}</td>
                       <td className="px-2 py-1 border-b border-[rgba(26,39,68,0.3)]">
                         <div className="flex gap-1">
-                          <button onClick={() => closePosition?.(pos.symbol, pos.side)} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:border-red-500/30 transition-colors">Close</button>
-                          <button onClick={() => adjustPosition?.(pos.symbol, pos.side)} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors">Adjust</button>
+                          <button onClick={() => { logTradeAction({ action: 'close_position', details: `Close ${pos.symbol} ${pos.side}`, confirmed: true }); closePosition?.(pos.symbol, pos.side); }} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:border-red-500/30 transition-colors">Close</button>
+                          <button onClick={() => { logTradeAction({ action: 'adjust_position', details: `Adjust ${pos.symbol} ${pos.side}`, confirmed: true }); adjustPosition?.(pos.symbol, pos.side); }} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors">Adjust</button>
                         </div>
                       </td>
                     </tr>
@@ -730,19 +741,61 @@ export default function TradeExecution() {
       <div className="shrink-0 border-t border-[rgba(42,52,68,0.5)] bg-[#111827]/80 p-3">
         <CouncilDecisionPanel
           onExecute={() => {
-            toast.info('Executing council-recommended trade...');
-            withPreflight('buy', executeAdvancedOrder);
+            setPendingTrade({ type: 'council_execute', label: 'Execute council-recommended trade', action: () => {
+              logTradeAction({ action: 'council_execute', details: `Council trade for ${orderForm.symbol}`, confirmed: true });
+              toast.info('Executing council-recommended trade...');
+              return withPreflight('buy', executeAdvancedOrder);
+            }});
           }}
           onOverride={() => {
-            if (!window.confirm('Override council recommendation and execute opposite trade?')) return;
-            toast.warn('Overriding council — executing manually');
-            executeAdvancedOrder();
+            setPendingTrade({ type: 'council_override', label: 'Override council recommendation and execute opposite trade', action: () => {
+              logTradeAction({ action: 'council_override', details: `Override council for ${orderForm.symbol}`, confirmed: true });
+              toast.warn('Overriding council — executing manually');
+              return executeAdvancedOrder();
+            }});
           }}
           onDismiss={() => {
+            logTradeAction({ action: 'council_dismiss', details: 'Council decision dismissed', confirmed: false });
             toast.info('Council decision dismissed');
           }}
         />
       </div>
+
+      {/* Trade Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!pendingTrade}
+        onConfirm={() => {
+          const action = pendingTrade?.action;
+          setPendingTrade(null);
+          action?.();
+        }}
+        onCancel={() => setPendingTrade(null)}
+        title="Confirm Trade Execution"
+        description={pendingTrade?.label || ''}
+        confirmText="Execute"
+        variant={pendingTrade?.type?.includes('sell') ? 'danger' : 'warning'}
+      />
+
+      {/* Alignment Override Confirmation */}
+      <ConfirmDialog
+        open={showOverrideConfirm}
+        onConfirm={() => {
+          setShowOverrideConfirm(false);
+          const action = pendingPreflightRef.current;
+          pendingPreflightRef.current = null;
+          logTradeAction({ action: 'alignment_override', details: 'User overrode alignment block', confirmed: true });
+          action?.();
+        }}
+        onCancel={() => {
+          setShowOverrideConfirm(false);
+          pendingPreflightRef.current = null;
+          logTradeAction({ action: 'alignment_override', details: 'User cancelled alignment override', confirmed: false });
+        }}
+        title="Alignment Blocked"
+        description="The alignment preflight check blocked this trade. Do you want to override and execute anyway?"
+        confirmText="Override & Execute"
+        variant="danger"
+      />
     </div>
   );
 }

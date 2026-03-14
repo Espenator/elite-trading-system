@@ -10,6 +10,10 @@
  * Mockup text verbatim examples:
  *   "WebSocket Connected • API Healthy • 42 agents • LLM Flow 847 • Conference 8/12 • Last Refresh 09:41:23 • Load 2.4/4.0 • Uptime 47d 12h"
  *   "SPY 598.42 +0.34% | QQQ 518.73 +0.52% | DIA 441.20 +0.18% | VIX 14.20 -2.31% | IWM 226.84 +0.67% | REGIME: GREEN"
+ *
+ * Export: `export default React.memo(StatusFooter, areEqual)` — single default
+ * export required by Vite React Fast Refresh. Non-component exports must go in
+ * separate .js files.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";

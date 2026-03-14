@@ -8,6 +8,7 @@ import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import { logTradeAction } from "../utils/tradeAudit";
 import SectionErrorBoundary from "../components/ui/SectionErrorBoundary";
 import {
   TickerStrip,
@@ -39,6 +40,8 @@ export default function Dashboard() {
   const [isExporting, setIsExporting] = useState(false);
   const [showFlattenConfirm, setShowFlattenConfirm] = useState(false);
   const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false);
+  const [showExecTop5Confirm, setShowExecTop5Confirm] = useState(false);
+  const [pendingExecAction, setPendingExecAction] = useState(null); // { action, symbol, qty }
 
   // --- WebSocket connection (Layout owns lifecycle, this is just a safety-net connect) ---
   useEffect(() => {
@@ -291,14 +294,22 @@ export default function Dashboard() {
   );
 
   // --- EXECUTION HANDLER ---
-  const handleExecute = useCallback(
-    async (action) => {
-      const side = action === "BUY" ? "buy" : "sell";
+  const requestExecute = useCallback(
+    (action) => {
       const qty = String(riskData?.proposal?.proposedSize || 100);
-      if (!window.confirm(`Execute ${action} ${qty} shares of ${selectedSymbol}?`)) return;
+      setPendingExecAction({ action, symbol: selectedSymbol, qty });
+    },
+    [selectedSymbol, riskData],
+  );
+  const doExecute = useCallback(
+    async () => {
+      if (!pendingExecAction) return;
+      const { action, symbol, qty } = pendingExecAction;
+      const side = action === "BUY" ? "buy" : "sell";
+      logTradeAction({ action: `execute_${side}`, details: `${action} ${qty} shares of ${symbol}`, confirmed: true });
       try {
         const body = {
-          symbol: selectedSymbol,
+          symbol,
           side,
           type: riskData?.proposal?.limitPrice ? "limit" : "market",
           time_in_force: "day",
@@ -323,14 +334,19 @@ export default function Dashboard() {
           const detail = await res.json().catch(() => ({}));
           throw new Error(detail?.detail || `HTTP ${res.status}`);
         }
-        toast.success(`${action} ${selectedSymbol} executed`);
+        logTradeAction({ action: `execute_${side}`, details: `${action} ${symbol} success`, confirmed: true, result: "success" });
+        toast.success(`${action} ${symbol} executed`);
       } catch (err) {
+        logTradeAction({ action: `execute_${side}`, details: err.message, confirmed: true, result: "error" });
         log.error("Execution failed:", err);
         toast.error(`Execution failed: ${err.message}`);
+      } finally {
+        setPendingExecAction(null);
       }
     },
-    [selectedSymbol, riskData],
+    [pendingExecAction, riskData],
   );
+  const handleExecute = requestExecute;
 
   // --- ACTION HANDLERS ---
   const handleRunScan = useCallback(async () => {
@@ -351,11 +367,15 @@ export default function Dashboard() {
       toast.error(`Scan error: ${e?.message || "network error"}`);
     }
   }, []);
-  const handleExecTop5 = useCallback(async () => {
+  const handleExecTop5 = useCallback(() => {
     const top5 = processedSignals.slice(0, 5);
     if (!top5.length) { toast.warn("No signals to execute"); return; }
+    setShowExecTop5Confirm(true);
+  }, [processedSignals]);
+  const doExecTop5 = useCallback(async () => {
+    const top5 = processedSignals.slice(0, 5);
     const names = top5.map((s) => `${s.symbol} ${s.direction || "LONG"}`).join(", ");
-    if (!window.confirm(`Execute top 5: ${names}?`)) return;
+    logTradeAction({ action: "exec_top_5", details: `Executing: ${names}`, confirmed: true });
     toast.info("Executing top 5 signals...");
     const results = await Promise.allSettled(top5.map(sig =>
       fetch(getApiUrl("orders/advanced"), {
@@ -373,30 +393,39 @@ export default function Dashboard() {
     const ok = results.filter(r => r.status === "fulfilled").length;
     const failed = results.filter(r => r.status === "rejected").length;
     if (failed === 0) {
+      logTradeAction({ action: "exec_top_5", details: `All ${ok} orders placed`, confirmed: true, result: "success" });
       toast.success(`Top 5: all ${ok} orders placed`);
     } else if (ok === 0) {
+      logTradeAction({ action: "exec_top_5", details: `All ${top5.length} orders failed`, confirmed: true, result: "error" });
       toast.error(`Top 5: all ${top5.length} orders failed`);
     } else {
+      logTradeAction({ action: "exec_top_5", details: `${ok} placed, ${failed} failed`, confirmed: true, result: "partial" });
       toast.warning(`Top 5: ${ok} placed, ${failed} failed`);
     }
   }, [processedSignals]);
   const doFlatten = useCallback(async () => {
+    logTradeAction({ action: "flatten_all", details: "User confirmed flatten all positions", confirmed: true });
     try {
       const res = await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) { const msg = await extractApiError(res); toast.error(`Flatten failed: ${msg}`); return; }
+      if (!res.ok) { const msg = await extractApiError(res); logTradeAction({ action: "flatten_all", details: msg, confirmed: true, result: "error" }); toast.error(`Flatten failed: ${msg}`); return; }
+      logTradeAction({ action: "flatten_all", details: "All positions flattened", confirmed: true, result: "success" });
       toast.success("All positions flattened");
     } catch (e) {
+      logTradeAction({ action: "flatten_all", details: e.message, confirmed: true, result: "error" });
       log.error(e);
       toast.error(`Flatten error: ${e.message}`);
     }
   }, []);
   const handleFlatten = useCallback(() => setShowFlattenConfirm(true), []);
   const doEmergencyStop = useCallback(async () => {
+    logTradeAction({ action: "emergency_stop", details: "User confirmed emergency stop", confirmed: true });
     try {
       const res = await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) { const msg = await extractApiError(res); toast.error(`Emergency stop failed: ${msg}`); return; }
+      if (!res.ok) { const msg = await extractApiError(res); logTradeAction({ action: "emergency_stop", details: msg, confirmed: true, result: "error" }); toast.error(`Emergency stop failed: ${msg}`); return; }
+      logTradeAction({ action: "emergency_stop", details: "Emergency stop executed", confirmed: true, result: "success" });
       toast.success("Emergency stop executed");
     } catch (e) {
+      logTradeAction({ action: "emergency_stop", details: e.message, confirmed: true, result: "error" });
       log.error(e);
       toast.error(`Emergency stop error: ${e.message}`);
     }
@@ -1219,6 +1248,7 @@ export default function Dashboard() {
         description="This will close ALL open positions at market price. This cannot be undone. Are you sure?"
         confirmText="Flatten All"
         variant="warning"
+        requireType="FLATTEN"
       />
       <ConfirmDialog
         open={showEmergencyConfirm}
@@ -1228,6 +1258,25 @@ export default function Dashboard() {
         description="This will halt all trading activity immediately, cancel all open orders, and close all positions. Are you sure?"
         confirmText="Emergency Stop"
         variant="danger"
+        requireType="EMERGENCY"
+      />
+      <ConfirmDialog
+        open={showExecTop5Confirm}
+        onConfirm={() => { setShowExecTop5Confirm(false); doExecTop5(); }}
+        onCancel={() => setShowExecTop5Confirm(false)}
+        title="Execute Top 5 Signals"
+        description={`This will place market orders for the top 5 signals: ${processedSignals.slice(0, 5).map(s => s.symbol).join(", ") || "none"}`}
+        confirmText="Execute Top 5"
+        variant="warning"
+      />
+      <ConfirmDialog
+        open={!!pendingExecAction}
+        onConfirm={() => doExecute()}
+        onCancel={() => setPendingExecAction(null)}
+        title={`Execute ${pendingExecAction?.action || ""} Order`}
+        description={`${pendingExecAction?.action || ""} ${pendingExecAction?.qty || ""} shares of ${pendingExecAction?.symbol || ""}. This will place a real order.`}
+        confirmText={`Execute ${pendingExecAction?.action || ""}`}
+        variant={pendingExecAction?.action === "SELL" ? "danger" : "warning"}
       />
     </div>
   );

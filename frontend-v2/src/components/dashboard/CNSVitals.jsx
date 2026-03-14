@@ -1,6 +1,10 @@
 // CNS Vitals Panel — shows homeostasis mode, circuit breaker status,
 // agent health summary, latest verdict, and position scale.
 // Designed to sit at the top of the Dashboard page.
+//
+// Export: `export default React.memo(CNSVitals)` — single default export
+// required by Vite React Fast Refresh. Non-component exports must go in
+// separate .js files.
 
 import React, { useState } from 'react';
 import {
