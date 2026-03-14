@@ -18,6 +18,42 @@ _kelly_sizer = KellyPositionSizer(max_allocation=0.10)
 
 logger = logging.getLogger(__name__)
 
+
+def _get_news_impact(symbol: str) -> str:
+    """Return a brief news impact string for a symbol, or "" if none.
+
+    Checks the NewsAggregator singleton for recent headlines (last 4 hours).
+    Never raises — returns "" on any error so signal delivery is unaffected.
+    """
+    try:
+        from app.services.news_aggregator import get_news_aggregator
+        aggregator = get_news_aggregator()
+        if not aggregator or not aggregator._news_history:
+            return ""
+        from datetime import datetime, timedelta, timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=4)
+        cutoff_iso = cutoff.isoformat()
+        sym_upper = symbol.upper()
+        matches = []
+        for item in aggregator._news_history:
+            # Check if symbol is in this news item's symbol list
+            if sym_upper not in [s.upper() for s in (item.symbols or [])]:
+                continue
+            # Check recency
+            if item.detected_at and item.detected_at >= cutoff_iso:
+                matches.append(item)
+        if not matches:
+            return ""
+        # Collect unique sources
+        sources = list(dict.fromkeys(m.source for m in matches if m.source))
+        if len(matches) == 1:
+            headline = matches[-1].headline or ""
+            return headline[:80] if headline else ""
+        source_str = ", ".join(sources[:3])
+        return f"{len(matches)} headlines ({source_str})" if source_str else f"{len(matches)} headlines"
+    except Exception:
+        return ""
+
 # ── ATR multipliers by pattern type ──────────────────────────────────────────
 # RSI extreme patterns: tighter stops (mean reversion, quick snapback)
 # Momentum/breakout: wider stops (trend following, needs room to breathe)
@@ -267,12 +303,12 @@ async def get_signals(as_of: date | None = None):
                 "kellyPercent": round(kelly.final_pct * 100, 1),
                 "momentum": ss.get("data", {}).get("momentum", 0) or round(ss.get("data", {}).get("ret_5d", 0) * 100, 1),
                 "volSpike": ss.get("data", {}).get("vol_ratio", 0) or round(ss.get("data", {}).get("gap_pct", 0) * 100, 1),
-                "sector": ss.get("data", {}).get("sector", ""),
+                "sector": ss.get("data", {}).get("sector", "") or "Unknown",
                 "pattern": ss.get("signal_type", ""),
                 "leadAgent": ss.get("source", "turbo_scanner"),
                 "swarmVote": direction,
                 "topShap": ss.get("reasoning", "")[:40],
-                "newsImpact": "",
+                "newsImpact": _get_news_impact(sym),
                 "expPnL": 0,
                 "detected_at": ss.get("detected_at", ""),
             })

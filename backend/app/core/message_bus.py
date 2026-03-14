@@ -189,6 +189,8 @@ class MessageBus:
         "data.futures.finviz",
         "system.swarm.health",
         "system.collector.health",
+        # ── Sentiment persistence (council agents → dashboard) ──
+        "sentiment.update",
     }
 
     # Topics bridged through Redis when cluster mode is active.

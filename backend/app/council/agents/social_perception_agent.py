@@ -83,6 +83,24 @@ async def evaluate(
             "item_count": item_count,
         }
 
+    # Publish sentiment to message bus for persistence
+    try:
+        from app.core.message_bus import get_message_bus
+        from datetime import datetime
+        bus = get_message_bus()
+        if bus and items:
+            await bus.publish("sentiment.update", {
+                "symbol": symbol,
+                "source": "social_perception",
+                "score": score,
+                "headlines_count": item_count,
+                "sources": sources_used,
+                "spike": spike_msg,
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+    except Exception:
+        pass  # Never break council voting
+
     return AgentVote(
         agent_name=NAME,
         direction=direction,

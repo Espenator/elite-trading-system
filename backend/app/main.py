@@ -268,6 +268,23 @@ async def _market_data_tick_loop():
             logging.exception("Market data tick loop error")
 
 
+async def _sentiment_tick_loop():
+    """Run Sentiment Agent tick every 120s when status is 'running'.
+
+    Delayed 90s so API server and market data are available first.
+    """
+    await asyncio.sleep(90)
+    while True:
+        try:
+            from app.api.v1 import agents as _agents_mod
+            await _agents_mod.run_sentiment_tick_if_running()
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logging.exception("Sentiment tick loop error")
+        await asyncio.sleep(120)
+
+
 async def _risk_monitor_loop():
     """Risk monitoring background task - polls every 30s."""
     await asyncio.sleep(10)
@@ -1567,6 +1584,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.debug("Flywheel scheduler not started: %s", e)
 
+    # 3b-issue57. ML model bootstrap — train on startup if no model exists
+    try:
+        from app.jobs.scheduler import _maybe_bootstrap_ml_model
+
+        async def _ml_bootstrap_wrapper():
+            try:
+                await _maybe_bootstrap_ml_model()
+            except Exception as e:
+                log.warning("ML bootstrap task failed (non-fatal): %s", e)
+
+        asyncio.create_task(_ml_bootstrap_wrapper())
+        log.info("ML bootstrap check scheduled (will train if no model exists)")
+    except Exception as e:
+        log.debug("ML bootstrap not scheduled: %s", e)
+
     # 3c. Auto-backfill if DuckDB has 0 indicator/feature rows (first-run bootstrap)
     _auto_backfill_enabled = os.getenv("AUTO_BACKFILL", "true").lower() in ("1", "true", "yes")
     if not _auto_backfill_enabled:
@@ -1632,6 +1664,9 @@ async def lifespan(app: FastAPI):
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(
         _supervised_loop("risk_monitor", _risk_monitor_loop)
+    ) if _bg_loops else None
+    sentiment_tick_task = asyncio.create_task(
+        _supervised_loop("sentiment_tick", _sentiment_tick_loop)
     ) if _bg_loops else None
     if not _bg_loops:
         log.info("\u26A0\uFE0F Background loops disabled (BACKGROUND_LOOPS=false)")
@@ -1763,6 +1798,19 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
     await _message_bus.subscribe("position.partial_exit", _on_position_partial_exit_sensory)
+
+    # sentiment.update → in-memory sentiment store for dashboard API
+    async def _on_sentiment_update(data: dict):
+        """Store sentiment updates from council agents."""
+        try:
+            symbol = data.get("symbol", "")
+            if not symbol:
+                return
+            from app.services import sentiment_store
+            sentiment_store.update(symbol, data)
+        except Exception:
+            pass
+    await _message_bus.subscribe("sentiment.update", _on_sentiment_update)
 
     log.info("✅ Sensory store + alert.health subscribers wired (%d perception/macro/signal topics)", len(_SENSORY_TOPICS) + 2)
 

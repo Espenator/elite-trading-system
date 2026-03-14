@@ -209,6 +209,46 @@ async def pdt_status():
         }
 
 
+@router.get("/ml-status")
+def get_ml_status():
+    """Return ML model training status."""
+    import os
+    model_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "modules", "ml_engine", "artifacts", "xgboost_best.json"
+    )
+    model_exists = os.path.exists(model_path)
+
+    # Check registry
+    registry_info = {}
+    try:
+        from app.modules.ml_engine.model_registry import get_registry
+        reg = get_registry()
+        champion = reg.get_champion("xgboost")
+        registry_info = {"champion": champion} if champion else {}
+    except Exception:
+        pass
+
+    # Check last training run
+    last_run = {}
+    try:
+        from app.services.training_store import TrainingStore
+        store = TrainingStore()
+        runs = store.list_runs(limit=1)
+        if runs:
+            last_run = runs[0]
+    except Exception:
+        pass
+
+    return {
+        "model_exists": model_exists,
+        "model_path": model_path if model_exists else None,
+        "registry": registry_info,
+        "last_training_run": last_run,
+        "next_scheduled": "Sunday 20:00 UTC (weekly walk-forward)",
+        "bootstrap_note": "Auto-trains on startup if no model exists",
+    }
+
+
 @router.get("/gpu")
 async def gpu_status():
     """

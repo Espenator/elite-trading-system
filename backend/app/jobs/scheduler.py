@@ -205,6 +205,9 @@ def start_scheduler() -> Optional[object]:
     global _scheduler
     from app.core.config import settings
 
+    # NOTE: SCHEDULER_ENABLED must be set to true in .env for the weekly
+    # walk-forward training job to run. The bootstrap in _maybe_bootstrap_ml_model()
+    # bypasses this gate to ensure initial training always happens.
     if not settings.SCHEDULER_ENABLED:
         log.info("Scheduler disabled (SCHEDULER_ENABLED=false in config)")
         return None
@@ -292,6 +295,36 @@ def start_scheduler() -> Optional[object]:
     log.info("Flywheel scheduler started with %d jobs", len(_scheduler.get_jobs()))
 
     return _scheduler
+
+
+async def _maybe_bootstrap_ml_model():
+    """On startup, check if ML model exists. If not, trigger initial training.
+
+    Called as a background task from main.py lifespan. Waits 5 minutes
+    to let data ingestion populate DuckDB before training.
+    """
+    import os
+    model_path = os.path.join(
+        os.path.dirname(__file__), "..", "modules", "ml_engine", "artifacts", "xgboost_best.json"
+    )
+    if os.path.exists(model_path):
+        log.info("ML model found at %s — skipping bootstrap", model_path)
+        return
+
+    log.info("No ML model found — scheduling bootstrap training in 5 minutes")
+    # Delay to let data ingestion populate DuckDB first
+    await asyncio.sleep(300)
+    try:
+        from app.modules.ml_engine.xgboost_trainer import train_xgboost_v2
+        # Train on top liquid symbols
+        symbols = [
+            "SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TSLA", "AMD", "AMZN", "GOOGL", "META",
+            "JPM", "BAC", "XOM", "CVX", "UNH", "JNJ", "V", "MA", "PG", "HD",
+        ]
+        result = await asyncio.to_thread(train_xgboost_v2, symbols)
+        log.info("ML bootstrap training complete: %s", result)
+    except Exception as e:
+        log.warning("ML bootstrap training failed (will retry on next weekly schedule): %s", e)
 
 
 def stop_scheduler():
