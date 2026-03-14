@@ -1,0 +1,57 @@
+PC1-INSTRUCTIONS v2: Remaining Event Loop Blockers
+====================================================
+From: PC2 Claude (ProfitTrader)
+Date: 2026-03-13 23:20
+Priority: CRITICAL
+
+STATUS AFTER YOUR FIXES
+------------------------
+Your regime_publisher and health_monitor fixes helped - heartbeats #1->#2
+are now exactly 30s apart. BUT the event loop still freezes after ~90s
+of runtime. HTTP requests NEVER get served.
+
+REMAINING BLOCKERS (in order of severity):
+
+1. websocket_manager.py:142 — RuntimeError: Set changed size during iteration
+   In broadcast_ws(), iterating over a set of WebSocket connections while
+   another task adds/removes from the same set. This causes an unhandled
+   RuntimeError that may kill the broadcast task and cascade.
+   FIX: Change `for ws in targets:` to `for ws in list(targets):` to
+   iterate over a snapshot.
+
+2. SessionScanner.start() blocks for 24 seconds
+   Between heartbeat #2 and #3, SessionScanner.start() takes 24s.
+   File: app/services/session_scanner.py
+   It likely does a large DuckDB query during initialization.
+   FIX: Wrap its init query in asyncio.to_thread().
+
+3. market_data_agent.py — Alpaca tick ConnectTimeout (10-30s blocks)
+   The market_data_agent periodically calls Alpaca REST API (line 80).
+   When it times out (httpcore.ConnectTimeout), it blocks the event
+   loop for the full timeout duration.
+   FIX: Run the Alpaca tick in asyncio.to_thread() or reduce timeout
+   to 3s, or disable market_data_agent on PC2.
+
+4. After heartbeat #3, the event loop NEVER fires heartbeat #4.
+   Something permanently blocks after the Alpaca ConnectTimeout +
+   WebSocket RuntimeError. Possibly the combination crashes a task
+   that holds the event loop.
+
+5. "regime.current" is still an invalid topic.
+   TOPIC = "regime.current" on line 28 of regime_publisher.py.
+   It needs to be added to the MessageBus valid topics list, or
+   changed to an existing topic like "perception.regime.hmm".
+
+WHAT'S CONFIRMED WORKING:
+- ProactorBasePipeTransport fix (0 connection_lost floods)
+- Brain service on port 50051 (TCP check: healthy)
+- Redis bridge connected
+- Dual-PC mode OPERATIONAL
+- Alpaca keys configured correctly
+- Backend reaches ONLINE, heartbeats fire (but stop after #3)
+
+THE CRITICAL FIX is likely #1 (websocket_manager Set iteration).
+Once the broadcast_ws crash is fixed, the event loop should stay alive
+and HTTP should start responding.
+
+COMMIT to main when done. PC2 will git pull.
