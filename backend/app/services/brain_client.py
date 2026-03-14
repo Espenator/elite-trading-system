@@ -183,34 +183,63 @@ class BrainClient:
         self._circuit = CircuitBreaker()
 
     def _ensure_channel(self):
-        """Lazy-init gRPC channel and stub."""
+        """Lazy-init gRPC channel and stub.
+
+        Uses the persistent singleton channel from brain_channel.py
+        when available, creating it on first call with keepalive options
+        for long-lived connections to PC2.
+        """
         if self._channel is not None:
             return
         try:
             import grpc
 
-            target = f"{self.host}:{self.port}"
-            self._channel = grpc.aio.insecure_channel(
-                target,
-                options=[
-                    ("grpc.connect_timeout_ms", BRAIN_CONNECT_TIMEOUT * 1000),
-                    ("grpc.keepalive_time_ms", 30000),
-                ],
-            )
+            # Try reusing the persistent singleton from brain_channel
+            try:
+                from app.core.brain_channel import _channel as _singleton_ch
+                if _singleton_ch is not None:
+                    self._channel = _singleton_ch
+                    logger.debug("Reusing persistent brain_channel singleton")
+                else:
+                    raise ValueError("not yet initialized")
+            except (ImportError, ValueError):
+                # Create channel with enhanced keepalive options
+                target = f"{self.host}:{self.port}"
+                self._channel = grpc.aio.insecure_channel(
+                    target,
+                    options=[
+                        ("grpc.connect_timeout_ms", BRAIN_CONNECT_TIMEOUT * 1000),
+                        ("grpc.keepalive_time_ms", 30_000),
+                        ("grpc.keepalive_timeout_ms", 10_000),
+                        ("grpc.keepalive_permit_without_calls", True),
+                        ("grpc.http2.max_pings_without_data", 0),
+                    ],
+                )
+                # Store into brain_channel module for sharing
+                try:
+                    import app.core.brain_channel as _bc_mod
+                    _bc_mod._channel = self._channel
+                except Exception:
+                    pass
+                logger.info("Brain gRPC persistent channel created: %s", target)
+
             import sys
             from pathlib import Path
 
-            proto_dir = (
+            brain_service_dir = (
                 Path(__file__).resolve().parent.parent.parent.parent
                 / "brain_service"
-                / "proto"
             )
+            proto_dir = brain_service_dir / "proto"
+            # Need both: brain_service/ for "from proto import ..."
+            # and proto/ for internal "import brain_pb2" in generated stubs
+            if str(brain_service_dir) not in sys.path:
+                sys.path.insert(0, str(brain_service_dir))
             if str(proto_dir) not in sys.path:
                 sys.path.insert(0, str(proto_dir))
             from proto import brain_pb2_grpc
 
             self._stub = brain_pb2_grpc.BrainServiceStub(self._channel)
-            logger.info("Brain gRPC channel created: %s", target)
         except Exception as e:
             logger.warning("Failed to create brain gRPC channel: %s", e)
             self._channel = None
@@ -223,8 +252,12 @@ class BrainClient:
         feature_json: str = "{}",
         regime: str = "unknown",
         context: str = "",
+        timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Request LLM inference from Brain Service.
+
+        Args:
+            timeout: Per-call timeout override in seconds. Defaults to BRAIN_REQUEST_TIMEOUT.
 
         Returns dict with: summary, confidence, risk_flags, reasoning_bullets, error
         """
@@ -261,9 +294,10 @@ class BrainClient:
                 context=context,
             )
             _t0 = time.monotonic()
+            _timeout = timeout if timeout is not None else BRAIN_REQUEST_TIMEOUT
             response = await asyncio.wait_for(
                 self._stub.InferCandidateContext(request),
-                timeout=BRAIN_REQUEST_TIMEOUT,
+                timeout=_timeout,
             )
             latency_ms = (time.monotonic() - _t0) * 1000
             self._circuit.record_success(latency_ms=latency_ms)
@@ -277,7 +311,8 @@ class BrainClient:
                 "latency_ms": round(latency_ms, 1),
             }
         except asyncio.TimeoutError:
-            logger.warning("Brain infer timed out after %ds", BRAIN_REQUEST_TIMEOUT)
+            _timeout = timeout if timeout is not None else BRAIN_REQUEST_TIMEOUT
+            logger.warning("Brain infer timed out after %.1fs", _timeout)
             self._circuit.record_failure()
             return {**_stub_infer_response("timeout"), "error": "timeout"}
         except Exception as e:
@@ -291,8 +326,13 @@ class BrainClient:
         symbol: str,
         entry_context: str = "",
         outcome_json: str = "{}",
+        timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Request post-trade critic analysis from Brain Service."""
+        """Request post-trade critic analysis from Brain Service.
+
+        Args:
+            timeout: Per-call timeout override in seconds. Defaults to BRAIN_REQUEST_TIMEOUT.
+        """
         if not self.enabled:
             return _stub_critic_response()
 
@@ -323,9 +363,10 @@ class BrainClient:
                 entry_context=entry_context,
                 outcome_json=outcome_json,
             )
+            _timeout = timeout if timeout is not None else BRAIN_REQUEST_TIMEOUT
             response = await asyncio.wait_for(
                 self._stub.CriticPostmortem(request),
-                timeout=BRAIN_REQUEST_TIMEOUT,
+                timeout=_timeout,
             )
             self._circuit.record_success()
             return {

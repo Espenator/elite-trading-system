@@ -52,6 +52,7 @@ const SymbolDetail = lazy(() => import("./pages/SymbolDetail"));
 // SYSTEM section
 const Settings = lazy(() => import("./pages/Settings"));
 const StartupHealth = lazy(() => import("./pages/StartupHealth"));
+const HealthDashboard = lazy(() => import("./pages/HealthDashboard"));
 
 // ----------- LOADING FALLBACK -----------
 function PageLoader() {
@@ -144,6 +145,7 @@ function App() {
             {/* SYSTEM */}
             <Route path="settings" element={<P><Settings /></P>} />
             <Route path="startup-health" element={<P><StartupHealth /></P>} />
+            <Route path="health" element={<P><HealthDashboard /></P>} />
 
             {/* 404 Catch-all */}
             <Route path="*" element={<NotFound />} />

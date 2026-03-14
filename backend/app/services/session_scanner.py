@@ -154,7 +154,7 @@ class SessionScanner:
                 from app.core.rate_limiter import get_rate_limiter
                 limiter = get_rate_limiter("alpaca")
                 async with limiter:
-                    async with httpx.AsyncClient(timeout=15.0) as client:
+                    async with httpx.AsyncClient(timeout=5.0) as client:
                         resp = await client.get(
                             "https://data.alpaca.markets/v2/stocks/snapshots",
                             headers=headers,
@@ -166,6 +166,8 @@ class SessionScanner:
                     logger.debug("Alpaca snapshots HTTP %s for batch", resp.status_code)
             except Exception as e:
                 logger.debug("Alpaca snapshots failed: %s", e)
+            # Yield to event loop between batches
+            await asyncio.sleep(0.05)
 
         return result
 

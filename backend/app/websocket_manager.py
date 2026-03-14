@@ -139,7 +139,7 @@ async def broadcast_ws(channel: str, data: dict | list, type: Optional[str] = No
         targets = _ws_connections
     
     dead = set()
-    for ws in targets:
+    for ws in list(targets):  # snapshot to avoid "Set changed size during iteration"
         try:
             await ws.send_json(msg)
         except Exception:

@@ -157,7 +157,7 @@ Write-Host "    curl http://192.168.1.116:8000/health" -ForegroundColor Gray
 Write-Host "═══════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Backend .env Overrides for PC2

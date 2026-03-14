@@ -130,16 +130,59 @@ def _detect_gpu_id() -> int:
 
 
 def _gpu_available() -> bool:
-    """Check whether CUDA is visible to XGBoost (nvidia-smi probe)."""
+    """Check whether CUDA is visible to XGBoost (PyTorch probe, nvidia-smi fallback)."""
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except ImportError:
+        pass
     try:
         import subprocess
-
         result = subprocess.run(
             ["nvidia-smi"], capture_output=True, timeout=5
         )
         return result.returncode == 0
     except Exception:
         return False
+
+
+def get_xgb_device_params(base_params: dict) -> dict:
+    """Return XGBoost params with CUDA if available and VRAM allows.
+
+    Uses PyTorch to check actual free VRAM. Requires >= 2.5 GB free
+    to avoid starving Ollama inference models during market hours.
+    Logs the selected device and free VRAM for observability.
+    """
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            log.info("[XGBoost] No CUDA available, using CPU hist")
+            return {**base_params, "device": "cpu", "tree_method": "hist"}
+
+        vram_free_gb = (
+            torch.cuda.get_device_properties(0).total_memory
+            - torch.cuda.memory_allocated(0)
+        ) / 1e9
+        if vram_free_gb < 2.5:
+            log.warning(
+                "[XGBoost] VRAM too low for CUDA (%.1fGB free). Using CPU.",
+                vram_free_gb,
+            )
+            return {**base_params, "device": "cpu", "tree_method": "hist"}
+
+        log.info("[XGBoost] CUDA enabled -- %.1fGB VRAM free", vram_free_gb)
+        return {
+            **base_params,
+            "device": "cuda",
+            "tree_method": "hist",
+            "max_bin": 256,
+        }
+    except ImportError:
+        log.debug("[XGBoost] torch not installed, using CPU")
+        return {**base_params, "device": "cpu", "tree_method": "hist"}
+    except Exception as e:
+        log.warning("[XGBoost] VRAM check failed (%s), using CPU", e)
+        return {**base_params, "device": "cpu", "tree_method": "hist"}
 
 
 # ---------------------------------------------------------------------------
@@ -309,9 +352,7 @@ def train_xgboost(
     except Exception:
         pass
 
-    # --- GPU config -----------------------------------------------------
-    use_gpu = _gpu_available()
-    gpu_id = _detect_gpu_id()
+    # --- GPU config (VRAM-safe) ------------------------------------------
     base_params: Dict[str, Any] = {
         "objective": "binary:logistic",
         "eval_metric": ["logloss", "error"],
@@ -319,24 +360,11 @@ def train_xgboost(
         "seed": 42,
     }
 
-    # GPU acceleration: use device='cuda' (XGBoost 2.0+) with gpu_hist,
-    # falling back to CPU hist if GPU init fails at runtime.
-    if use_gpu:
-        try:
-            import xgboost as _xgb_check
-            # Verify GPU actually works by creating a tiny DMatrix + train
-            _test_dm = _xgb_check.DMatrix(np.array([[1.0]]), label=np.array([0]))
-            _test_params = {"tree_method": "gpu_hist", "device": f"cuda:{gpu_id}", "max_depth": 1}
-            _xgb_check.train(_test_params, _test_dm, num_boost_round=1, verbose_eval=False)
-            base_params["tree_method"] = "gpu_hist"
-            base_params["device"] = f"cuda:{gpu_id}"
-            log.info("XGBoost GPU verified — using gpu_hist on cuda:%d", gpu_id)
-        except Exception as gpu_err:
-            log.warning("XGBoost GPU probe failed (%s) — falling back to CPU hist", gpu_err)
-            use_gpu = False
-            base_params["tree_method"] = "hist"
-    else:
-        base_params["tree_method"] = "hist"
+    # Use get_xgb_device_params for VRAM-safe CUDA selection.
+    # Checks free VRAM via PyTorch; falls back to CPU if < 2.5GB free
+    # to protect Ollama inference models during market hours.
+    base_params = get_xgb_device_params(base_params)
+    use_gpu = base_params.get("device", "cpu") != "cpu"
 
     # Risk-adjusted custom objective (anti-reward-hacking)
     if use_risk_adjusted:
@@ -348,8 +376,8 @@ def train_xgboost(
         except ImportError:
             log.warning("risk_adjusted_objective not available, using default logistic")
 
-    log.info("XGBoost GPU: %s  tree_method: %s  device: %s",
-             use_gpu, base_params["tree_method"], base_params.get("device", "cpu"))
+    log.info("XGBoost device: %s  tree_method: %s",
+             base_params.get("device", "cpu"), base_params["tree_method"])
 
     # --- grid search with CV -------------------------------------------
     grid = param_grid or DEFAULT_PARAM_GRID
@@ -398,6 +426,8 @@ def train_xgboost(
     else:
         dval = None
 
+    import time as _time
+    _t0_train = _time.perf_counter()
     final_model = xgb.train(
         best_params,
         dtrain,
@@ -405,6 +435,12 @@ def train_xgboost(
         evals=evals,
         early_stopping_rounds=early_stopping_rounds,
         verbose_eval=50,
+    )
+    _train_elapsed = _time.perf_counter() - _t0_train
+    _device_used = base_params.get("device", "cpu")
+    log.info(
+        "[XGBoost] trained %d rows on %s in %.1fs",
+        len(X_train), _device_used, _train_elapsed,
     )
 
     # --- validation metrics -------------------------------------------

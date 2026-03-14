@@ -17,6 +17,22 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Windows ProactorEventLoop fix: suppress ConnectionResetError in
+# _call_connection_lost which floods the event loop and blocks all
+# HTTP responses. This is a known Python 3.11 + Windows issue.
+if sys.platform == "win32":
+    from asyncio.proactor_events import _ProactorBasePipeTransport
+
+    _orig_call_connection_lost = _ProactorBasePipeTransport._call_connection_lost
+
+    def _silent_connection_lost(self, exc):
+        try:
+            _orig_call_connection_lost(self, exc)
+        except (ConnectionResetError, OSError):
+            pass
+
+    _ProactorBasePipeTransport._call_connection_lost = _silent_connection_lost
+
 
 # Load .env into os.environ BEFORE any other imports
 from dotenv import load_dotenv
@@ -1366,6 +1382,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("SQLite schema init skipped: %s", e)
 
+    # DuckDB init with progressive retry for stale lock recovery after crashes
     try:
         from app.data.duckdb_storage import duckdb_store
         await asyncio.to_thread(duckdb_store.init_schema)
@@ -1378,23 +1395,71 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         err_msg = str(e).lower()
         if ("already open" in err_msg or "file is already open" in err_msg or "being used by another process" in err_msg):
-            # Retry once — DuckDB WAL recovery after a crash can cause a transient lock
-            log.warning("DuckDB file appears locked, retrying in 3s (may be WAL recovery)...")
-            await asyncio.sleep(3)
-            try:
-                await asyncio.to_thread(duckdb_store.init_schema)
-                health = await asyncio.to_thread(duckdb_store.health_check)
-                log.info(
-                    "DuckDB ready on retry: %d tables, %d rows",
-                    health.get("total_tables", 0),
-                    health.get("total_rows", 0),
-                )
-            except Exception:
+            # Progressive retry with exponential backoff (~30s total)
+            _duckdb_connected = False
+            _retry_delays = [2, 4, 8, 16]
+            for _attempt, _delay in enumerate(_retry_delays, 1):
                 log.warning(
-                    "DuckDB init failed after retry (file in use by another process). "
-                    "Only one backend instance per data directory. Exiting."
+                    "DuckDB file locked, retry %d/%d in %ds (may be WAL recovery)...",
+                    _attempt, len(_retry_delays), _delay,
                 )
-                os._exit(2)  # EXIT_DUPLICATE_INSTANCE
+                await asyncio.sleep(_delay)
+                try:
+                    # Reset connection state so _get_conn() retries duckdb.connect()
+                    duckdb_store._conn = None
+                    duckdb_store._schema_initialized = False
+                    await asyncio.to_thread(duckdb_store.init_schema)
+                    health = await asyncio.to_thread(duckdb_store.health_check)
+                    log.info(
+                        "DuckDB ready on retry %d: %d tables, %d rows",
+                        _attempt,
+                        health.get("total_tables", 0),
+                        health.get("total_rows", 0),
+                    )
+                    _duckdb_connected = True
+                    break
+                except Exception:
+                    pass
+
+            if not _duckdb_connected:
+                # All retries exhausted — check if another backend is actually running
+                from app.core.process_lock import is_locked
+                if is_locked():
+                    log.warning(
+                        "DuckDB init failed after %d retries — another backend instance "
+                        "is running. Only one backend per data directory. Exiting.",
+                        len(_retry_delays),
+                    )
+                    os._exit(2)
+
+                # No other backend alive — stale lock from crash. Clean up WAL.
+                log.warning(
+                    "DuckDB still locked after %d retries but no other backend running. "
+                    "Cleaning stale WAL files from previous crash...",
+                    len(_retry_delays),
+                )
+                from app.data.duckdb_storage import DuckDBStorage
+                await asyncio.to_thread(
+                    DuckDBStorage.cleanup_stale_files, duckdb_store._db_path
+                )
+                # Final attempt after cleanup
+                try:
+                    duckdb_store._conn = None
+                    duckdb_store._schema_initialized = False
+                    await asyncio.to_thread(duckdb_store.init_schema)
+                    health = await asyncio.to_thread(duckdb_store.health_check)
+                    log.info(
+                        "DuckDB ready after WAL cleanup: %d tables, %d rows",
+                        health.get("total_tables", 0),
+                        health.get("total_rows", 0),
+                    )
+                except Exception as final_err:
+                    log.error(
+                        "DuckDB init failed even after WAL cleanup: %s. "
+                        "Manual intervention required. Exiting.",
+                        final_err,
+                    )
+                    os._exit(2)
         else:
             log.warning("DuckDB init skipped: %s", e)
 
@@ -1714,6 +1779,20 @@ async def lifespan(app: FastAPI):
             cache = get_intelligence_cache()
             if cache._running:
                 await cache.stop()
+        except Exception:
+            pass
+
+        # Close persistent brain gRPC channel
+        try:
+            from app.core.brain_channel import close_brain_channel
+            await close_brain_channel()
+        except Exception:
+            pass
+
+        # Close brain_client singleton channel
+        try:
+            from app.services.brain_client import get_brain_client
+            await get_brain_client().close()
         except Exception:
             pass
 

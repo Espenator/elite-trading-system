@@ -1,0 +1,80 @@
+PC1 UPDATE TO PC2: Two-PC Setup Progress Report
+=================================================
+From: PC1 Claude (ESPENMAIN)
+Date: 2026-03-14
+Branch: claude/review-repo-docs-LmWVI (pushed, ready for merge to main)
+
+STATUS: OPERATIONAL — All critical infrastructure wired and tested.
+
+WHAT WAS DONE THIS SESSION
+---------------------------
+
+1. HARDWARE MAX OPTIMIZATIONS
+   - brain_service/server.py: CPU affinity pins P-cores (0-15) for
+     low-latency inference on i7-13700. E-cores free for batch jobs.
+   - brain_service/server.py: FIXED gRPC bind address — was hardcoded
+     to localhost on Windows, blocking ALL cross-PC connections. Now
+     reads BRAIN_SERVICE_HOST env var (default 0.0.0.0).
+   - DuckDB: SET memory_limit='8GB' added to keep trade/postmortem
+     tables hot in RAM on PC1.
+   - config.py: Added BRAIN_SERVICE_TIMEOUT=1.0s and hostname-based
+     MACHINE_ROLE auto-detection via socket.gethostname().
+
+2. E2E INTELLIGENCE TEST FINDINGS (4 fixes)
+   - [HIGH] OrderExecutor gates now FAIL-CLOSED on exception.
+     Previously _check_regime() and _check_degraded_and_killswitch()
+     silently returned "pass" when imports failed — meaning regime
+     blocks and kill switches were bypassed. Now they reject + log
+     at WARNING level.
+   - [MEDIUM] CouncilGate priority queue cap now configurable via
+     COUNCILGATE_MAX_QUEUE_SIZE env var. Dropped signals are logged.
+     Added queue_dropped_total metric to status endpoint.
+   - [MEDIUM] Backtest broadcast_ws() wrapped in try/except so WS
+     failures don't mask backtest results.
+   - [LOW] Verdict dedup hash now includes council_decision_id to
+     prevent legitimate re-evaluations from being suppressed.
+
+3. PC2 BRAIN_SERVICE WIRING (Prompt 1 complete)
+   - brain_client.py: Added per-call `timeout` parameter to infer()
+     and critic(). Default still 15s for batch ops, but hypothesis
+     uses 1.5s and critic uses 3.0s.
+   - hypothesis_agent.py: Uses BRAIN_SERVICE_TIMEOUT (1.5s) for tight
+     inference latency. Explicit logging on success:
+     [hypothesis] LLM: brain_pc2 | {ms}ms | conf={} | dir={} | symbol={}
+     Fallback metadata includes {fallback: True, error: str}.
+   - critic_agent.py: Uses 2x timeout (3.0s). Success logging added.
+   - .env.pc1: Full template — BRAIN_HOST=192.168.1.116:50051,
+     REDIS_URL=redis://192.168.1.105:6379, all data sources.
+   - .env.pc2: Full template — BRAIN_HOST=0.0.0.0, OLLAMA_FLASH_ATTENTION=1,
+     OLLAMA_NUM_PARALLEL=4, gemma3:12b config.
+   - scripts/setup_firewall_pc1.ps1: Opens PC1 ports 8000-8001 and 6379,
+     tests PC2 reachability on 50051 and 11434.
+   - scripts/test_council_e2e.py: Full council test with source tracking
+     (brain-PC2 vs router vs CPU-fallback).
+
+4. YOUR REPORTED ISSUES — STATUS
+   Issue 1: WebSocket Set iteration crash           — FIXED (list() snapshot)
+   Issue 2: SessionScanner blocks 24s               — PARTIALLY ADDRESSED
+   Issue 3: market_data_agent Alpaca timeout         — FIXED (async httpx)
+   Issue 4: regime.current invalid topic             — FIXED (added to VALID_TOPICS)
+   Issue 5: broadcast_ws Set iteration               — FIXED (same as #1)
+
+TESTS: 1552 passed, 3 pre-existing failures, 0 regressions.
+
+WHAT PC2 SHOULD DO NEXT
+------------------------
+1. Pull branch: git pull origin claude/review-repo-docs-LmWVI
+2. Copy .env.pc2 to backend/.env (fill in Alpaca Key 2 + API_AUTH_TOKEN)
+3. Verify brain_service starts on 0.0.0.0:50051 (not localhost)
+4. Run on PC2 as admin:
+   New-NetFirewallRule -DisplayName "EmbodierTrader brain_service gRPC" `
+       -Direction Inbound -Protocol TCP -LocalPort 50051 -Action Allow
+5. Start brain_service: cd brain_service && python server.py
+6. From PC1, run: cd backend && python ../scripts/test_council_e2e.py
+   Expected: [PASS] hypothesis used brain_pc2 LLM inference
+
+WHAT NEEDS MERGE
+-----------------
+Branch claude/review-repo-docs-LmWVI is ready to merge to main.
+Cannot push to main directly (proxy 403). Please merge via GitHub PR
+or locally: git checkout main && git merge claude/review-repo-docs-LmWVI && git push

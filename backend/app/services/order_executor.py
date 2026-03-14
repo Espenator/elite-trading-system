@@ -227,7 +227,8 @@ class OrderExecutor:
         _vkey = f"{verdict_data.get('symbol','')}" \
                 f"|{verdict_data.get('final_direction','')}" \
                 f"|{verdict_data.get('final_confidence',0)}" \
-                f"|{verdict_data.get('price', verdict_data.get('signal_data',{}).get('price',0))}"
+                f"|{verdict_data.get('price', verdict_data.get('signal_data',{}).get('price',0))}" \
+                f"|{verdict_data.get('council_decision_id', '')}"
         _vhash = hashlib.sha256(_vkey.encode()).hexdigest()[:16]
         _now = _t.time()
         if _vhash in self._recent_verdict_hashes and (_now - self._recent_verdict_hashes[_vhash]) < 60:
@@ -328,8 +329,9 @@ class OrderExecutor:
                 signal_mult = regime_params.get("signal_mult", 1.0)
                 return ("pass", "", None, signal_mult)
             except Exception as e:
-                logger.debug("Regime enforcement check failed (non-fatal): %s", e)
-                return ("pass", "", None, 1.0)
+                logger.warning("Regime enforcement check failed (fail-closed): %s", e)
+                return ("reject", f"Regime check failed: {e}",
+                        ExecutionDenyReason.REGIME_BLOCKED, None)
 
         async def _check_circuit_breaker():
             """Gate 2c: Circuit breaker enforcement."""
@@ -370,7 +372,9 @@ class OrderExecutor:
                                 % ", ".join(status.get("reasons", [])),
                                 ExecutionDenyReason.DEGRADED)
                 except Exception as e:
-                    logger.debug("Degraded check failed: %s", e)
+                    logger.warning("Degraded check failed (fail-closed): %s", e)
+                    return ("reject", f"Degraded check failed: {e}",
+                            ExecutionDenyReason.DEGRADED)
             try:
                 from app.core.config import settings
                 if getattr(settings, "ENABLE_KILL_SWITCH", True):
@@ -379,7 +383,9 @@ class OrderExecutor:
                         return ("reject", "Kill switch / entries frozen — new orders blocked",
                                 ExecutionDenyReason.KILL_SWITCH_ACTIVE)
             except Exception as e:
-                logger.debug("Kill switch check failed: %s", e)
+                logger.warning("Kill switch check failed (fail-closed): %s", e)
+                return ("reject", f"Kill switch check failed: {e}",
+                        ExecutionDenyReason.KILL_SWITCH_ACTIVE)
             return ("pass", "", None)
 
         # Run all independent gates in parallel

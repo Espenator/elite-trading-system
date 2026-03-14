@@ -3,6 +3,7 @@ Embodier Trader - Application Configuration
 All fields match EXACTLY what services reference via settings.FIELD_NAME
 """
 import logging
+import socket
 from pathlib import Path
 from typing import Optional
 from pydantic import Field
@@ -252,6 +253,7 @@ class Settings(BaseSettings):
     BRAIN_ENABLED: bool = True
     BRAIN_HOST: str = "localhost"
     BRAIN_PORT: int = 50051
+    BRAIN_SERVICE_TIMEOUT: float = 1.0  # Max seconds for hypothesis inference (strict for latency)
     # PC1 fallback: local Ollama when Brain Service unreachable (Electron: process/health only; no trading logic)
     OLLAMA_URL: str = ""  # Empty = use OLLAMA_BASE_URL (e.g. http://localhost:11434)
     OLLAMA_MODEL: str = "mistral:7b"
@@ -418,6 +420,18 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# ── Machine role auto-detection via hostname (fallback for PC_ROLE env var) ──
+# If PC_ROLE is not explicitly set, detect from hostname.
+MACHINE_ROLE = settings.PC_ROLE
+if not MACHINE_ROLE or MACHINE_ROLE == "primary":
+    _hostname = socket.gethostname().lower()
+    if "profittrader" in _hostname:
+        MACHINE_ROLE = "pc2"
+    elif "espenmain" in _hostname:
+        MACHINE_ROLE = "pc1"
+    else:
+        MACHINE_ROLE = "pc1"  # default to primary
 
 # Unify Unusual Whales env var names (UNUSUAL_WHALES_API_KEY <-> UNUSUALWHALES_API_KEY)
 if settings.UNUSUALWHALES_API_KEY and not settings.UNUSUAL_WHALES_API_KEY:

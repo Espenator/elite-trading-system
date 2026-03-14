@@ -6,7 +6,9 @@ if brain service is unavailable.
 
 Writes postmortem to DuckDB after every post-trade evaluation.
 """
+import asyncio
 import logging
+import os
 import uuid
 from typing import Any, Dict
 
@@ -16,6 +18,8 @@ from app.council.schemas import AgentVote
 logger = logging.getLogger(__name__)
 
 NAME = "critic"
+# Critic can tolerate slightly longer timeout than hypothesis (postmortem is background)
+_CRITIC_TIMEOUT = float(os.getenv("BRAIN_SERVICE_TIMEOUT", "1.5")) * 2  # 3.0s default
 
 
 async def evaluate(
@@ -93,6 +97,7 @@ async def evaluate(
                 symbol=symbol,
                 entry_context=json.dumps(entry_ctx, default=str),
                 outcome_json=json.dumps(trade_outcome, default=str),
+                timeout=_CRITIC_TIMEOUT,
             )
             if not result.get("error"):
                 if result.get("lessons"):
@@ -102,7 +107,10 @@ async def evaluate(
                 critic_analysis = result.get("analysis", "")
                 inference_source = "brain_pc2"
                 brain_succeeded = True
-                logger.debug("Critic used brain_client (PC2 GPU) for %s", symbol)
+                logger.info(
+                    "[critic] LLM: brain_pc2 | score=%.2f | symbol=%s",
+                    performance_score, symbol,
+                )
             else:
                 logger.debug("Brain critic returned error: %s", result.get("error"))
     except Exception as e:
@@ -204,7 +212,7 @@ async def evaluate(
             "blackboard_snapshot": blackboard.to_snapshot() if blackboard else {},
             "critic_analysis": critic_analysis or "; ".join(lessons[:3]),
         }
-        duckdb_store.insert_postmortem(postmortem)
+        await asyncio.to_thread(duckdb_store.insert_postmortem, postmortem)
         logger.info("Postmortem written for %s: R=%.2f, PnL=$%.2f", symbol, r_multiple, pnl)
     except Exception as e:
         logger.debug("Postmortem write failed: %s", e)

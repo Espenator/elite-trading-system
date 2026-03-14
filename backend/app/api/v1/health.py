@@ -5,15 +5,20 @@ GET /api/v1/health           -> Comprehensive status: DuckDB, Alpaca, Brain gRPC
 GET /api/v1/health/alerts    -> Slack alerter status + recent alerts
 GET /api/v1/health/incidents -> Recent health incidents
 GET /api/v1/health/startup-check -> Full system startup health (7 phases) + failure patterns
+GET /api/v1/health/pc1       -> PC1 (ESPENMAIN) operational status
+GET /api/v1/health/pc2       -> PC2 (ProfitTrader) proxy health — never crashes
+GET /api/v1/health/system    -> Combined system health with council mode flag
 """
 
 import asyncio
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
@@ -176,6 +181,119 @@ async def recent_incidents():
     except Exception as e:
         logger.warning("Health incidents unavailable: %s", e)
         return {"incidents": [], "error": "Service unavailable"}
+
+
+async def _ping_redis() -> str:
+    """Redis connectivity check."""
+    try:
+        from app.core.cache import _get_redis
+        redis = await _get_redis()
+        if redis is None:
+            return "not_configured"
+        await redis.ping()
+        return "healthy"
+    except Exception:
+        return "unreachable"
+
+
+async def _get_council_runner_status() -> str:
+    """Council runner status: active if evaluated within last 5 minutes."""
+    try:
+        info = _last_council_eval()
+        ts = info.get("last_eval_timestamp")
+        if ts and (time.time() - ts) < 300:
+            return "active"
+        return "idle"
+    except Exception:
+        return "unknown"
+
+
+async def _get_last_council_decision() -> Optional[Dict[str, Any]]:
+    """Most recent council decision from DuckDB."""
+    try:
+        from app.data.duckdb_storage import duckdb_store
+
+        def _query():
+            cur = duckdb_store.get_thread_cursor()
+            try:
+                row = cur.execute(
+                    "SELECT symbol, final_verdict AS direction, final_confidence AS confidence, "
+                    "timestamp AS created_at FROM council_decisions ORDER BY timestamp DESC LIMIT 1"
+                ).fetchone()
+                if row:
+                    return {
+                        "symbol": row[0],
+                        "direction": row[1],
+                        "confidence": row[2],
+                        "created_at": str(row[3]) if row[3] else None,
+                    }
+                return None
+            finally:
+                cur.close()
+
+        return await asyncio.to_thread(_query)
+    except Exception:
+        return None
+
+
+@router.get("/pc1")
+async def health_pc1():
+    """PC1 (ESPENMAIN) operational status."""
+    duckdb_status = await _check_duckdb()
+    return {
+        "pc": "PC1-ESPENMAIN",
+        "role": "primary",
+        "api_status": "healthy",
+        "council_runner": await _get_council_runner_status(),
+        "redis": await _ping_redis(),
+        "duckdb": duckdb_status.get("status", "error"),
+        "last_decision": await _get_last_council_decision(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/pc2")
+async def health_pc2():
+    """PC2 (ProfitTrader) health proxy — never crashes."""
+    pc2_host = os.getenv("BRAIN_HOST", "192.168.1.116")
+    # Strip port if present (BRAIN_HOST may be host:port for gRPC)
+    if ":" in pc2_host:
+        pc2_host = pc2_host.split(":")[0]
+    pc2_url = f"http://{pc2_host}:8001/health"
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(pc2_url)
+            return {
+                "status": "healthy",
+                "pc": "PC2-ProfitTrader",
+                "data": r.json(),
+            }
+    except Exception as e:
+        return {
+            "status": "unreachable",
+            "pc": "PC2-ProfitTrader",
+            "error": str(e)[:200],
+            "data": None,
+        }
+
+
+@router.get("/system")
+async def health_system():
+    """Combined dual-PC system health with council mode flag."""
+    pc1_data = await health_pc1()
+    pc2_data = await health_pc2()
+    brain_healthy = pc2_data.get("status") == "healthy"
+    redis_ok = pc1_data.get("redis") == "healthy"
+
+    council_mode = "FULL" if brain_healthy else "DEGRADED"
+
+    return {
+        "council_mode": council_mode,
+        "pc1": pc1_data,
+        "pc2": pc2_data,
+        "redis_mesh": "healthy" if redis_ok else "degraded",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.get("/startup-check")

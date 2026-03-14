@@ -2,23 +2,98 @@
 
 Calls Ollama's /api/generate endpoint and parses structured responses.
 Falls back gracefully when Ollama is unavailable.
+
+Dual-model strategy (via gpu_config):
+  - Primary (gemma3:12b): hypothesis, trade_thesis, deep reasoning
+  - Secondary (qwen3:8b): critic, fast tasks, postmortems
+  - Falls back to env OLLAMA_MODEL if gpu_config unavailable
 """
 import json
 import logging
 import os
 import re
+import sys
 from typing import Any, Dict, Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "localhost")
-OLLAMA_PORT = int(os.getenv("OLLAMA_PORT", "11434"))
-OLLAMA_MODEL = os.getenv("BRAIN_OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "mistral:7b"))
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+VRAM_MIN_FREE_GB = float(os.getenv("VRAM_MIN_FREE_GB", "0.7"))
 
-OLLAMA_URL = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
+
+def check_vram_before_inference() -> bool:
+    """Returns False if VRAM is critically low — prevents OOM crash.
+
+    Checks free VRAM via PyTorch. If less than VRAM_MIN_FREE_GB (default 0.7GB)
+    is available, refuses inference to protect Ollama from crashing.
+    CPU-only paths always return True.
+    """
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return True  # CPU path, no VRAM concern
+        free_bytes, _total = torch.cuda.mem_get_info(0)
+        free_gb = free_bytes / 1e9
+        if free_gb < VRAM_MIN_FREE_GB:
+            logger.error(
+                "[vram_guard] Only %.2fGB VRAM free (min=%.1fGB) — refusing inference to prevent OOM",
+                free_gb, VRAM_MIN_FREE_GB,
+            )
+            return False
+        return True
+    except ImportError:
+        return True  # PyTorch not installed, can't check
+    except Exception as e:
+        logger.debug("[vram_guard] VRAM check failed (%s), allowing inference", e)
+        return True
+
+# Resolve Ollama URL: prefer OLLAMA_BASE_URL (explicit full URL) over OLLAMA_HOST
+# because Ollama's own OLLAMA_HOST env var is often "0.0.0.0" (bind address, not connect address)
+_base_url = os.getenv("OLLAMA_BASE_URL", "")
+if _base_url:
+    OLLAMA_URL = _base_url.rstrip("/")
+else:
+    _host = os.getenv("OLLAMA_HOST", "localhost")
+    # Guard against Ollama's bind-address "0.0.0.0" leaking into client URL
+    if _host in ("0.0.0.0", ""):
+        _host = "localhost"
+    _port = int(os.getenv("OLLAMA_PORT", "11434"))
+    OLLAMA_URL = f"http://{_host}:{_port}"
+
+# --- Dual-model routing via gpu_config ---
+_gpu_config = None
+
+def _get_gpu_config():
+    """Lazy-load gpu_config to avoid circular imports."""
+    global _gpu_config
+    if _gpu_config is not None:
+        return _gpu_config
+    try:
+        # Add backend path so we can import app.core.gpu_config
+        backend_path = os.path.join(os.path.dirname(__file__), "..", "backend")
+        if backend_path not in sys.path:
+            sys.path.insert(0, os.path.abspath(backend_path))
+        from app.core.gpu_config import get_gpu_config
+        _gpu_config = get_gpu_config()
+        logger.info("Loaded gpu_config: primary=%s, secondary=%s",
+                     _gpu_config.primary_model.name, _gpu_config.secondary_model.name)
+        return _gpu_config
+    except Exception as e:
+        logger.debug("gpu_config not available (%s), using env OLLAMA_MODEL", e)
+        return None
+
+
+def _model_for_task(task: str) -> str:
+    """Route a task to the appropriate Ollama model.
+
+    Uses gpu_config if available, otherwise falls back to OLLAMA_MODEL env var.
+    """
+    cfg = _get_gpu_config()
+    if cfg:
+        return cfg.model_for_task(task)
+    return os.getenv("BRAIN_OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "mistral:7b"))
 
 INFER_PROMPT = """You are a trading analysis AI. Analyze the following market context and provide a structured assessment.
 
@@ -111,11 +186,22 @@ async def infer_candidate_context(
         feature_json=feature_json[:2000],
     )
 
+    model = _model_for_task("hypothesis")
+    logger.debug("infer_candidate_context using model=%s for %s", model, symbol)
+
+    # VRAM OOM guard: refuse inference if VRAM critically low
+    if not check_vram_before_inference():
+        return {
+            **_fallback_infer(),
+            "risk_flags": ["vram_oom_guard"],
+            "_model_used": model,
+        }
+
     try:
         async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
             resp = await client.post(
                 f"{OLLAMA_URL}/api/generate",
-                json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+                json={"model": model, "prompt": prompt, "stream": False},
             )
             resp.raise_for_status()
             data = resp.json()
@@ -128,6 +214,7 @@ async def infer_candidate_context(
                     "confidence": max(0.0, min(1.0, float(parsed.get("confidence", 0.5)))),
                     "risk_flags": list(parsed.get("risk_flags", [])),
                     "reasoning_bullets": list(parsed.get("reasoning_bullets", [])),
+                    "_model_used": model,
                 }
 
             logger.warning("Ollama response not parseable as JSON, using raw text")
@@ -136,6 +223,7 @@ async def infer_candidate_context(
                 "confidence": 0.3,
                 "risk_flags": ["unparseable_response"],
                 "reasoning_bullets": [response_text[:100]],
+                "_model_used": model,
             }
     except httpx.ConnectError:
         logger.warning("Ollama not reachable at %s", OLLAMA_URL)
@@ -165,11 +253,18 @@ async def critic_postmortem(
         outcome_json=outcome_json[:2000],
     )
 
+    model = _model_for_task("critic")
+    logger.debug("critic_postmortem using model=%s for trade %s", model, trade_id)
+
+    # VRAM OOM guard
+    if not check_vram_before_inference():
+        return {**_fallback_critic(), "_model_used": model}
+
     try:
         async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
             resp = await client.post(
                 f"{OLLAMA_URL}/api/generate",
-                json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+                json={"model": model, "prompt": prompt, "stream": False},
             )
             resp.raise_for_status()
             data = resp.json()
@@ -183,13 +278,46 @@ async def critic_postmortem(
                     "performance_score": max(
                         0.0, min(1.0, float(parsed.get("performance_score", 0.0)))
                     ),
+                    "_model_used": model,
                 }
 
             return {
                 "analysis": response_text[:500],
                 "lessons": [],
                 "performance_score": 0.0,
+                "_model_used": model,
             }
     except Exception as e:
         logger.warning("Ollama critic error: %s", e)
         return _fallback_critic()
+
+
+async def generate(prompt: str, task: str = "quick_hypothesis") -> Dict[str, Any]:
+    """Generic Ollama generate with task-based model routing.
+
+    Args:
+        prompt: The prompt to send to Ollama.
+        task: Task name for model routing (see gpu_config.py model_for_task).
+              Examples: hypothesis, critic, trade_thesis, risk_check, feature_summary
+    """
+    model = _model_for_task(task)
+    logger.debug("generate(task=%s) using model=%s", task, model)
+
+    try:
+        async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+            resp = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={"model": model, "prompt": prompt, "stream": False},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            response_text = data.get("response", "")
+            parsed = _parse_json_response(response_text)
+            return {
+                "response": parsed if parsed else response_text,
+                "model": model,
+                "task": task,
+            }
+    except Exception as e:
+        logger.warning("Ollama generate error (task=%s): %s", task, e)
+        return {"response": None, "model": model, "task": task, "error": str(e)}

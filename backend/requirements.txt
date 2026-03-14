@@ -43,5 +43,6 @@ pytest>=7.0.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.0.0
 
-# ── Optional: PyTorch for LSTM models (large, install separately if needed) ──
-# torch>=2.0.0  # Uncomment to enable LSTM inference (see Audit Task 11)
+# ── GPU Acceleration ──
+torch>=2.0.0  # LSTM inference + training (RTX 4080 CUDA)
+cupy-cuda12x>=13.0.0  # GPU-accelerated numpy — drop-in via gpu_compute.py (optional, graceful fallback)

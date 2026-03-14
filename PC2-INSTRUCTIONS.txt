@@ -1,4 +1,4 @@
-PC2 ProfitTrader -- Post-Fix Instructions (March 14, 2026 - Updated)
+PC2 ProfitTrader -- Post-Fix Instructions (March 14, 2026 - Latest)
 =====================================================================
 
 After today's fixes on claude/review-repo-docs-LmWVI, PC2 needs these steps.
@@ -19,17 +19,20 @@ STEP 2 -- PULL LATEST CODE
   git checkout claude/review-repo-docs-LmWVI
   git pull origin claude/review-repo-docs-LmWVI
 
-Verify HEAD is at 241d91c or later:
-  git log --oneline -7
+Verify HEAD is at b384bd9 or later:
+  git log --oneline -10
 
 You should see (newest first):
+  b384bd9 fix: startup backfill -- gap-only fetch, cap 50 symbols, yield between batches
+  93cfd8e fix: DuckDB stale lock recovery with progressive retry after crashes
+  d67ae8a chore: update ML drift detection artifact timestamps
+  4a0f52e chore: update ML drift artifacts
   241d91c fix: retry DuckDB init on transient lock after crash recovery
   b02d503 fix: thread-pool Kelly sizer and order executor DuckDB calls
   5c5ed47 chore: add PYTHONUTF8=1 to PC1 startup scripts
   494926d chore: add PYTHONUTF8=1 to PC2 startup scripts
   dc11870 fix: thread blocking startup calls
   6672d93 fix: thread DuckDB health_check() calls
-  701fd4f fix: harden startup to prevent port bind races
 
 
 STEP 3 -- FIX .ENV BAD BYTE (if PC2 has its own backend/.env)
@@ -53,7 +56,20 @@ STEP 4 -- CLEAN STALE FILES (if PC2 previously crashed)
   Start-Sleep 2
 
 
-STEP 5 -- CHOOSE LAUNCHER
+STEP 5 -- SET PC2-SPECIFIC ENV VARS
+
+Add these to backend/.env on PC2 to prevent event loop saturation:
+
+  STARTUP_BACKFILL_ENABLED=false
+  TURBO_SCANNER_ENABLED=false
+  MARKET_SWEEP_ENABLED=false
+  DATA_SWARM_ENABLED=false
+  TRADING_MODE=paper
+
+PC2 focuses on ML/brain -- it doesn't need full backfill or scanning.
+
+
+STEP 6 -- CHOOSE LAUNCHER
 
 Option A -- Brain-only (production, recommended):
   cd C:\Users\ProfitTrader\elite-trading-system
@@ -68,8 +84,13 @@ Option B -- Full stack (development/testing):
 
   This starts backend (8001) + frontend (3000) + brain_service (50051).
 
+CRITICAL: Do NOT use --reload flag with uvicorn.
+  It causes proactor assertion crashes on Python 3.13 Windows.
+  Use:  uvicorn app.main:app --host 0.0.0.0 --port 8000
+  NOT:  uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-STEP 6 -- VERIFY BRAIN SERVICE
+
+STEP 7 -- VERIFY BRAIN SERVICE
 
 From PC2, verify Ollama is responding:
   Invoke-WebRequest "http://localhost:11434/api/tags" -UseBasicParsing
@@ -86,9 +107,19 @@ WHAT NOT TO DO ON PC2:
 - Do NOT run scripts/run_full_stack_24_7.ps1 -- that is PC1-only
 - Do NOT trade from PC2 -- orders only execute on PC1 (Key 1)
 - Do NOT change ALPACA_API_KEY on PC2 -- it uses Key 2 (discovery only)
+- Do NOT use --reload flag with uvicorn (proactor crash on Python 3.13)
 
 
-WHAT CHANGED TODAY (all commits on claude/review-repo-docs-LmWVI):
+WHAT CHANGED (all commits on claude/review-repo-docs-LmWVI):
+
+Latest (March 14 PM):
+- DuckDB stale lock recovery: CHECKPOINT on shutdown + progressive retry
+  (2s, 4s, 8s, 16s backoff) + stale WAL cleanup as last resort
+- Startup backfill throttled: gap-only fetch, capped to 50 symbols,
+  asyncio.sleep(0.1) yield between batches so HTTP stays responsive
+- Full 1,589-symbol universe deferred to daily 4:30 AM scheduler
+
+Earlier (March 14 AM):
 - Kelly sizer audit trail offloaded to thread pool (was blocking event loop)
 - Order executor sizer.calculate() and ATR fetch wrapped in asyncio.to_thread()
 - DuckDB init retries once after 3s on transient lock (WAL recovery after crash)

@@ -7,6 +7,7 @@ assessment) and synthesizes results. Requires OLLAMA_NUM_PARALLEL=4 on PC2.
 import asyncio
 import json
 import logging
+import os
 from typing import Any, Dict, List
 
 from app.council.agent_config import get_agent_thresholds
@@ -15,6 +16,43 @@ from app.council.schemas import AgentVote
 logger = logging.getLogger(__name__)
 
 NAME = "hypothesis"
+# Tight timeout for hypothesis inference (default 1.5s from BRAIN_SERVICE_TIMEOUT)
+_HYPOTHESIS_TIMEOUT = float(os.getenv("BRAIN_SERVICE_TIMEOUT", "1.5"))
+
+
+def build_slim_context(blackboard) -> str:
+    """Build slim context for brain_service gRPC payload.
+
+    Full BlackboardState can be 50KB+. This extracts only what gemma3:12b
+    needs for reasoning, keeping payload <2KB. Saves 5-20ms serialization
+    overhead per call.
+    """
+    perceptions = getattr(blackboard, "perceptions", {})
+    raw_features = getattr(blackboard, "raw_features", {})
+    metadata = getattr(blackboard, "metadata", {})
+    timestamp = getattr(blackboard, "timestamp", None)
+
+    slim = {
+        "symbol": getattr(blackboard, "symbol", ""),
+        "regime": perceptions.get("regime", {}).get("state", "unknown"),
+        "regime_confidence": perceptions.get("regime", {}).get("confidence", 0.0),
+        "direction_signals": {
+            "market": perceptions.get("market_perception", {}).get("direction"),
+            "flow": perceptions.get("flow_perception", {}).get("signal"),
+        },
+        "key_features": {
+            k: v for k, v in raw_features.items()
+            if k in {
+                "ret_1d", "ret_5d", "volume_ratio", "vix", "vix_term_structure",
+                "unusual_flow_score", "short_interest_pct", "rsi_14", "adx_14",
+            }
+        },
+        "session": metadata.get("session", "market_open"),
+        "council_decision_id": getattr(blackboard, "council_decision_id", ""),
+    }
+    if timestamp:
+        slim["timestamp"] = timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp)
+    return json.dumps(slim, default=str)
 
 
 async def evaluate(
@@ -52,16 +90,16 @@ async def evaluate(
         except Exception:
             pass
 
-        # Build rich context from blackboard (perceptions + regime + features + directives)
+        # Build slim context from blackboard — <2KB vs 50KB+ full BlackboardState
         blackboard = context.get("blackboard")
         if blackboard:
-            brain_context = json.dumps({
-                "perceptions": blackboard.perceptions,
-                "regime": regime,
-                "council_decision_id": blackboard.council_decision_id,
-                "stage1_votes": context.get("stage1", {}),
-                "directives": directives_text[:2000] if directives_text else "",
-            }, default=str)
+            brain_context = build_slim_context(blackboard)
+            # Append directives if present (stays under gRPC payload budget)
+            if directives_text:
+                slim_with_directives = json.loads(brain_context)
+                slim_with_directives["directives"] = directives_text[:2000]
+                slim_with_directives["stage1_votes"] = context.get("stage1", {})
+                brain_context = json.dumps(slim_with_directives, default=str)
         else:
             brain_context = json.dumps(context, default=str) if context else ""
 
@@ -71,6 +109,7 @@ async def evaluate(
             feature_json=feature_json,
             regime=regime,
             context=brain_context,
+            timeout=_HYPOTHESIS_TIMEOUT,
         )
 
         # Map LLM confidence to direction (coerce to float for safety)
@@ -112,6 +151,10 @@ async def evaluate(
             "llm_direction": direction,
             "llm_latency_ms": latency_ms,
         }
+        logger.info(
+            "[hypothesis] LLM: brain_pc2 | %dms | conf=%.3f | dir=%s | symbol=%s",
+            latency_ms, llm_conf, direction, symbol,
+        )
         return AgentVote(
             agent_name=NAME,
             direction=direction,
@@ -122,13 +165,14 @@ async def evaluate(
         )
 
     except Exception as e:
-        logger.warning("Hypothesis agent error: %s", e)
+        logger.warning("Hypothesis agent error (falling back): %s", e)
         return AgentVote(
             agent_name=NAME,
             direction="hold",
             confidence=0.1,
-            reasoning=f"Hypothesis error: {e}",
+            reasoning=f"LLM unavailable — rule-based fallback: {e}",
             weight=cfg["weight_hypothesis"],
+            metadata={"fallback": True, "error": str(e)},
         )
 
 

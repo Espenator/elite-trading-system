@@ -8,12 +8,33 @@ Schedules:
   - Daily 05:00 UTC (midnight ET): overnight FRED/SEC refresh (D5)
 
 Only starts when SCHEDULER_ENABLED=true.
+
+Market Hours Guard:
+  GPU training jobs (XGBoost CUDA) are blocked during 09:30-16:00 ET
+  to protect VRAM for gemma3:12b live inference on PC2.
 """
 import asyncio
 import logging
+from datetime import datetime, time as dt_time
 from typing import Optional
 
 log = logging.getLogger(__name__)
+
+
+def is_market_hours() -> bool:
+    """Return True if US equity market is open (09:30-16:00 ET).
+
+    Used to block GPU training jobs that would starve VRAM
+    needed for gemma3:12b live inference on PC2.
+    """
+    try:
+        import pytz
+        et = datetime.now(pytz.timezone("America/New_York")).time()
+    except ImportError:
+        from datetime import timezone, timedelta
+        et_offset = timezone(timedelta(hours=-5))  # EST approximation
+        et = datetime.now(et_offset).time()
+    return dt_time(9, 30) <= et <= dt_time(16, 0)
 
 _scheduler = None
 
@@ -29,7 +50,23 @@ def _run_daily_outcome():
 
 
 def _run_weekly_train():
-    """Wrapper for APScheduler (sync)."""
+    """Wrapper for APScheduler (sync).
+
+    Blocks during market hours (09:30-16:00 ET) to protect
+    VRAM for gemma3:12b live inference on PC2.
+    Pins to E-cores for background training on hybrid CPUs.
+    """
+    if is_market_hours():
+        log.info(
+            "Market hours -- skipping GPU training to protect VRAM for gemma3:12b"
+        )
+        return
+    # Pin training to E-cores (background) on Intel hybrid CPUs
+    try:
+        from app.core.hardware_profile import apply_affinity
+        apply_affinity("e_cores")
+    except Exception:
+        pass
     from app.jobs.weekly_walkforward_train import run
     try:
         result = run()
@@ -39,7 +76,15 @@ def _run_weekly_train():
 
 
 def _run_weekly_eval():
-    """Wrapper for APScheduler (sync)."""
+    """Wrapper for APScheduler (sync).
+
+    Blocks during market hours to avoid GPU contention.
+    """
+    if is_market_hours():
+        log.info(
+            "Market hours -- skipping champion_challenger_eval to protect VRAM"
+        )
+        return
     from app.jobs.champion_challenger_eval import run
     try:
         result = run()

@@ -134,16 +134,19 @@ async def run_backtest_post(request: BacktestRequest):
         start = date.fromisoformat(request.startDate)
         end = date.fromisoformat(request.endDate)
 
-        # Broadcast start
-        await broadcast_ws(
-            "backtest",
-            {
-                "type": "backtest_started",
-                "strategy": request.strategy,
-                "startDate": request.startDate,
-                "endDate": request.endDate,
-            },
-        )
+        # Broadcast start (non-fatal — don't let WS failure block backtest)
+        try:
+            await broadcast_ws(
+                "backtest",
+                {
+                    "type": "backtest_started",
+                    "strategy": request.strategy,
+                    "startDate": request.startDate,
+                    "endDate": request.endDate,
+                },
+            )
+        except Exception as ws_err:
+            logger.debug("broadcast_ws(backtest_started) failed: %s", ws_err)
 
         # Run backtest (simplified - use GET endpoint logic)
         model_id = "lstm_daily_latest"  # Default model
@@ -171,26 +174,32 @@ async def run_backtest_post(request: BacktestRequest):
                 "metrics": metrics,
             }
 
-        # Broadcast completion
-        await broadcast_ws(
-            "backtest",
-            {
-                "type": "backtest_completed",
-                "runId": result["runId"],
-                "strategy": request.strategy,
-            },
-        )
+        # Broadcast completion (non-fatal)
+        try:
+            await broadcast_ws(
+                "backtest",
+                {
+                    "type": "backtest_completed",
+                    "runId": result["runId"],
+                    "strategy": request.strategy,
+                },
+            )
+        except Exception as ws_err:
+            logger.debug("broadcast_ws(backtest_completed) failed: %s", ws_err)
 
         return result
     except Exception as e:
-        await broadcast_ws(
-            "backtest",
-            {
-                "type": "backtest_failed",
-                "strategy": request.strategy,
-                "error": "Backtest failed",
-            },
-        )
+        try:
+            await broadcast_ws(
+                "backtest",
+                {
+                    "type": "backtest_failed",
+                    "strategy": request.strategy,
+                    "error": "Backtest failed",
+                },
+            )
+        except Exception:
+            pass
         logger.error("Backtest failed: %s", e)
         raise HTTPException(status_code=500, detail="Backtest failed")
 
