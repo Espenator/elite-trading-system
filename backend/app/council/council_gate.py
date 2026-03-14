@@ -108,11 +108,13 @@ class CouncilGate:
         self._cooldown_skips = 0
         self._concurrency_skips = 0
         self._queue_dispatched = 0
+        self._queue_dropped_total = 0
         self._councils_passed = 0
         self._councils_vetoed = 0
         self._councils_held = 0
         # Priority queue: (-score, timestamp, symbol, signal_data)
         self._priority_queue: list = []
+        self.max_queue_size = int(os.environ.get("COUNCILGATE_MAX_QUEUE_SIZE", "20"))
         self._queue_drain_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
@@ -237,9 +239,14 @@ class CouncilGate:
                 self._priority_queue,
                 (-score_f, now, symbol, signal_data),
             )
-            # Cap queue at 20 to prevent unbounded growth
-            while len(self._priority_queue) > 20:
-                heapq.heappop(self._priority_queue)
+            # Cap queue to prevent unbounded growth
+            while len(self._priority_queue) > self.max_queue_size:
+                dropped = heapq.heappop(self._priority_queue)
+                self._queue_dropped_total += 1
+                logger.warning(
+                    "CouncilGate queue overflow: dropping %s (score=%.1f, cap=%d)",
+                    dropped[2], -dropped[0], self.max_queue_size,
+                )
             self._concurrency_skips += 1
             return
 
@@ -435,6 +442,7 @@ class CouncilGate:
             "cooldown_skips": self._cooldown_skips,
             "concurrency_skips": self._concurrency_skips,
             "queue_dispatched": self._queue_dispatched,
+            "queue_dropped_total": self._queue_dropped_total,
             "queue_pending": len(self._priority_queue),
             "councils_passed": self._councils_passed,
             "councils_vetoed": self._councils_vetoed,
