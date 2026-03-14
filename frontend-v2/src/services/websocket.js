@@ -2,33 +2,37 @@
  * WebSocket client for real-time updates.
  * Uses getWsBaseUrl() so in dev it connects via current host (Vite proxy).
  * Channels: agents, data_sources, signals, trades, logs, risk, kelly, sentiment.
- * Auto-reconnects with exponential backoff, max retries with polling fallback,
+ * Auto-reconnects with escalating backoff, jitter, backend health probe,
  * connection health metrics, and offline message queue.
  */
 
 import { getWsBaseUrl } from "../config/api";
 import notificationService from "./notifications";
 
-const RECONNECT_DELAY_MS = 2000;
-const MAX_RECONNECT_DELAY = 60000; // cap backoff at 60s for 24/7 resilience
+const RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY = 60000; // cap backoff at 60s
 const HEARTBEAT_INTERVAL = 25000;
-const MAX_RETRY_COUNT = 10;
+const MAX_RETRY_COUNT = 20;
 const STEADY_RECONNECT_DELAY = 30000; // 30s for attempts 6-10
+const LONG_RECONNECT_DELAY = 60000; // 60s for attempts 11-20
 const QUEUE_TTL_MS = 30000; // Drop queued messages older than 30s
 
 class AppWebSocket {
   constructor() {
-    this.ws = null;
+    this._ws = null;
     this.handlers = new Map(); // channel -> Set<fn>
     this.reconnectTimer = null;
     this._intentionalClose = false;
     this._reconnectAttempts = 0;
     this._heartbeatTimer = null;
-    this.state = "disconnected"; // disconnected | connecting | connected | reconnecting | fallback
+    this._state = "disconnected"; // disconnected | connecting | connected | reconnecting | fallback
 
     // Max retries with escalation
     this._retryCount = 0;
     this._fallbackToPolling = false;
+
+    // Lock to prevent concurrent reconnect scheduling
+    this._reconnectScheduled = false;
 
     // Connection health metrics
     this._metrics = {
@@ -44,23 +48,64 @@ class AppWebSocket {
     this._outboundQueue = [];
   }
 
+  // Keep backward-compatible .ws and .state accessors
+  get ws() {
+    return this._ws;
+  }
+  set ws(v) {
+    this._ws = v;
+  }
+  get state() {
+    return this._state;
+  }
+  set state(v) {
+    this._state = v;
+  }
+
   connect() {
+    // If already in fallback mode, do nothing
     if (this._fallbackToPolling) return;
-    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
+
+    // Singleton guard -- only one connection attempt at a time
+    if (
+      this._ws &&
+      (this._ws.readyState === WebSocket.CONNECTING ||
+        this._ws.readyState === WebSocket.OPEN)
+    ) {
+      console.log("[WS] Already connected or connecting -- skipping");
+      return;
+    }
+
+    // Prevent connect() while a reconnect timer is already pending
+    if (this._state === "connecting" || this._state === "reconnecting") {
+      console.log("[WS] Already in state", this._state, "-- skipping connect()");
+      return;
+    }
+
     this._intentionalClose = false;
-    this.state = "connecting";
+    this._state = "connecting";
+
+    // Clear any pending reconnect timer so we don't get a duplicate
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this._reconnectScheduled = false;
+
     const url = getWsBaseUrl();
     try {
-      this.ws = new WebSocket(url);
+      this._ws = new WebSocket(url);
 
-      this.ws.onopen = () => {
-        this.state = "connected";
+      this._ws.onopen = () => {
+        this._state = "connected";
 
         // Reset retry counters on successful connection
-        const wasReconnecting = this._reconnectAttempts > 0 || this._retryCount > 0;
+        const wasReconnecting =
+          this._reconnectAttempts > 0 || this._retryCount > 0;
         this._reconnectAttempts = 0;
         this._retryCount = 0;
         this._fallbackToPolling = false;
+        this._reconnectScheduled = false;
 
         // Update health metrics
         this._metrics.connectedSince = new Date().toISOString();
@@ -84,7 +129,7 @@ class AppWebSocket {
         if (this._heartbeatTimer) clearInterval(this._heartbeatTimer);
         // Start heartbeat pong responses
         this._heartbeatTimer = setInterval(() => {
-          if (this.ws?.readyState === WebSocket.OPEN) {
+          if (this._ws?.readyState === WebSocket.OPEN) {
             this._sendRaw({ type: "pong" });
           }
         }, HEARTBEAT_INTERVAL);
@@ -93,7 +138,7 @@ class AppWebSocket {
           this.handlers.get("*").forEach((fn) => fn({ type: "connected" }));
       };
 
-      this.ws.onmessage = (event) => {
+      this._ws.onmessage = (event) => {
         try {
           const msg =
             typeof event.data === "string"
@@ -112,16 +157,30 @@ class AppWebSocket {
 
           // Wire critical events to notifications (Task 3)
           if (data.type === "trade_fill" || data.type === "order_filled") {
-            notificationService.orderFilled(data.symbol, data.side, data.qty, data.price);
+            notificationService.orderFilled(
+              data.symbol,
+              data.side,
+              data.qty,
+              data.price
+            );
           }
           if (data.type === "circuit_breaker") {
-            notificationService.circuitBreakerTripped(data.reason || "Circuit breaker activated");
+            notificationService.circuitBreakerTripped(
+              data.reason || "Circuit breaker activated"
+            );
           }
           if (data.type === "new_signal" && data.score >= 80) {
-            notificationService.newSignal(data.symbol, data.score, data.direction);
+            notificationService.newSignal(
+              data.symbol,
+              data.score,
+              data.direction
+            );
           }
           if (data.type === "agent_error") {
-            notificationService.agentError(data.agent || "Unknown", data.error || "Error occurred");
+            notificationService.agentError(
+              data.agent || "Unknown",
+              data.error || "Error occurred"
+            );
           }
 
           if (this.handlers.has(channel))
@@ -134,9 +193,9 @@ class AppWebSocket {
         }
       };
 
-      this.ws.onclose = () => {
+      this._ws.onclose = () => {
         clearInterval(this._heartbeatTimer);
-        this.state = "disconnected";
+        this._state = "disconnected";
 
         // Update health metrics
         this._metrics.disconnectCount++;
@@ -149,18 +208,23 @@ class AppWebSocket {
         }
       };
 
-      this.ws.onerror = (evt) => {
-        // Browser WS error events are opaque — log the URL and state for debugging
-        console.warn("[WS] connection error", { url: this.ws?.url, readyState: this.ws?.readyState });
+      this._ws.onerror = (evt) => {
+        // Browser WS error events are opaque -- log the URL and state for debugging
+        console.warn("[WS] connection error", {
+          url: this._ws?.url,
+          readyState: this._ws?.readyState,
+        });
         // Mark as disconnected so UI reflects the error immediately
-        if (this.state === "connected") {
-          this.state = "disconnected";
+        if (this._state === "connected") {
+          this._state = "disconnected";
         }
         if (this.handlers.has("*"))
           this.handlers.get("*").forEach((fn) => fn({ type: "error", error: evt }));
+        // NOTE: do NOT call _scheduleReconnect here -- onclose always fires after onerror
       };
     } catch (err) {
       console.warn("[WS] failed to create WebSocket", err.message || err);
+      this._state = "disconnected";
       if (this.handlers.has("*"))
         this.handlers.get("*").forEach((fn) => fn({ type: "error", error: err }));
       this._scheduleReconnect();
@@ -168,43 +232,104 @@ class AppWebSocket {
   }
 
   /**
+   * Check if the backend HTTP server is reachable before attempting WS reconnect.
+   * Returns true if the health endpoint responds OK within 3 seconds.
+   */
+  async _isBackendReachable() {
+    try {
+      const res = await fetch("/api/v1/system/health-check", {
+        signal: AbortSignal.timeout(3000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Schedule a reconnect with escalating backoff strategy:
-   * - Attempts 1-5: exponential backoff (2s * 1.5^n, capped at 60s)
-   * - Attempts 6-10: steady 30s interval
-   * - After 10: stop reconnecting, activate polling fallback
+   * - Attempts 1-5:   exponential backoff (1s, 2s, 4s, 8s, 16s) + jitter
+   * - Attempts 6-10:  30s each + jitter
+   * - Attempts 11-20: 60s each + jitter
+   * - After 20:       STOP, activate polling fallback
+   *
+   * Before each reconnect, probes the backend health endpoint.
+   * If unreachable, skips the attempt but still counts it toward the delay tier.
    */
   _scheduleReconnect() {
+    // Prevent duplicate scheduling (e.g., onerror + onclose firing in rapid succession)
+    if (this._reconnectScheduled) return;
+    this._reconnectScheduled = true;
+
     this._retryCount++;
     this._reconnectAttempts++;
 
     if (this._retryCount > MAX_RETRY_COUNT) {
       // Activate fallback mode
       this._fallbackToPolling = true;
-      this.state = "fallback";
-      console.warn("[WS] Max retries exceeded, falling back to polling mode");
-      this._broadcastStatus({ type: "ws_fallback" });
+      this._state = "fallback";
+      this._reconnectScheduled = false;
+      console.warn(
+        `[WS] Max retries (${MAX_RETRY_COUNT}) exceeded, falling back to polling mode`
+      );
+      this._broadcastStatus({
+        type: "ws_fallback",
+        message: "Real-time updates unavailable. Using polling mode.",
+      });
       return;
     }
 
-    this.state = "reconnecting";
+    this._state = "reconnecting";
 
     // Broadcast reconnecting state
-    this._broadcastStatus({ type: "ws_reconnecting", attempt: this._retryCount });
+    this._broadcastStatus({
+      type: "ws_reconnecting",
+      attempt: this._retryCount,
+      maxRetries: MAX_RETRY_COUNT,
+    });
 
-    let delay;
+    let baseDelay;
     if (this._retryCount <= 5) {
-      // Exponential backoff for attempts 1-5
-      const baseDelay = Math.min(
-        RECONNECT_DELAY_MS * Math.pow(1.5, this._retryCount - 1),
+      // Exponential backoff for attempts 1-5: 1s, 2s, 4s, 8s, 16s
+      baseDelay = Math.min(
+        RECONNECT_DELAY_MS * Math.pow(2, this._retryCount - 1),
         MAX_RECONNECT_DELAY
       );
-      delay = baseDelay + Math.random() * 1000;
-    } else {
+    } else if (this._retryCount <= 10) {
       // Steady 30s interval for attempts 6-10
-      delay = STEADY_RECONNECT_DELAY + Math.random() * 1000;
+      baseDelay = STEADY_RECONNECT_DELAY;
+    } else {
+      // Steady 60s interval for attempts 11-20
+      baseDelay = LONG_RECONNECT_DELAY;
     }
 
-    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    // Apply 0-30% jitter to prevent thundering herd
+    const jitter = 1 + Math.random() * 0.3;
+    const delay = Math.round(baseDelay * jitter);
+
+    console.log(
+      `[WS] Reconnect attempt ${this._retryCount}/${MAX_RETRY_COUNT} in ${(delay / 1000).toFixed(1)}s`
+    );
+
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      this._reconnectScheduled = false;
+
+      // Probe backend before attempting WS connection
+      const reachable = await this._isBackendReachable();
+      if (!reachable) {
+        console.log(
+          "[WS] Backend unreachable -- skipping reconnect, will retry later"
+        );
+        // Still in reconnecting state; schedule another attempt
+        this._state = "disconnected";
+        this._scheduleReconnect();
+        return;
+      }
+
+      this._state = "disconnected"; // Reset so connect() guard allows it
+      this.connect();
+    }, delay);
   }
 
   /**
@@ -221,13 +346,15 @@ class AppWebSocket {
    * Queued messages older than 30s are dropped.
    */
   send(data) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+    if (this._ws?.readyState === WebSocket.OPEN) {
+      this._ws.send(JSON.stringify(data));
       this._metrics.messagesSent++;
     } else {
       this._outboundQueue.push({ data, timestamp: Date.now() });
       // Drop messages older than 30s
-      this._outboundQueue = this._outboundQueue.filter(m => Date.now() - m.timestamp < QUEUE_TTL_MS);
+      this._outboundQueue = this._outboundQueue.filter(
+        (m) => Date.now() - m.timestamp < QUEUE_TTL_MS
+      );
     }
   }
 
@@ -236,10 +363,15 @@ class AppWebSocket {
    */
   _flushOutboundQueue() {
     // Filter out stale messages before flushing
-    this._outboundQueue = this._outboundQueue.filter(m => Date.now() - m.timestamp < QUEUE_TTL_MS);
-    while (this._outboundQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
+    this._outboundQueue = this._outboundQueue.filter(
+      (m) => Date.now() - m.timestamp < QUEUE_TTL_MS
+    );
+    while (
+      this._outboundQueue.length > 0 &&
+      this._ws?.readyState === WebSocket.OPEN
+    ) {
       const item = this._outboundQueue.shift();
-      this.ws.send(JSON.stringify(item.data));
+      this._ws.send(JSON.stringify(item.data));
       this._metrics.messagesSent++;
     }
   }
@@ -249,7 +381,8 @@ class AppWebSocket {
    * Sends subscribe/unsubscribe messages to the backend.
    */
   on(channel, handler) {
-    const isNew = !this.handlers.has(channel) || this.handlers.get(channel).size === 0;
+    const isNew =
+      !this.handlers.has(channel) || this.handlers.get(channel).size === 0;
     if (!this.handlers.has(channel)) this.handlers.set(channel, new Set());
     this.handlers.get(channel).add(handler);
 
@@ -300,23 +433,24 @@ class AppWebSocket {
   disconnect() {
     this._intentionalClose = true;
     clearInterval(this._heartbeatTimer);
-    this.state = "disconnected";
+    this._state = "disconnected";
     this._reconnectAttempts = 0;
     this._retryCount = 0;
     this._fallbackToPolling = false;
+    this._reconnectScheduled = false;
     this._outboundQueue = [];
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this._ws) {
+      this._ws.close();
+      this._ws = null;
     }
   }
 
   isConnected() {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this._ws?.readyState === WebSocket.OPEN;
   }
 
   /**
@@ -331,7 +465,7 @@ class AppWebSocket {
    * Possible values: "disconnected" | "connecting" | "connected" | "reconnecting" | "fallback"
    */
   getState() {
-    return this.state;
+    return this._state;
   }
 
   /**
@@ -339,6 +473,23 @@ class AppWebSocket {
    */
   getHealth() {
     return { ...this._metrics };
+  }
+
+  /**
+   * Reset fallback mode and retry connecting.
+   * Useful for manual "Retry" button in the UI.
+   */
+  resetAndReconnect() {
+    this._fallbackToPolling = false;
+    this._retryCount = 0;
+    this._reconnectAttempts = 0;
+    this._reconnectScheduled = false;
+    this._state = "disconnected";
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.connect();
   }
 
   // --- Kelly channel subscriptions ---
@@ -356,8 +507,8 @@ class AppWebSocket {
 
   /** Send raw JSON if socket is open. */
   _sendRaw(obj) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(obj));
+    if (this._ws?.readyState === WebSocket.OPEN) {
+      this._ws.send(JSON.stringify(obj));
       this._metrics.messagesSent++;
     }
   }

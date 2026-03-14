@@ -28,16 +28,30 @@ function _deriveWsFromBackend(backendUrl) {
   return u ? (secure ? `wss://${u}` : `ws://${u}`) : "";
 }
 
-// Hardcoded 24/7 defaults so app runs and reconnects without .env (backend 8001, WS same host).
-const _DEFAULT_BACKEND = "http://localhost:8001";
-const _DEFAULT_WS = "ws://localhost:8001";
+// --- Environment variable normalization ---
+function _normalizeUrl(url) {
+  if (!url) return '';
+  return url.replace(/\/+$/, ''); // Strip trailing slashes
+}
+
+const BACKEND_URL = _normalizeUrl(
+  import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:8001'
+);
+
+// Log config on first load (dev only)
+if (import.meta.env.DEV) {
+  console.log('[api] Backend URL:', BACKEND_URL);
+  if (!import.meta.env.VITE_BACKEND_URL) {
+    console.warn('[api] VITE_BACKEND_URL not set — using default http://localhost:8001');
+  }
+}
 
 const API_CONFIG = {
   // Env overrides; fallback to hardcoded backend so app runs automatically.
-  BASE_URL: import.meta.env.VITE_API_URL ?? import.meta.env.VITE_BACKEND_URL ?? _DEFAULT_BACKEND,
+  BASE_URL: BACKEND_URL,
   API_PREFIX: "/api/v1",
-  // WS base; fallback to hardcoded so WebSocket reconnects to backend automatically.
-  WS_URL: import.meta.env.VITE_WS_URL ?? (_deriveWsFromBackend(import.meta.env.VITE_BACKEND_URL ?? "") || _DEFAULT_WS),
+  // WS base; fallback derived from BACKEND_URL so WebSocket reconnects to backend automatically.
+  WS_URL: _normalizeUrl(import.meta.env.VITE_WS_URL) || _deriveWsFromBackend(BACKEND_URL) || 'ws://localhost:8001',
 
   endpoints: {
     // ---- CORE DATA ----
