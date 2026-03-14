@@ -100,7 +100,7 @@ class RegimePublisher:
         except Exception:
             pass
 
-        # Fallback: read from DuckDB if Bayesian engine hasn't been updated
+        # Fallback 1: read from DuckDB if Bayesian engine hasn't been updated
         if regime == "UNKNOWN" or not beliefs:
             try:
                 def _fetch_regime():
@@ -118,6 +118,32 @@ class RegimePublisher:
                     source = "duckdb_last_decision"
             except Exception:
                 pass
+
+        # Fallback 2: price-action regime from SPY OHLCV in DuckDB (Issue #60)
+        if regime == "UNKNOWN" or not beliefs:
+            try:
+                from app.council.regime.price_action_regime import get_price_action_regime
+                pa_result = await get_price_action_regime()
+                pa_regime = pa_result.get("regime", "UNKNOWN")
+                if pa_regime != "UNKNOWN":
+                    regime = pa_regime
+                    probability = pa_result.get("confidence", 0.0)
+                    beliefs = pa_result.get("beliefs", {})
+                    source = "price_action_fallback"
+                    # Derive entropy from confidence (higher confidence = lower entropy)
+                    import math
+                    if probability > 0 and probability < 1:
+                        entropy = -(probability * math.log(probability) + (1 - probability) * math.log(1 - probability))
+                    else:
+                        entropy = 0.0
+                    # Conservative position sizing for fallback
+                    position_modifier = round(0.5 + probability * 0.4, 3)
+                    logger.info(
+                        "RegimePublisher: using price-action fallback → %s (conf=%.0f%%)",
+                        regime, probability * 100,
+                    )
+            except Exception as e:
+                logger.debug("RegimePublisher: price-action fallback failed: %s", e)
 
         # Publish to MessageBus
         bus = get_message_bus()

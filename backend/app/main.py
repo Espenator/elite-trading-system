@@ -1004,6 +1004,39 @@ async def _start_event_driven_pipeline():
     else:
         log.info("\u26A0\uFE0F UnifiedProfitEngine skipped (LLM_ENABLED=false)")
 
+    # 22b. Direct bypass: when LLM/council is off, turbo_scanner signals scoring >=85
+    # can reach the executor directly for shadow/paper execution (issue #59).
+    # This ensures the system can still paper-trade without the full council.
+    if not _llm_enabled or not council_gate_enabled:
+        async def _turbo_direct_bypass(signal_data):
+            """Route high-scoring signals directly to OrderExecutor when council is offline."""
+            from app.core.score_semantics import coerce_signal_score_0_100, score_to_final_confidence_0_1
+            raw_score = signal_data.get("score", 0)
+            score_100 = coerce_signal_score_0_100(raw_score, context="turbo_direct_bypass")
+            source = signal_data.get("source", "")
+            # Only bypass for turbo_scanner signals with score >= 85
+            if source != "turbo_scanner" or score_100 < 85.0:
+                return
+            import time as _t
+            log.info(
+                "Direct bypass: turbo_scanner signal %s score=%.0f -> council.verdict",
+                signal_data.get("symbol", "?"), score_100,
+            )
+            await _message_bus.publish("council.verdict", {
+                "symbol": signal_data.get("symbol", ""),
+                "final_direction": signal_data.get("label", "long"),
+                "final_confidence": score_to_final_confidence_0_1(score_100, context="turbo_direct_bypass"),
+                "execution_ready": True,
+                "vetoed": False,
+                "votes": [],
+                "council_reasoning": f"Direct turbo_scanner bypass (score={score_100:.0f}, council offline)",
+                "signal_data": signal_data,
+                "price": signal_data.get("close", signal_data.get("price", 0)),
+                "timestamp": _t.time(),
+            })
+        await _message_bus.subscribe("signal.generated", _turbo_direct_bypass)
+        log.info("\u2705 Turbo direct bypass registered (score>=85 -> OrderExecutor when council offline)")
+
     # 23. PositionManager — automated exits (trailing stops, time exits, partial profits)
     # BUG FIX 3: Always start — uses Alpaca API for position management, no LLM dependency.
     from app.services.position_manager import get_position_manager
