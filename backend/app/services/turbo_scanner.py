@@ -137,7 +137,11 @@ class TurboScanner:
 
     @staticmethod
     def _is_market_hours() -> bool:
-        """Return True during US market hours (9:30 AM - 4:00 PM ET, Mon-Fri)."""
+        """Return True during US regular market hours (9:30 AM - 4:00 PM ET, Mon-Fri).
+
+        Legacy method — kept for backward compatibility.
+        For 24/5 session awareness, use _is_scanning_active() instead.
+        """
         try:
             from zoneinfo import ZoneInfo
             eastern = ZoneInfo("America/New_York")
@@ -149,6 +153,19 @@ class TurboScanner:
             return False
         minutes = now_et.hour * 60 + now_et.minute
         return 570 <= minutes <= 960  # 9:30 AM to 4:00 PM
+
+    @staticmethod
+    def _is_scanning_active() -> bool:
+        """Return True during any active 24/5 trading session.
+
+        Active: OVERNIGHT, PRE_MARKET, REGULAR, AFTER_HOURS
+        Inactive: WEEKEND
+
+        Replaces _is_market_hours() for council signal gating to enable
+        24/5 overnight trading via Alpaca.
+        """
+        from app.jobs.scheduler import is_trading_session
+        return is_trading_session()
 
     async def start(self):
         if self._running:
@@ -867,7 +884,7 @@ class TurboScanner:
                 _llm_on
                 and signal.score >= MIN_COUNCIL_SCORE
                 and self._council_signals_this_cycle < MAX_COUNCIL_SIGNALS_PER_SCAN
-                and self._is_market_hours()
+                and self._is_scanning_active()
             ):
                 self._council_signals_this_cycle += 1
                 self._stats["council_signals"] += 1
@@ -880,7 +897,7 @@ class TurboScanner:
                     "source": "turbo_scanner",
                 })
             elif _llm_on and signal.score >= MIN_COUNCIL_SCORE:
-                if not self._is_market_hours():
+                if not self._is_scanning_active():
                     self._stats["council_skipped_afterhours"] += 1
                 else:
                     self._stats["council_skipped_cap"] += 1

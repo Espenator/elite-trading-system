@@ -181,3 +181,62 @@ def get_agent_weight(agent_name: str) -> float:
     cfg = get_agent_thresholds()
     key = f"weight_{agent_name}"
     return float(cfg.get(key, 1.0))
+
+
+# ── Session-Aware Threshold Adjustments ──────────────────────────────
+# Outside regular hours, raise the council gate threshold to require
+# stronger signals before entering trades (lower liquidity = higher bar).
+
+_SESSION_THRESHOLD_ADJUSTMENTS = {
+    "regular": 0,       # No adjustment — full liquidity
+    "pre_market": 5,    # +5 points — thinner book
+    "after_hours": 5,   # +5 points — thinner book
+    "overnight": 10,    # +10 points — minimal liquidity, require strong conviction
+    "weekend": 100,     # Effectively blocks trading (added to 80 = 180, unreachable)
+}
+
+
+def get_session_threshold_adjustment() -> int:
+    """Return the threshold adjustment (points) for the current session.
+
+    Added to the base council gate threshold to make it harder to enter
+    trades during low-liquidity sessions.
+
+    Returns:
+        Integer points to add to gate threshold.
+        REGULAR=+0, PRE_MARKET=+5, AFTER_HOURS=+5, OVERNIGHT=+10, WEEKEND=+100
+    """
+    try:
+        from app.services.data_swarm.session_clock import get_session_clock
+        session = get_session_clock().get_current_session()
+        return _SESSION_THRESHOLD_ADJUSTMENTS.get(session.value, 0)
+    except Exception:
+        return 0  # Safe default: no adjustment
+
+
+# Session-specific data staleness thresholds (seconds)
+# Wider thresholds in low-liquidity sessions where data updates are less frequent
+_SESSION_STALENESS_THRESHOLDS = {
+    "regular": 120,       # 2 min — tight, bars arrive every 60s
+    "pre_market": 300,    # 5 min — snapshot polling every 30s
+    "after_hours": 300,   # 5 min — snapshot polling every 30s
+    "overnight": 600,     # 10 min — snapshot polling every 60s
+    "weekend": 3600,      # 1 hour — no live data expected
+}
+
+
+def get_session_staleness_threshold() -> int:
+    """Return session-appropriate data staleness threshold in seconds.
+
+    Used by the health monitor and signal engine to decide when data
+    is too old to act on. Wider thresholds during low-liquidity sessions.
+
+    Returns:
+        Staleness threshold in seconds.
+    """
+    try:
+        from app.services.data_swarm.session_clock import get_session_clock
+        session = get_session_clock().get_current_session()
+        return _SESSION_STALENESS_THRESHOLDS.get(session.value, 300)
+    except Exception:
+        return 300  # Safe default: 5 min

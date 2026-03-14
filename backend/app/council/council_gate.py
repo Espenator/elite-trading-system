@@ -152,15 +152,27 @@ class CouncilGate:
         """Return regime-adaptive gate threshold."""
         return _REGIME_GATE_THRESHOLDS.get(self._current_regime, self.base_gate_threshold)
 
+    @staticmethod
+    def _get_session_adjustment() -> int:
+        """Return session-aware threshold adjustment for 24/5 trading."""
+        try:
+            from app.council.agent_config import get_session_threshold_adjustment
+            return get_session_threshold_adjustment()
+        except Exception:
+            return 0
+
     def _get_regime_cooldown(self) -> int:
         """Return regime-adaptive cooldown in seconds."""
         return _REGIME_COOLDOWNS.get(self._current_regime, self.cooldown_seconds)
 
     def _is_market_open_burst(self) -> bool:
-        """Return True during first 30 minutes after US market open (9:30-10:00 ET).
+        """Return True during burst windows that warrant higher concurrency.
 
-        During the open burst window, concurrency is raised to burst_concurrent
-        to capture the opening volatility spike (B4).
+        Burst windows (B4):
+          - Regular open: 9:30-10:00 AM ET (opening volatility spike)
+          - Pre-market open: 4:00-4:15 AM ET (24/5 session transition)
+
+        During burst windows, concurrency is raised to burst_concurrent.
         """
         try:
             from zoneinfo import ZoneInfo
@@ -174,8 +186,13 @@ class CouncilGate:
         if now_et.weekday() >= 5:
             return False
         minutes_since_midnight = now_et.hour * 60 + now_et.minute
-        # 9:30 AM = 570 min, 10:00 AM = 600 min
-        return 570 <= minutes_since_midnight < 600
+        # 9:30 AM = 570 min, 10:00 AM = 600 min (regular open burst)
+        if 570 <= minutes_since_midnight < 600:
+            return True
+        # 4:00 AM = 240 min, 4:15 AM = 255 min (pre-market session transition)
+        if 240 <= minutes_since_midnight < 255:
+            return True
+        return False
 
     def _effective_max_concurrent(self) -> int:
         """Return effective concurrency limit, accounting for market open burst (B4)."""
@@ -211,8 +228,13 @@ class CouncilGate:
             logger.debug("CouncilGate: skipping mock signal for %s", symbol)
             return
 
-        # Gate 2: Regime-adaptive score threshold (B1)
+        # Gate 2: Regime-adaptive + session-adaptive score threshold (B1 + 24/5)
         threshold = self._get_regime_threshold()
+        try:
+            from app.council.agent_config import get_session_threshold_adjustment
+            threshold += get_session_threshold_adjustment()
+        except Exception:
+            pass  # Safe default: no session adjustment
         if score_f < threshold:
             return
 
@@ -430,6 +452,8 @@ class CouncilGate:
             "uptime_seconds": round(uptime, 1),
             "regime": self._current_regime,
             "gate_threshold": self._get_regime_threshold(),
+            "session_threshold_adjustment": self._get_session_adjustment(),
+            "effective_gate_threshold": self._get_regime_threshold() + self._get_session_adjustment(),
             "base_gate_threshold": self.base_gate_threshold,
             "max_concurrent": self._effective_max_concurrent(),
             "base_max_concurrent": self.max_concurrent,

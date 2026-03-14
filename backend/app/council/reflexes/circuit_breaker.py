@@ -157,24 +157,38 @@ class CircuitBreaker:
         return None
 
     async def market_hours_check(self, blackboard: BlackboardState) -> Optional[str]:
-        """Check if market is currently open (US/Eastern, handles DST)."""
-        try:
-            from zoneinfo import ZoneInfo
-        except ImportError:
-            from backports.zoneinfo import ZoneInfo
-        now_et = datetime.now(ZoneInfo("America/New_York"))
-        hour_et = now_et.hour
-        weekday = now_et.weekday()  # 0=Mon, 6=Sun
+        """Check if we're in an active 24/5 trading session.
 
-        if weekday >= 5:
-            return "Market closed: weekend"
-
-        # Allow extended hours: pre-market 4 AM ET through after-hours 8 PM ET
-        # Only block obvious off-hours (midnight to 4 AM ET, 8 PM to midnight ET)
-        if hour_et < 4 or hour_et >= 20:
-            return f"Market closed: off-hours (ET hour={hour_et})"
-
+        24/5 aware: only blocks WEEKEND (Sat 8 PM - Sun 8 PM ET).
+        All other sessions (OVERNIGHT, PRE_MARKET, REGULAR, AFTER_HOURS) are active
+        for Alpaca's 24/5 overnight trading.
+        """
+        from app.services.data_swarm.session_clock import get_session_clock, TradingSession
+        session = get_session_clock().get_current_session()
+        if session == TradingSession.WEEKEND:
+            return "Market closed: weekend (Sat 8 PM - Sun 8 PM ET)"
         return None
+
+    def get_session_position_limit(self) -> float:
+        """Return session-aware position sizing limit as fraction of max.
+
+        Reduces position sizes outside regular hours to manage liquidity risk:
+          REGULAR:     1.0  (100% of normal position size)
+          PRE_MARKET:  0.75 (75% — thinner liquidity)
+          AFTER_HOURS: 0.75 (75% — thinner liquidity)
+          OVERNIGHT:   0.50 (50% — minimal liquidity)
+          WEEKEND:     0.0  (no trading)
+        """
+        from app.services.data_swarm.session_clock import get_session_clock, TradingSession
+        session = get_session_clock().get_current_session()
+        _limits = {
+            TradingSession.REGULAR: 1.0,
+            TradingSession.PRE_MARKET: 0.75,
+            TradingSession.AFTER_HOURS: 0.75,
+            TradingSession.OVERNIGHT: 0.50,
+            TradingSession.WEEKEND: 0.0,
+        }
+        return _limits.get(session, 0.5)
 
 
 # Global singleton

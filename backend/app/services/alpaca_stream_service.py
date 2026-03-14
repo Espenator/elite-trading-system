@@ -1,15 +1,16 @@
-"""Alpaca WebSocket streaming service with 24/7 market data coverage.
+"""Alpaca WebSocket streaming service with 24/5 market data coverage.
 
 Connects to Alpaca's StockDataStream for real-time bars and publishes
 each bar to the MessageBus topic 'market_data.bar'. Supports:
 - Regular hours (9:30-16:00 ET): live 1-min bars via WebSocket
 - Pre-market (4:00-9:30 ET): snapshot polling every 30s
 - After-hours (16:00-20:00 ET): snapshot polling every 30s
-- Overnight (20:00-4:00 ET): snapshot seeding on startup, then idle
+- Overnight (20:00-4:00 ET): snapshot polling every 60s (24/5 active)
+- Weekend: snapshot seeding on startup, then idle
 
 On startup, always fetches snapshots so the system has current prices
-regardless of market session. During off-hours, polls snapshots on a
-configurable interval so the UI always shows real (not mock) data.
+regardless of market session. During all active sessions (Sun 8 PM - Fri 8 PM),
+polls snapshots so the trading pipeline has fresh price data.
 
 When WebSocket fails (connection limit, library issues), falls back to
 snapshot polling that works regardless of market open/closed state.
@@ -46,7 +47,8 @@ class AlpacaStreamService:
 
     MAX_RECONNECT_DELAY = 60  # seconds
     INITIAL_RECONNECT_DELAY = 2  # seconds
-    SNAPSHOT_POLL_INTERVAL = 30  # seconds between snapshot polls off-hours
+    SNAPSHOT_POLL_INTERVAL = 30  # seconds between snapshot polls (pre/post market)
+    OVERNIGHT_POLL_INTERVAL = 60  # seconds between snapshot polls (overnight 24/5)
     SNAPSHOT_BATCH_SIZE = 50  # symbols per snapshot API call
     # When Alpaca returns "connection limit exceeded", fall back after this many failures
     CONNECTION_LIMIT_FALLBACK_AFTER = int(
@@ -74,7 +76,7 @@ class AlpacaStreamService:
         self._start_time: Optional[float] = None
         self._use_mock = False
         self._market_is_open = False
-        self._session = "unknown"  # "pre", "regular", "post", "closed"
+        self._session = "unknown"  # "pre", "regular", "post", "overnight", "weekend"
         self._snapshot_task: Optional[asyncio.Task] = None
         self._connection_limit_failures = 0
         self._ws_fallback_to_snapshots = False  # True when WS fails and we poll instead
@@ -221,26 +223,34 @@ class AlpacaStreamService:
                 )
 
     async def _check_clock(self) -> None:
-        """Query Alpaca /v2/clock and update session state."""
+        """Query Alpaca /v2/clock and update session state.
+
+        Uses SessionClock for 24/5 session awareness. Overnight is now
+        an active polling session (not idle) for 24/5 trading support.
+        """
         try:
             from app.services.alpaca_service import alpaca_service
+            from app.services.data_swarm.session_clock import get_session_clock, TradingSession
+
             clock = await alpaca_service.get_clock()
+            session_clock = get_session_clock()
+            current_session = session_clock.get_current_session()
+
             if clock:
                 self._market_is_open = clock.get("is_open", False)
-                # Determine session using proper US/Eastern timezone (handles DST)
-                hour_et = _get_et_hour()
-
-                if self._market_is_open:
-                    self._session = "regular"
-                elif _PRE_MARKET_OPEN <= hour_et < _REGULAR_OPEN:
-                    self._session = "pre"
-                elif _REGULAR_CLOSE <= hour_et < _POST_MARKET_CLOSE:
-                    self._session = "post"
-                else:
-                    self._session = "closed"
             else:
                 self._market_is_open = False
-                self._session = "unknown"
+
+            # Map TradingSession to legacy session string for status/logging
+            _session_map = {
+                TradingSession.REGULAR: "regular",
+                TradingSession.PRE_MARKET: "pre",
+                TradingSession.AFTER_HOURS: "post",
+                TradingSession.OVERNIGHT: "overnight",
+                TradingSession.WEEKEND: "weekend",
+            }
+            self._session = _session_map.get(current_session, "unknown")
+
         except Exception as exc:
             logger.warning("Clock check failed: %s", exc)
             self._market_is_open = False
@@ -354,8 +364,22 @@ class AlpacaStreamService:
             "daily_volume": int(daily_bar.get("v") or 0),
         }
 
+    def _get_poll_interval(self) -> int:
+        """Return session-appropriate snapshot polling interval.
+
+        Overnight uses a longer interval (60s) to conserve API rate limits
+        while still maintaining fresh data for 24/5 trading.
+        Weekend polls at the default rate (data is stale anyway).
+        """
+        if self._session == "overnight":
+            return self.OVERNIGHT_POLL_INTERVAL
+        return self.SNAPSHOT_POLL_INTERVAL
+
     async def _run_snapshot_poll_loop(self) -> None:
         """Poll snapshots on interval. Works in ALL market states.
+
+        24/5 aware: overnight is now an active polling session (60s interval)
+        instead of idle. Weekend is the only truly inactive state.
 
         When in WS fallback mode: polls continuously regardless of market state.
         When market is closed: polls until market opens, then exits so main loop
@@ -364,7 +388,8 @@ class AlpacaStreamService:
         while self._running:
             # Fetch snapshots FIRST, then sleep (ensures immediate data on entry)
             await self._fetch_and_publish_snapshots()
-            await asyncio.sleep(self.SNAPSHOT_POLL_INTERVAL)
+            poll_interval = self._get_poll_interval()
+            await asyncio.sleep(poll_interval)
 
             # Check if we should exit this loop
             await self._check_clock()
@@ -372,7 +397,10 @@ class AlpacaStreamService:
                 # Market opened and WS is available — exit to switch to WebSocket
                 logger.info("Market opened — exiting snapshot poll loop for WebSocket")
                 return
-            # Otherwise keep polling (WS fallback or market closed)
+            if self._session == "weekend" and not self._ws_fallback_to_snapshots:
+                # Weekend: no trading, no need to poll aggressively
+                logger.info("Weekend — reducing poll frequency")
+            # Otherwise keep polling (WS fallback or active 24/5 session)
 
     async def _connect_and_stream(self, api_key: str, secret_key: str) -> None:
         """Connect to Alpaca StockDataStream and subscribe to bars."""
