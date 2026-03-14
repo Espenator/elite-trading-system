@@ -1377,12 +1377,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         err_msg = str(e).lower()
         if ("already open" in err_msg or "file is already open" in err_msg or "being used by another process" in err_msg):
-            log.warning(
-                "DuckDB init skipped (file in use by another process). "
-                "Only one backend instance per data directory. Exiting to stop window loop."
-            )
-            # os._exit cannot be caught; ensures duplicate process dies immediately
-            os._exit(2)  # EXIT_DUPLICATE_INSTANCE — autorestart script will wait instead of quick-restart
+            # Retry once — DuckDB WAL recovery after a crash can cause a transient lock
+            log.warning("DuckDB file appears locked, retrying in 3s (may be WAL recovery)...")
+            await asyncio.sleep(3)
+            try:
+                await asyncio.to_thread(duckdb_store.init_schema)
+                health = await asyncio.to_thread(duckdb_store.health_check)
+                log.info(
+                    "DuckDB ready on retry: %d tables, %d rows",
+                    health.get("total_tables", 0),
+                    health.get("total_rows", 0),
+                )
+            except Exception:
+                log.warning(
+                    "DuckDB init failed after retry (file in use by another process). "
+                    "Only one backend instance per data directory. Exiting."
+                )
+                os._exit(2)  # EXIT_DUPLICATE_INSTANCE
         else:
             log.warning("DuckDB init skipped: %s", e)
 
