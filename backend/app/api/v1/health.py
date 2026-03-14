@@ -7,6 +7,7 @@ GET /api/v1/health/incidents -> Recent health incidents
 GET /api/v1/health/startup-check -> Full system startup health (7 phases) + failure patterns
 """
 
+import asyncio
 import logging
 import sys
 import time
@@ -35,7 +36,7 @@ async def _check_duckdb() -> Dict[str, Any]:
     """DuckDB connection status."""
     try:
         from app.data.duckdb_storage import duckdb_store
-        health = duckdb_store.health_check()
+        health = await asyncio.to_thread(duckdb_store.health_check)
         return {
             "status": "ok",
             "connected": True,
@@ -250,7 +251,7 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
     loop_checks = []
     try:
         from app.data.duckdb_storage import duckdb_store
-        h = duckdb_store.health_check()
+        h = await asyncio.to_thread(duckdb_store.health_check)
         loop_checks.append({"check": "Readiness (DuckDB)", "status": "ok" if h.get("total_tables", 0) > 0 else "warn", "detail": str(h)[:60]})
     except Exception as e:
         loop_checks.append({"check": "Readiness", "status": "fail", "detail": str(e)[:80]})

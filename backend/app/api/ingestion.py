@@ -55,8 +55,9 @@ async def run_backfill(req: BackfillRequest):
 async def ingestion_health():
     """Check DuckDB health and table row counts. Returns 503 when unhealthy for readiness probes."""
     try:
+        import asyncio
         from app.data.duckdb_storage import duckdb_store
-        return duckdb_store.health_check()
+        return await asyncio.to_thread(duckdb_store.health_check)
     except Exception as e:
         logger.error("ingestion_health failed: %s", e)
         raise HTTPException(status_code=503, detail="Ingestion/DuckDB unhealthy")

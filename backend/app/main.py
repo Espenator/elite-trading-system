@@ -1435,7 +1435,7 @@ async def lifespan(app: FastAPI):
     if _auto_backfill_enabled:
         try:
             from app.data.duckdb_storage import duckdb_store
-            _health = duckdb_store.health_check()
+            _health = await asyncio.to_thread(duckdb_store.health_check)
             _ohlcv_rows = 0
             _indicator_rows = 0
             for t in (_health.get("tables") or []):
@@ -1463,8 +1463,8 @@ async def lifespan(app: FastAPI):
                         ohlcv = report.get("ohlcv", {}).get("total_rows", 0)
                         indicators = report.get("indicators", 0)
                         log.info("Auto-backfill complete: %d OHLCV, %d indicators", ohlcv, indicators)
-                        # Verify DuckDB has data now — re-check health
-                        post_health = duckdb_store.health_check()
+                        # Verify DuckDB has data now — re-check health (threaded to avoid blocking event loop)
+                        post_health = await asyncio.to_thread(duckdb_store.health_check)
                         for t in (post_health.get("tables") or []):
                             if t.get("name") == "daily_ohlcv":
                                 log.info("Post-backfill daily_ohlcv: %d rows", t.get("rows", 0))
@@ -1989,7 +1989,7 @@ async def readiness():
     # DuckDB — critical for all data operations
     try:
         from app.data.duckdb_storage import duckdb_store
-        health = duckdb_store.health_check()
+        health = await asyncio.to_thread(duckdb_store.health_check)
         checks["duckdb"] = "ok" if health.get("total_tables", 0) > 0 else "degraded"
     except Exception:
         checks["duckdb"] = "unavailable"
@@ -2124,7 +2124,7 @@ async def health_check():
         duckdb_status = {}
         try:
             from app.data.duckdb_storage import duckdb_store
-            duckdb_status = duckdb_store.health_check()
+            duckdb_status = await asyncio.to_thread(duckdb_store.health_check)
         except Exception:
             duckdb_status = {"status": "unavailable"}
 
