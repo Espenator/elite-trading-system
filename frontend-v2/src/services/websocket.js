@@ -195,6 +195,14 @@ class AppWebSocket {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
+  /**
+   * Return the current connection state string.
+   * Possible values: "disconnected" | "connecting" | "connected" | "reconnecting"
+   */
+  getState() {
+    return this.state;
+  }
+
   // --- Kelly channel subscriptions ---
   subscribeKelly(callback) {
     return this.on("kelly", callback);

@@ -533,13 +533,15 @@ export default function SignalIntelligenceV3() {
       setChartError(false);
       try {
         const url =
-          getApiUrl("quotes") +
-          `/${selectedSymbol}?timeframe=${chartTimeframe}`;
+          `${getApiUrl("quotes").replace(/\/+$/, "")}/${selectedSymbol}?timeframe=${chartTimeframe}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Quote fetch failed");
         const json = await res.json();
         const bars = json.bars || json.data || json || [];
-        if (bars.length === 0) return;
+        if (bars.length === 0) {
+          setChartError(true);
+          return;
+        }
         const rawData = bars.map((b) => {
           const t = b.timestamp ?? b.t ?? b.time;
           const ts = t != null ? Math.floor(new Date(t).getTime() / 1000) : NaN;
@@ -570,7 +572,10 @@ export default function SignalIntelligenceV3() {
             data[data.length - 1] = d;
           }
         }
-        if (data.length === 0) return;
+        if (data.length === 0) {
+          setChartError(true);
+          return;
+        }
         const volData = data.map((d) => ({
           time: d.time,
           value: d.volume,
@@ -1180,7 +1185,7 @@ export default function SignalIntelligenceV3() {
               />
               {chartError && (
                 <div className="absolute inset-0 flex items-center justify-center bg-[#0B0E14]/80">
-                  <span className="font-mono text-[10px] text-gray-500">No chart data available</span>
+                  <span className="font-mono text-[10px] text-gray-500">No historical data available for {selectedSymbol}</span>
                 </div>
               )}
             </div>

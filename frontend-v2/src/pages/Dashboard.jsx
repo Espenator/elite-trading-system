@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl, getAuthHeaders } from "../config/api";
+import { getApiUrl, getAuthHeaders, extractApiError } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals, snapshots = {} }) => {
@@ -805,6 +806,9 @@ export default function Dashboard() {
   const [dirFilter, setDirFilter] = useState("ALL"); // "ALL", "LONG", "SHORT"
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showFlattenConfirm, setShowFlattenConfirm] = useState(false);
+  const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false);
 
   // --- WebSocket connection (Layout owns lifecycle, this is just a safety-net connect) ---
   useEffect(() => {
@@ -813,40 +817,81 @@ export default function Dashboard() {
     // Calling ws.disconnect() here kills the connection for all pages.
   }, []);
 
+  // --- SIGNALS FETCH (manual, with timeframe support) ---
+  // FIX #38: Manual fetch so timeframe changes trigger immediate re-fetch
+  //          using getApiUrl("signals") for correct base URL.
+  const [signalsData, setSignalsData] = useState(null);
+  const [sigLoading, setSigLoading] = useState(true);
+  const [sigErr, setSigErr] = useState(null);
+  const [sigStale, setSigStale] = useState(false);
+  const signalsAbortRef = useRef(null);
+
+  const fetchSignals = useCallback(async (signal) => {
+    const url = `${getApiUrl("signals")}?timeframe=${encodeURIComponent(activeTimeframe)}`;
+    try {
+      const res = await fetch(url, {
+        cache: "no-store",
+        headers: getAuthHeaders(),
+        signal,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const json = await res.json();
+      if (!signal?.aborted) {
+        setSignalsData(json);
+        setSigErr(null);
+        setSigStale(false);
+      }
+    } catch (err) {
+      if (signal?.aborted || err.name === "AbortError") return;
+      setSigErr(err);
+    } finally {
+      if (!signal?.aborted) setSigLoading(false);
+    }
+  }, [activeTimeframe]);
+
+  // Re-fetch immediately when timeframe changes
+  useEffect(() => {
+    if (signalsAbortRef.current) signalsAbortRef.current.abort();
+    const ctrl = new AbortController();
+    signalsAbortRef.current = ctrl;
+    setSigLoading(true);
+    fetchSignals(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchSignals]);
+
+  // Poll signals every 5s (HIGH: real-time trading signals)
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      fetchSignals(signalsAbortRef.current?.signal);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [fetchSignals]);
+
   // --- API HOOKS (Real-time polling) ---
-  // Intervals tuned to prevent request flooding (max ~2 req/s combined)
-  const {
-    data: signalsData,
-    loading: sigLoading,
-    error: sigErr,
-    isStale: sigStale,
-  } = useApi("signals", {
-    pollIntervalMs: 15000,
-    endpoint: `/signals/?timeframe=${encodeURIComponent(activeTimeframe)}`,
-  });
-  const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 });
-  const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 15000 });
+  const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 }); // LOW: position sizing
+  const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 5000 }); // HIGH: real-time portfolio
   const { data: indicesData, error: indicesErr } = useApi("marketIndices", {
-    pollIntervalMs: 15000,
+    pollIntervalMs: 5000,  // HIGH: real-time prices
   });
-  const { data: openclawData, error: openclawErr } = useApi("openclaw", { pollIntervalMs: 30000 });
+  const { data: openclawData, error: openclawErr } = useApi("openclaw", { pollIntervalMs: 30000 }); // LOW: regime data
   const { data: performanceData } = useApi("performance", {
-    pollIntervalMs: 60000,
+    pollIntervalMs: 60000,  // LOW: historical perf
   });
-  const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
-  const { data: consensusData } = useApi("agentConsensus", { pollIntervalMs: 20000 });
-  const { data: performanceEquityData } = useApi("performanceEquity", { pollIntervalMs: 30000 });
+  const { data: agentsData } = useApi("agents", { pollIntervalMs: 15000 }); // MEDIUM: agent status
+  const { data: consensusData } = useApi("agentConsensus", { pollIntervalMs: 15000 }); // MEDIUM: consensus
+  const { data: performanceEquityData } = useApi("performanceEquity", { pollIntervalMs: 60000 }); // LOW: equity curve
   const { data: riskScoreData } = useApi("riskScore", {
-    pollIntervalMs: 30000,
+    pollIntervalMs: 15000,  // MEDIUM: risk score
   });
   const { data: alertsData } = useApi("systemAlerts", {
-    pollIntervalMs: 30000,
+    pollIntervalMs: 15000,  // MEDIUM: alerts
   });
-  const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 60000 });
+  const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 60000 }); // LOW: flywheel
   const { data: sentimentData } = useApi("sentiment", {
-    pollIntervalMs: 30000,
+    pollIntervalMs: 30000,  // LOW: sentiment
   });
-  const { data: cognitiveData } = useApi("cognitiveDashboard", { pollIntervalMs: 30000 });
+  const { data: cognitiveData } = useApi("cognitiveDashboard", { pollIntervalMs: 60000 }); // LOW: cognitive
 
   // Right Panel specific APIs based on selectedSymbol
   const { data: techsData } = useApi("signals", {
@@ -866,7 +911,7 @@ export default function Dashboard() {
   });
   const { data: quotesData } = useApi("quotes", {
     endpoint: `/quotes/${selectedSymbol}/book`,
-    pollIntervalMs: 10000,
+    pollIntervalMs: 5000,  // HIGH: real-time order book for selected symbol
     enabled: !!selectedSymbol,
   });
 
@@ -988,8 +1033,9 @@ export default function Dashboard() {
       .catch((e) => {
         if (e.name !== "AbortError") log.warn("Ticker snapshot fetch failed:", e);
       });
-    // Refresh every 15s
+    // Refresh every 15s, pause when tab is hidden
     const interval = setInterval(() => {
+      if (document.hidden) return;
       fetch(url, { headers: getAuthHeaders() })
         .then((r) => r.json())
         .then((data) => {
@@ -1062,10 +1108,9 @@ export default function Dashboard() {
     try {
       const res = await fetch(getApiUrl("signals"), { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() } });
       if (!res.ok) {
-        const detail = await res.json().catch(() => ({}));
-        const msg = detail?.detail || detail?.message || `HTTP ${res.status}`;
+        const msg = await extractApiError(res);
         log.error("Scan failed:", msg);
-        toast?.error?.(`Scan failed: ${msg}`);
+        toast.error(`Scan failed: ${msg}`);
         return;
       }
       const data = await res.json().catch(() => ({}));
@@ -1105,42 +1150,69 @@ export default function Dashboard() {
       toast.warning(`Top 5: ${ok} placed, ${failed} failed`);
     }
   }, [processedSignals]);
-  const handleFlatten = useCallback(async () => {
-    if (!window.confirm("Flatten ALL positions? This cannot be undone.")) return;
+  const doFlatten = useCallback(async () => {
     try {
       const res = await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) { toast.error(`Flatten failed: HTTP ${res.status}`); return; }
+      if (!res.ok) { const msg = await extractApiError(res); toast.error(`Flatten failed: ${msg}`); return; }
       toast.success("All positions flattened");
     } catch (e) {
       log.error(e);
       toast.error(`Flatten error: ${e.message}`);
     }
   }, []);
-  const handleEmergencyStop = useCallback(async () => {
-    if (!window.confirm("EMERGENCY STOP: Cancel all orders and close all positions?")) return;
+  const handleFlatten = useCallback(() => setShowFlattenConfirm(true), []);
+  const doEmergencyStop = useCallback(async () => {
     try {
       const res = await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) { toast.error(`Emergency stop failed: HTTP ${res.status}`); return; }
+      if (!res.ok) { const msg = await extractApiError(res); toast.error(`Emergency stop failed: ${msg}`); return; }
       toast.success("Emergency stop executed");
     } catch (e) {
       log.error(e);
       toast.error(`Emergency stop error: ${e.message}`);
     }
   }, []);
+  const handleEmergencyStop = useCallback(() => setShowEmergencyConfirm(true), []);
 
+  // FIX #36: Export CSV with proper feedback, loading state, and error handling
   const handleExportCSV = useCallback(() => {
-    const data = processedSignals;
-    if (!data.length) { toast.warn("No signals to export"); return; }
-    const headers = ["symbol","direction","score","entry","target","stop","rMultiple","kellyPercent"];
-    const rows = data.map(s => headers.map(h => `"${s[h] ?? ""}"`).join(","));
-    const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const fname = `signals_export_${new Date().toISOString().slice(0, 10)}.csv`;
-    const a = document.createElement("a"); a.href = url; a.download = fname; a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`Exported ${data.length} signals`);
-  }, [processedSignals]);
+    try {
+      setIsExporting(true);
+      const data = displaySignals;
+      if (!data.length) { toast.warn("No signals to export"); setIsExporting(false); return; }
+      const headers = ["symbol","direction","score","regime","ml","sentiment","technical","entry","target","stop","rMultiple","kellyPercent","momentum","volSpike","pattern"];
+      const headerLabels = ["Symbol","Direction","Score","Regime","ML","Sentiment","Technical","Entry","Target","Stop","R-Multiple","Kelly %","Momentum","Vol Spike","Pattern"];
+      const getField = (sig, h) => {
+        switch (h) {
+          case "regime": return sig.scores?.regime ?? "";
+          case "ml": return sig.scores?.ml ?? "";
+          case "sentiment": return sig.scores?.sentiment ?? "";
+          case "technical": return sig.scores?.technical ?? "";
+          default: return sig[h] ?? "";
+        }
+      };
+      // CSV escape: wrap in quotes and escape internal quotes
+      const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
+      const rows = data.map(s => headers.map(h => esc(getField(s, h))).join(","));
+      const csv = [headerLabels.join(","), ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const fname = `signals_export_${activeTimeframe}_${new Date().toISOString().slice(0, 10)}.csv`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${data.length} signals to CSV`);
+    } catch (err) {
+      log.error("CSV export failed:", err);
+      toast.error(`CSV export failed: ${err.message || "unknown error"}`);
+    } finally {
+      // Brief loading state so user sees feedback
+      setTimeout(() => setIsExporting(false), 600);
+    }
+  }, [displaySignals, activeTimeframe]);
 
   const handleSpawnAgent = useCallback(() => {
     navigate("/agents");
@@ -1429,11 +1501,12 @@ export default function Dashboard() {
                 <button
                   key={tf}
                   onClick={() => setActiveTimeframe(tf)}
-                  className={`px-1.5 py-0.5 rounded-sm text-[8px] ${activeTimeframe === tf ? "bg-[#1e293b] text-white" : "hover:bg-[#1e293b]/50"}`}
+                  className={`px-1.5 py-0.5 rounded-sm text-[8px] transition-colors ${activeTimeframe === tf ? "bg-[#1e293b] text-white font-bold" : "hover:bg-[#1e293b]/50"}`}
                 >
                   {tf}
                 </button>
               ))}
+              {sigLoading && <span className="text-[7px] text-[#00D9FF] animate-pulse ml-1">loading...</span>}
             </div>
             <div className="flex items-center gap-3 text-[8px]">
               <button
@@ -1557,8 +1630,8 @@ export default function Dashboard() {
             <button onClick={handleRunScan} className="bg-[#1e293b] hover:bg-[#374151] text-white px-3 py-1 rounded text-[8px] font-mono border border-[#374151]">
               Run Scan [F5]
             </button>
-            <button onClick={handleExportCSV} className="bg-[#1e293b] hover:bg-[#374151] text-white px-3 py-1 rounded text-[8px] font-mono border border-[#374151]">
-              Export CSV [F7]
+            <button onClick={handleExportCSV} disabled={isExporting} className={`px-3 py-1 rounded text-[8px] font-mono border transition-colors ${isExporting ? "bg-[#00D9FF]/20 text-[#00D9FF] border-[#00D9FF]/50 cursor-wait" : "bg-[#1e293b] hover:bg-[#374151] text-white border-[#374151]"}`}>
+              {isExporting ? "Exporting..." : "Export CSV [F7]"}
             </button>
             <button onClick={handleExecTop5} className="bg-cyan-900/60 hover:bg-cyan-800 text-[#00D9FF] px-3 py-1 rounded text-[8px] font-mono border border-cyan-700/50">
               Exec Top 5
@@ -1903,6 +1976,26 @@ export default function Dashboard() {
         .ticker-glow { animation: ticker-glow 2s ease-in-out infinite; }
       `,
         }}
+      />
+
+      {/* Confirmation Dialogs */}
+      <ConfirmDialog
+        open={showFlattenConfirm}
+        onConfirm={() => { setShowFlattenConfirm(false); doFlatten(); }}
+        onCancel={() => setShowFlattenConfirm(false)}
+        title="Flatten All Positions"
+        description="This will close ALL open positions at market price. This cannot be undone. Are you sure?"
+        confirmText="Flatten All"
+        variant="warning"
+      />
+      <ConfirmDialog
+        open={showEmergencyConfirm}
+        onConfirm={() => { setShowEmergencyConfirm(false); doEmergencyStop(); }}
+        onCancel={() => setShowEmergencyConfirm(false)}
+        title="Emergency Stop"
+        description="This will halt all trading activity immediately, cancel all open orders, and close all positions. Are you sure?"
+        confirmText="Emergency Stop"
+        variant="danger"
       />
     </div>
   );
