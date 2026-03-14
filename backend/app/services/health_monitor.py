@@ -158,8 +158,8 @@ class HealthMonitor:
         comp = self.components["database_sqlite"]
         try:
             from app.services.database import db_service
-            # Quick read test
-            orders = db_service.get_recent_orders(limit=1)
+            # Quick read test — offload sync SQLite call to thread
+            orders = await asyncio.to_thread(db_service.get_recent_orders, limit=1)
             comp.mark_ok({"order_count_sample": len(orders) if orders else 0})
         except Exception as e:
             comp.mark_failed(str(e))

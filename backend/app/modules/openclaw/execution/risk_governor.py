@@ -426,17 +426,35 @@ class RiskGovernor:
             self.trade_count_reset_date = today
 
     def _maybe_sync_alpaca(self) -> None:
-        """Sync equity & positions from Alpaca every 60s."""
+        """Sync equity & positions from Alpaca every 60s.
+
+        Uses asyncio.run_coroutine_threadsafe when called from a sync context
+        while an event loop is running, or falls back to a direct httpx call.
+        """
         now = time.time()
         if now - self._last_alpaca_sync < 60:
             return
         self._last_alpaca_sync = now
         try:
-            from alpaca_client import get_account, get_positions
-            acct = get_account()
+            import asyncio
+            from app.services.alpaca_service import alpaca_service
+
+            async def _sync():
+                acct = await alpaca_service.get_account()
+                positions = await alpaca_service.get_positions()
+                return acct, positions
+
+            # Run async code from sync context
+            try:
+                loop = asyncio.get_running_loop()
+                future = asyncio.run_coroutine_threadsafe(_sync(), loop)
+                acct, positions = future.result(timeout=10)
+            except RuntimeError:
+                # No running loop — run directly
+                acct, positions = asyncio.run(_sync())
+
             if acct:
                 self.equity = float(acct.get("equity", self.equity))
-            positions = get_positions()
             if positions:
                 self.open_positions.clear()
                 for p in positions:

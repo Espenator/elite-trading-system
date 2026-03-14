@@ -103,13 +103,16 @@ class RegimePublisher:
         # Fallback: read from DuckDB if Bayesian engine hasn't been updated
         if regime == "UNKNOWN" or not beliefs:
             try:
-                from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store.get_thread_cursor()
-                row = await asyncio.to_thread(
-                    lambda: conn.execute(
-                        "SELECT regime FROM council_decisions ORDER BY rowid DESC LIMIT 1"
-                    ).fetchone()
-                )
+                def _fetch_regime():
+                    from app.data.duckdb_storage import duckdb_store
+                    cur = duckdb_store.get_thread_cursor()
+                    try:
+                        return cur.execute(
+                            "SELECT regime FROM council_decisions ORDER BY rowid DESC LIMIT 1"
+                        ).fetchone()
+                    finally:
+                        cur.close()
+                row = await asyncio.to_thread(_fetch_regime)
                 if row and row[0]:
                     regime = str(row[0])
                     source = "duckdb_last_decision"
