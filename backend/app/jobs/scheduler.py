@@ -1,11 +1,10 @@
 """APScheduler integration for flywheel jobs.
 
-Schedules:
-  - Daily 18:00 UTC: outcome update
-  - Weekly Sunday 20:00 UTC: walk-forward training
-  - Weekly Sunday 22:00 UTC: champion/challenger evaluation
-  - Daily 09:30 UTC (4:30 AM ET): incremental data backfill (D1)
-  - Daily 05:00 UTC (midnight ET): overnight FRED/SEC refresh (D5)
+24/7 Session-aware schedule (ET):
+  AFTERHOURS (4–8 PM ET): daily_outcome, weight learner batch
+  OVERNIGHT (8 PM–4 AM ET): drift check, regime forecast, model validation
+  PREMARKET (4–9:30 AM ET): news/EDGAR/congressional scan, morning briefing
+  WEEKEND: walk-forward, champion/challenger, weekly performance
 
 Only starts when SCHEDULER_ENABLED=true.
 
@@ -226,12 +225,12 @@ def start_scheduler() -> Optional[object]:
 
     _scheduler = AsyncIOScheduler(event_loop=event_loop)
 
-    # Daily at 18:00 UTC — outcome resolution
+    # AFTERHOURS: Daily at 4:30 PM ET — outcome resolution, weight learner batch
     _scheduler.add_job(
         _run_daily_outcome,
-        CronTrigger(hour=18, minute=0, timezone="UTC"),
+        CronTrigger(hour=16, minute=30, day_of_week="mon-fri", timezone="America/New_York"),
         id="daily_outcome_update",
-        name="Daily Outcome Update",
+        name="Daily Outcome Update (AFTERHOURS)",
         replace_existing=True,
     )
 
@@ -262,10 +261,10 @@ def start_scheduler() -> Optional[object]:
         replace_existing=True,
     )
 
-    # D5: Daily at 05:00 UTC (midnight ET) — overnight FRED/SEC refresh
+    # OVERNIGHT: Daily at 10:00 PM ET — FRED/SEC refresh, drift check
     _scheduler.add_job(
         _run_overnight_refresh,
-        CronTrigger(hour=5, minute=0, timezone="UTC", day_of_week="mon-fri"),
+        CronTrigger(hour=22, minute=0, day_of_week="mon-fri", timezone="America/New_York"),
         id="overnight_refresh",
         name="Overnight FRED/SEC Refresh",
         replace_existing=True,

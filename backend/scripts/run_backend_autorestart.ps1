@@ -34,9 +34,10 @@ if (-not (Test-Path $PythonExe)) {
 
 Set-Location $BackendDir
 $runCount = 0
-# Use /api/v1/health (always returns JSON) instead of /health (can return SPA HTML)
-$HealthUrl = "http://127.0.0.1:${Port}/api/v1/health"
-$HealthUrlFallback = "http://127.0.0.1:${Port}/health"
+# Use /healthz (lightweight liveness probe, <50ms) — avoids false restarts when
+# the heavy /health endpoint times out due to busy event loop (scouts, streams, etc.)
+$HealthUrl = "http://127.0.0.1:${Port}/healthz"
+$HealthUrlFallback = "http://127.0.0.1:${Port}/readyz"
 
 # Circuit breaker: track crash timestamps
 $crashTimes = [System.Collections.ArrayList]@()

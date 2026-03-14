@@ -808,7 +808,16 @@ async def _start_event_driven_pipeline():
     knowledge_ingest.set_message_bus(_message_bus)
     log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
 
-    # 18. OffHoursMonitor (gap detection, data freshness, session-aware quality)
+    # 18. SessionManager (session-aware state machine for 24/7)
+    try:
+        from app.services.session_manager import get_session_manager
+        _session_mgr = get_session_manager(message_bus=_message_bus)
+        await _session_mgr.start()
+        log.info("\u2705 SessionManager started (session=%s)", _session_mgr.get_current_session())
+    except Exception as e:
+        log.warning("SessionManager failed to start: %s", e)
+
+    # 18b. OffHoursMonitor (gap detection, data freshness, session-aware quality)
     try:
         from app.services.off_hours_monitor import get_off_hours_monitor
         _off_hours = get_off_hours_monitor(message_bus=_message_bus)

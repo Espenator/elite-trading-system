@@ -13,6 +13,6 @@
   "errors": [
     "bayesian_weights_update: 'BayesianAgentWeights' object has no attribute 'update'",
     "bayesian_save_load_duckdb: 'BayesianAgentWeights' object has no attribute 'update'",
-    "postmortem_insert_query: Constraint Error: Duplicate key \"id: audit-pm-1\" violates primary key constraint. If this is an unexpected constraint violation please double check with the known index limitations section in our documentation (https://duckdb.org/docs/sql/indexes)."
+    "postmortem_insert_query: IO Error: Cannot open file \"c:\\users\\espen\\dev\\elite-trading-system\\backend\\data\\analytics.duckdb\": The process cannot access the file because it is being used by another process.\r\n"
   ]
 }

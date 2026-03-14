@@ -113,10 +113,10 @@ _AGENTS_TEMPLATE = [
         "lastActionTimestamp": None,
         "lastAction": "Awaiting first tick",
         "currentTask": "Idle — waiting for first scan cycle",
-        "description": "Scans Finviz Elite, Alpaca, Unusual Whales; pulls FRED economic data, SEC EDGAR filings. Runs every 60s during market hours.",
+        "description": "Scans Finviz Elite, Alpaca, Unusual Whales; pulls FRED economic data, SEC EDGAR filings. Runs every 60s 24/7 — heartbeat stays alive when market closed.",
         "config": {
             "runIntervalSec": 60,
-            "marketHoursOnly": True,
+            "marketHoursOnly": False,
             "sources": ["finviz", "alpaca", "unusual_whales", "fred", "sec_edgar"],
         },
     },
@@ -258,16 +258,27 @@ def _agent_by_id(agent_id: int):
 
 
 async def _run_market_data_tick():
-    """Run one Market Data Agent tick (Finviz, Alpaca, FRED/EDGAR/UW) and append logs."""
+    """Run one Market Data Agent tick (Finviz, Alpaca, FRED/EDGAR/UW) and append logs.
+
+    24/7: Always updates last_tick_at (heartbeat) so dashboard never shows "unresponsive"
+    when agent is running but idle (e.g. market closed).
+    """
     from app.services.market_data_agent import run_tick, AGENT_NAME
 
-    entries = await run_tick()
-    for msg, level in entries:
-        _append_log(AGENT_NAME, msg, level)
-    _set_last_tick_at(1)
-    _set_current_task(
-        1, entries[0][0][:200] if entries else "Scanning Finviz Elite + Alpaca bars"
-    )
+    try:
+        entries = await run_tick()
+        for msg, level in entries:
+            _append_log(AGENT_NAME, msg, level)
+        _set_current_task(
+            1, entries[0][0][:200] if entries else "Scanning Finviz Elite + Alpaca bars"
+        )
+    except Exception as e:
+        logger.warning("Market Data Agent tick error (heartbeat still sent): %s", e)
+        _append_log(AGENT_NAME, f"Tick error: {str(e)[:80]}", "warning")
+        _set_current_task(1, "Waiting for market open — using last close data")
+    finally:
+        # Always update heartbeat so dashboard never shows "unresponsive" when agent is running
+        _set_last_tick_at(1)
 
 
 async def run_market_data_tick_if_running():

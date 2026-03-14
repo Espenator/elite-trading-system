@@ -254,6 +254,9 @@ const API_CONFIG = {
   },
 };
 
+/** Root-level endpoints (no /api/v1 prefix) — lightweight liveness probes. */
+const ROOT_ENDPOINTS = { healthz: "/healthz" };
+
 /**
  * Resolve an endpoint key to a full URL.
  * @param {string} endpoint - Key from API_CONFIG.endpoints
@@ -261,6 +264,9 @@ const API_CONFIG = {
  */
 export function getApiUrl(endpoint) {
   const ep = typeof endpoint === "string" ? endpoint.trim() : "";
+  if (ROOT_ENDPOINTS[ep]) {
+    return `${API_CONFIG.BASE_URL}${ROOT_ENDPOINTS[ep]}`;
+  }
   if (ep.startsWith("/api/v1")) {
     return `${API_CONFIG.BASE_URL}${ep}`;
   }

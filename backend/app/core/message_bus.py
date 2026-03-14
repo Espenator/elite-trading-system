@@ -134,6 +134,8 @@ class MessageBus:
         # ── D5: Pre-market / after-hours scanning ──
         "perception.premarket_gaps",
         "perception.afterhours_earnings",
+        # ── 24/7: Session state machine ──
+        "session.changed",
         # ── PLANNED (reserved for Phase B-E features) ──
         "model.updated",
         "risk.alert",
