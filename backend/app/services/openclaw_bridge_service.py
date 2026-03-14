@@ -636,6 +636,20 @@ class OpenClawBridgeService:
     async def get_regime(self) -> Dict:
         data = await self._get_data()
         if not data:
+            # Fallback: use persisted regime from DuckDB (24/7 — never UNKNOWN when we have history)
+            try:
+                from app.data.duckdb_storage import duckdb_store
+                import asyncio
+                last = await asyncio.to_thread(duckdb_store.get_last_regime)
+                if last:
+                    regime, updated_at, source = last[0], last[1], last[2]
+                    return {
+                        "state": regime,
+                        "details": {"updated_at": updated_at, "source": source or "persisted"},
+                        "readme": f"Last known regime (as of {updated_at or 'N/A'})",
+                    }
+            except Exception:
+                pass
             return {"state": "UNKNOWN", "details": None, "readme": None}
         regime = data.get("regime", {})
         macro = data.get("macro_context", {})

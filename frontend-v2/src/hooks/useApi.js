@@ -13,6 +13,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 
 const DEFAULT_TIMEOUT_MS = 15000;
+// healthz uses extended timeout — backend event loop can be busy (scouts, streams) causing 15–25s latency
+const HEALTHZ_TIMEOUT_MS = 25000;
 
 // Simple in-memory cache (stale-while-revalidate)
 const _apiCache = new Map();
@@ -69,13 +71,14 @@ function _combineSignals(sig1, sig2) {
 
 /**
  * @param {string} endpoint - Key from api.js endpoints (e.g. 'agents', 'dataSources')
- * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string }} options
+ * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string, timeoutMs?: number }} options
  */
 export function useApi(endpoint, options = {}) {
   const {
     pollIntervalMs = 0,
     enabled = true,
     endpoint: endpointOverride,
+    timeoutMs = null,
   } = options;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(enabled);
@@ -149,9 +152,10 @@ export function useApi(endpoint, options = {}) {
       await _acquireSlot();
       try {
         const MAX_RETRIES = 3;
+        const effectiveTimeout = timeoutMs ?? (endpoint === "healthz" ? HEALTHZ_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
           const timeoutCtrl = new AbortController();
-          const timeoutId = setTimeout(() => timeoutCtrl.abort(), DEFAULT_TIMEOUT_MS);
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), effectiveTimeout);
           const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
 
           try {

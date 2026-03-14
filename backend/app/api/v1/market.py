@@ -198,6 +198,23 @@ async def _fetch_one_ticker(ticker: str) -> Dict[str, Any]:
         return {"ticker": ticker, "quotes": quotes}
 
 
+@router.get("/session")
+async def get_session():
+    """Return current market session (PREMARKET, MARKET_OPEN, AFTERHOURS, OVERNIGHT, WEEKEND).
+    Used by 24/7 always-on services to decide what to run."""
+    try:
+        from app.services.session_manager import get_session_manager, get_current_session
+        mgr = get_session_manager()
+        return mgr.get_status()
+    except Exception:
+        from app.services.session_manager import get_current_session
+        return {
+            "session": get_current_session(),
+            "market_open": get_current_session() == "MARKET_OPEN",
+            "execution_enabled": get_current_session() == "MARKET_OPEN",
+        }
+
+
 @router.get("/indices")
 async def get_indices() -> Dict[str, Any]:
     """
