@@ -23,6 +23,8 @@ param(
     [switch]$NoEnableAutoExecute
 )
 
+$env:PYTHONUTF8 = "1"
+
 # Hardcode 24/7 defaults: port clearing, supervisor, no Electron, auto-execute enabled
 if (-not $NoCleanPorts) { $CleanPorts = $true }
 if (-not $NoSupervisor) { $Supervisor = $true }

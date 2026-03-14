@@ -17,6 +17,7 @@ param(
 )
 
 $ErrorActionPreference = "SilentlyContinue"
+$env:PYTHONUTF8 = "1"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Get-Location }
 $BackendDir  = Join-Path $Root "backend"

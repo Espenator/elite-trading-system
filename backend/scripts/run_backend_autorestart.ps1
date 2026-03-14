@@ -22,6 +22,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$env:PYTHONUTF8 = "1"
 $BackendDir = $PSScriptRoot | Split-Path -Parent
 if (-not (Test-Path (Join-Path $BackendDir "app\main.py"))) {
     $BackendDir = (Get-Location).Path
