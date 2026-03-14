@@ -168,12 +168,9 @@ class HealthMonitor:
         """Check DuckDB connectivity."""
         comp = self.components["database_duckdb"]
         try:
-            from app.data.duckdb_storage import analytics_db
-            if analytics_db:
-                result = analytics_db.query("SELECT 1 as test")
-                comp.mark_ok({"connected": True})
-            else:
-                comp.mark_failed("analytics_db not initialized")
+            from app.data.duckdb_storage import duckdb_store
+            health = await asyncio.to_thread(duckdb_store.health_check)
+            comp.mark_ok({"connected": True, "tables": health.get("total_tables", 0)})
         except Exception as e:
             comp.mark_failed(str(e))
 
@@ -248,7 +245,8 @@ class HealthMonitor:
         """Check MessageBus is operational."""
         comp = self.components["message_bus"]
         try:
-            from app.core.message_bus import bus
+            from app.core.message_bus import get_message_bus
+            bus = get_message_bus()
             if bus:
                 stats = {
                     "topic_count": len(bus._topics) if hasattr(bus, "_topics") else 0,
@@ -317,7 +315,8 @@ class HealthMonitor:
                 logger.warning("[AUTO-HEAL] Attempting MessageBus reconnect...")
                 comp.auto_heal_attempts += 1
                 try:
-                    from app.core.message_bus import bus
+                    from app.core.message_bus import get_message_bus
+                    bus = get_message_bus()
                     if hasattr(bus, "reconnect"):
                         await bus.reconnect()
                         logger.info("[AUTO-HEAL] MessageBus reconnected")
@@ -328,9 +327,9 @@ class HealthMonitor:
                 logger.warning("[AUTO-HEAL] Attempting DuckDB reconnect...")
                 comp.auto_heal_attempts += 1
                 try:
-                    from app.data.duckdb_storage import analytics_db
-                    if hasattr(analytics_db, "reconnect"):
-                        analytics_db.reconnect()
+                    from app.data.duckdb_storage import duckdb_store
+                    if hasattr(duckdb_store, "reconnect"):
+                        await asyncio.to_thread(duckdb_store.reconnect)
                         logger.info("[AUTO-HEAL] DuckDB reconnected")
                 except Exception as e:
                     logger.error("[AUTO-HEAL] DuckDB reconnect failed: %s", e)
