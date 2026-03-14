@@ -781,10 +781,11 @@ export default function Dashboard() {
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
 
-  // --- WebSocket connection (Layout handles this now, but keep as safety net) ---
+  // --- WebSocket connection (Layout owns lifecycle, this is just a safety-net connect) ---
   useEffect(() => {
     ws.connect();
-    return () => ws.disconnect();
+    // Do NOT disconnect on unmount — Layout owns the WS lifecycle.
+    // Calling ws.disconnect() here kills the connection for all pages.
   }, []);
 
   // --- API HOOKS (Real-time polling) ---
