@@ -107,7 +107,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
         width:        collapsed ? 64 : 256,
         transition:   "width 0.3s cubic-bezier(0.4,0,0.2,1)",
       }}
-      className="fixed left-0 top-0 h-screen flex flex-col z-50 overflow-hidden"
+      className="hidden md:flex fixed left-0 top-0 h-screen flex-col z-50 overflow-hidden"
     >
       {/* ── Logo Header ─────────────────────────────────────────────── */}
       <div
@@ -333,7 +333,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
               >
                 {agentCount !== "..." ? (
                   <>
-                    <span style={{ color: "#F9FAFB" }}>{agentCount}</span> Agents
+                    <span style={{ color: "#F9FAFB" }}>{agentCount}</span> {agentCount === 1 ? "Agent" : "Agents"}
                   </>
                 ) : (
                   "Loading…"

@@ -11,7 +11,7 @@
 # Press Ctrl+C once to stop.
 
 param(
-    [int]$Port = 8000,
+    [int]$Port = 8001,
     [int]$RestartDelaySeconds = 3,
     [int]$HealthCheckIntervalSeconds = 30,
     [int]$UnhealthyCountMax = 3,

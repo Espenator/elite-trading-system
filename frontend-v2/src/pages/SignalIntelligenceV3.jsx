@@ -200,10 +200,10 @@ const Panel = ({
   <div
     className={`bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded overflow-hidden flex flex-col ${className}`}
   >
-    <div className="px-2.5 py-1.5 border-b border-[rgba(42,52,68,0.5)] flex justify-between items-center bg-[#0B0E14] shrink-0">
-      <div className="flex items-center gap-1.5">
+    <div className="px-2.5 py-1.5 border-b border-[rgba(42,52,68,0.5)] flex justify-between items-center bg-[#0B0E14] shrink-0 min-w-0">
+      <div className="flex items-center gap-1.5 min-w-0">
         {Icon && <Icon className="w-3 h-3 text-[#00D9FF] shrink-0" />}
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono truncate" title={title}>
           {title}
         </h3>
       </div>
@@ -358,6 +358,7 @@ export default function SignalIntelligenceV3() {
 
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
+  const [chartError, setChartError] = useState(false);
 
   // --- WEBSOCKET CONNECTION (uses services/websocket.js singleton) ---
   useEffect(() => {
@@ -529,6 +530,7 @@ export default function SignalIntelligenceV3() {
     });
     // Fetch real OHLCV data from backend quotes API
     const fetchChart = async () => {
+      setChartError(false);
       try {
         const url =
           getApiUrl("quotes") +
@@ -640,6 +642,7 @@ export default function SignalIntelligenceV3() {
           "Chart data fetch (expected if no quotes endpoint):",
           err.message,
         );
+        setChartError(true);
       }
     };
     fetchChart();
@@ -1170,10 +1173,17 @@ export default function SignalIntelligenceV3() {
                 ))}
               </div>
             </div>
-            <div
-              ref={chartContainerRef}
-              className="w-full flex-1 min-h-[200px]"
-            />
+            <div className="relative w-full flex-1 min-h-[200px]">
+              <div
+                ref={chartContainerRef}
+                className="w-full h-full"
+              />
+              {chartError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0B0E14]/80">
+                  <span className="font-mono text-[10px] text-gray-500">No chart data available</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Signal Data Table */}
@@ -1438,7 +1448,7 @@ export default function SignalIntelligenceV3() {
                     key={model.id}
                     className="flex items-center gap-2 py-0.5 border-b border-[rgba(42,52,68,0.5)]/30 last:border-0"
                   >
-                    <span className="text-[8px] text-gray-300 shrink-0 truncate w-24">
+                    <span className="text-[8px] text-gray-300 shrink-0 truncate w-24" title={model.name}>
                       {model.name}
                     </span>
                     <span className="text-[7px] text-gray-500 font-mono shrink-0">

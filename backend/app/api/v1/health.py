@@ -318,7 +318,7 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
         from app.core.config import settings  # noqa: F401
         env_checks.append({"check": "Config loaded", "status": "ok", "detail": "pydantic settings"})
     except Exception as e:
-        env_checks.append({"check": "Config loaded", "status": "fail", "detail": str(e)[:100]})
+        env_checks.append({"check": "Config loaded", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     phases["1_environment"] = {"label": "Environment check", "ok": py_ok, "checks": env_checks}
     if not py_ok:
@@ -331,22 +331,22 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
         routes = [r for r in app.routes if hasattr(r, "path") and r.path]
         phases["3_router_verification"] = {"label": "Router verification", "ok": True, "checks": [{"check": "Routes registered", "status": "ok", "detail": f"{len(routes)} routes"}]}
     except Exception as e:
-        phases["3_router_verification"] = {"label": "Router verification", "ok": False, "checks": [{"check": "Routes", "status": "fail", "detail": str(e)[:100]}]}
+        phases["3_router_verification"] = {"label": "Router verification", "ok": False, "checks": [{"check": "Routes", "status": "fail", "detail": str(e)[:300]}]}
         overall_ok = False
 
     smoke_checks = []
     try:
         duck = await _check_duckdb()
-        smoke_checks.append({"check": "GET /api/v1/health (DuckDB)", "status": "ok" if duck.get("connected") else "warn", "detail": str(duck)[:60]})
+        smoke_checks.append({"check": "GET /api/v1/health (DuckDB)", "status": "ok" if duck.get("connected") else "warn", "detail": str(duck)[:200]})
     except Exception as e:
-        smoke_checks.append({"check": "GET /api/v1/health", "status": "fail", "detail": str(e)[:80]})
+        smoke_checks.append({"check": "GET /api/v1/health", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     try:
         from app.api.v1.status import system_status
         st = await system_status()
         smoke_checks.append({"check": "GET /api/v1/status", "status": "ok", "detail": f"healthy={st.get('healthy')}"})
     except Exception as e:
-        smoke_checks.append({"check": "GET /api/v1/status", "status": "fail", "detail": str(e)[:80]})
+        smoke_checks.append({"check": "GET /api/v1/status", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     phases["4_api_smoke"] = {"label": "API smoke tests", "ok": all(c.get("status") == "ok" for c in smoke_checks), "checks": smoke_checks}
     if not phases["4_api_smoke"]["ok"]:
@@ -360,8 +360,8 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
     has_eval = council.get("last_eval_timestamp") is not None or council.get("last_eval_iso") is not None
     wired_no_error = council.get("error") is None and isinstance(council, dict)
     council_ok = has_eval or wired_no_error
-    pipe_checks.append({"check": "MessageBus", "status": "ok" if mb_ok else "warn", "detail": str(mb)[:80]})
-    pipe_checks.append({"check": "Council (last eval)", "status": "ok" if council_ok else "warn", "detail": council.get("last_eval_iso") or str(council)[:60]})
+    pipe_checks.append({"check": "MessageBus", "status": "ok" if mb_ok else "warn", "detail": str(mb)[:200]})
+    pipe_checks.append({"check": "Council (last eval)", "status": "ok" if council_ok else "warn", "detail": council.get("last_eval_iso") or str(council)[:200]})
     phases["5_signal_pipeline"] = {"label": "Signal pipeline", "ok": mb_ok and council_ok, "checks": pipe_checks}
     if not phases["5_signal_pipeline"]["ok"]:
         overall_ok = False
@@ -372,16 +372,16 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
     try:
         from app.data.duckdb_storage import duckdb_store
         h = await asyncio.to_thread(duckdb_store.health_check)
-        loop_checks.append({"check": "Readiness (DuckDB)", "status": "ok" if h.get("total_tables", 0) > 0 else "warn", "detail": str(h)[:60]})
+        loop_checks.append({"check": "Readiness (DuckDB)", "status": "ok" if h.get("total_tables", 0) > 0 else "warn", "detail": str(h)[:200]})
     except Exception as e:
-        loop_checks.append({"check": "Readiness", "status": "fail", "detail": str(e)[:80]})
+        loop_checks.append({"check": "Readiness", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     try:
         from app.api.v1.status import system_status
         st = await system_status()
         loop_checks.append({"check": "Background / status", "status": "ok", "detail": f"activeAgents={st.get('activeAgents', '?')}"})
     except Exception as e:
-        loop_checks.append({"check": "Background status", "status": "warn", "detail": str(e)[:60]})
+        loop_checks.append({"check": "Background status", "status": "warn", "detail": str(e)[:300]})
     phases["7_background_loops"] = {"label": "Background loops", "ok": not any(c.get("status") == "fail" for c in loop_checks), "checks": loop_checks}
     if not phases["7_background_loops"]["ok"]:
         overall_ok = False

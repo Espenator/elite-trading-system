@@ -23,6 +23,34 @@ async function postHitlDecision(decisionId, action) {
   return res.json();
 }
 
+// ========== EMPTY STATE BANNER ==========
+function EmptyStateBanner({ icon: Icon, title, description, items = [] }) {
+  return (
+    <div className="bg-[#0f1219] border border-[#1e293b] rounded-lg p-6 mb-4">
+      <div className="flex items-start gap-4">
+        <div className="p-2 rounded-lg bg-[#164e63]/30 shrink-0">
+          <Icon className="w-5 h-5 text-[#06b6d4]" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-[#f8fafc] mb-1">{title}</h3>
+          <p className="text-[11px] text-[#94a3b8] mb-3 leading-relaxed">{description}</p>
+          {items.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-[#64748b] uppercase tracking-wider">To activate:</span>
+              {items.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px] text-[#94a3b8] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#06b6d4]/50 shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ========== BLACKBOARD & COMMS TAB ==========
 export function BlackboardCommsTab() {
   const { data: blackboardData } = useApi("cnsBlackboard", { pollIntervalMs: 15000 });
@@ -63,8 +91,23 @@ export function BlackboardCommsTab() {
     return () => { ws.unsubscribe("agents", handler); ws.unsubscribe("council", handler); };
   }, []);
 
+  const hasAnyData = messages.length > 0 || topics.length > 0 || hitlBuffer.length > 0;
+
   return (
-    <div className="grid grid-cols-12 gap-3">
+    <div>
+      {!hasAnyData && (
+        <EmptyStateBanner
+          icon={MessageCircle}
+          title="Blackboard & Comms"
+          description="Real-time inter-agent communication hub. Displays the message bus feed, blackboard topic subscriptions, and Human-in-the-Loop (HITL) approval queue for pending trade decisions."
+          items={[
+            "Ensure backend is running (python run_server.py) and WebSocket is connected",
+            "MessageBus must be active with topic subscriptions (15+ topics expected)",
+            "HITL buffer populates when Council generates trade signals requiring approval",
+          ]}
+        />
+      )}
+      <div className="grid grid-cols-12 gap-3">
       <div className="col-span-5 border border-[#1e293b] rounded-md p-3 bg-[#111827]">
         <h3 className={HEADER_CLASS}>Real-Time Message Feed</h3>
         <div className="space-y-0.5 max-h-[400px] overflow-y-auto scrollbar-thin font-mono">
@@ -157,6 +200,7 @@ export function BlackboardCommsTab() {
         </div>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -184,7 +228,23 @@ export function ConferenceConsensusTab() {
     if (w && typeof w === "object") return Object.entries(w).map(([name, weight]) => ({ name, weight: typeof weight === "number" ? weight : 0 }));
     return [];
   }, [weightsRaw]);
+
+  const hasAnyData = stages.length > 0 || recentConferences.length > 0 || weightsList.length > 0;
+
   return (
+    <div>
+      {!hasAnyData && (
+        <EmptyStateBanner
+          icon={Users}
+          title="Conference & Consensus"
+          description="Displays real-time agent debate logs, Council DAG pipeline stages, voting results, and Bayesian agent weight distributions. Conference sessions show how the 35-agent council reaches consensus on trade decisions."
+          items={[
+            "Council evaluation is triggered when a signal passes initial screening (threshold=80)",
+            "The council/status endpoint provides pipeline stage data",
+            "Bayesian weights update after each conference round via councilWeights endpoint",
+          ]}
+        />
+      )}
     <div className="grid grid-cols-12 gap-3">
       <div className={"col-span-8 " + CARD_CLASS}>
         <h3 className={HEADER_CLASS}>Council DAG Pipeline</h3>
@@ -261,6 +321,7 @@ export function ConferenceConsensusTab() {
         </div>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -273,7 +334,22 @@ export function MlOpsTab() {
   const trainingJobs = Array.isArray(training) ? training : (training?.jobs ?? []);
   const driftMetrics = Array.isArray(driftData) ? driftData : (driftData?.metrics ?? driftData?.drift ?? []);
 
+  const hasAnyData = modelList.length > 0 || trainingJobs.length > 0 || driftMetrics.length > 0;
+
   return (
+    <div>
+      {!hasAnyData && (
+        <EmptyStateBanner
+          icon={Cpu}
+          title="ML Ops"
+          description="Machine learning model lifecycle management. Shows deployed models, active training jobs with progress, and feature drift detection (PSI monitoring) that triggers automatic retraining."
+          items={[
+            "ML models register via the ml-brain/models endpoint when the ML Engine is active",
+            "Training pipeline populates when a retrain job is triggered (manual or PSI > 0.25)",
+            "Drift detection monitors feature distributions and flags when market regime shifts",
+          ]}
+        />
+      )}
     <div className="grid grid-cols-12 gap-3">
       <div className={"col-span-6 " + CARD_CLASS}>
         <h3 className={HEADER_CLASS}>Model Registry</h3>
@@ -342,6 +418,7 @@ export function MlOpsTab() {
         <div className="mt-3 text-[9px] text-[#64748b] font-mono">Auto-retrain: PSI &gt; 0.25</div>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -385,6 +462,18 @@ export function LogsTelemetryTab() {
 
   return (
     <div className="space-y-3">
+      {logEntries.length === 0 && (
+        <EmptyStateBanner
+          icon={Terminal}
+          title="Logs & Telemetry"
+          description="Centralized log viewer with level filtering (INFO/WARN/ERROR/DEBUG), full-text search, and system telemetry metrics. Streams logs from all backend services and agents in real time."
+          items={[
+            "Backend must be running and exposing the logs/system endpoint",
+            "System health telemetry comes from the system/health endpoint",
+            "Log entries appear as agents process signals, execute trades, and handle events",
+          ]}
+        />
+      )}
       <div className={CARD_CLASS}>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 bg-[#0f1219] border border-[#1e293b] rounded px-2 py-1 flex-1 max-w-xs">

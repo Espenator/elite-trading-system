@@ -86,8 +86,8 @@ export default function AgentCommandCenter() {
   }, [cnsAgentsHealthRaw, agents]);
 
   // Derived metrics
-  const onlineCount = agents.filter(a => a.status === "running").length;
-  const totalCount = agents.length || 42;
+  const onlineCount = agentsForHealth.filter(a => a.status === "running").length;
+  const totalCount = agentsForHealth.length || 42;
   const cpuAvg = agents.length > 0
     ? Math.round(agents.reduce((s, a) => s + (a.cpu_usage || 0), 0) / agents.length)
     : 47;
@@ -211,7 +211,7 @@ export default function AgentCommandCenter() {
             driftData={driftData}
           />
         )}
-        {activeTab === "registry" && <AgentRegistryTab agents={agents} />}
+        {activeTab === "registry" && <AgentRegistryTab agents={agentsForHealth} />}
         {activeTab === "spawn" && <SpawnScaleTab />}
         {activeTab === "wiring" && <LiveWiringTab />}
         {activeTab === "blackboard" && <BlackboardCommsTab />}

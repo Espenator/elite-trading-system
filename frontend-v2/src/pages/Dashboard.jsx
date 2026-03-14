@@ -9,8 +9,8 @@ import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
-const TickerStrip = ({ indices, signals }) => {
-  // indices is normalized in Dashboard to a symbol-keyed map: { SPX: { value, change }, ... }
+const TickerStrip = ({ indices, signals, snapshots = {} }) => {
+  // indices: symbol-keyed map from marketIndices API; snapshots: Alpaca snapshot data for signal symbols
   const tickers = useMemo(() => {
     const items = [];
     const indexMap = {
@@ -40,21 +40,28 @@ const TickerStrip = ({ indices, signals }) => {
         });
       }
     });
-    // Add top signals as tickers if not already present
+    // Add top signals as tickers — use Alpaca snapshot prices (signal entry is often 0)
     if (signals?.length) {
       signals.slice(0, 12).forEach((sig) => {
         if (!items.find((t) => t.symbol === sig.symbol)) {
+          const snap = snapshots[sig.symbol];
+          const snapPrice = snap
+            ? (snap.latestTrade?.p ?? snap.dailyBar?.c ?? snap.minuteBar?.c ?? null)
+            : null;
+          const snapChange = snap?.dailyBar?.c && snap?.prevDailyBar?.c
+            ? (((snap.dailyBar.c - snap.prevDailyBar.c) / snap.prevDailyBar.c) * 100)
+            : null;
           items.push({
             symbol: sig.symbol,
-            price: sig.entry ?? sig.price ?? null,
-            change: sig.momentum ?? sig.changePct ?? 0,
+            price: snapPrice ?? (sig.entry > 0 ? sig.entry : null) ?? sig.price ?? null,
+            change: snapChange ?? sig.momentum ?? sig.changePct ?? 0,
           });
         }
       });
     }
     // No fallback tickers — only show real API data
     return items;
-  }, [indices, signals]);
+  }, [indices, signals, snapshots]);
 
   return (
     <div className="bg-[#111827] border-b border-[rgba(42,52,68,0.5)] shrink-0 overflow-hidden">
@@ -385,6 +392,7 @@ const MiniEquityCurve = ({ points }) => {
         <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="w-full">
           <line x1={pad} y1={h / 2} x2={w - pad} y2={h / 2} stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 2" />
         </svg>
+        <div className="text-[7px] text-[#4b5563] text-center font-mono mt-1">No trading data yet — equity will plot as trades resolve</div>
       </div>
     );
   }
@@ -600,15 +608,15 @@ const FlywheelPipeline = ({ flywheel }) => {
         <div>
           <span className="text-[#94a3b8]">30d Acc</span>
           <br />
-          <span className="text-[#00D9FF] font-bold">
-            {acc30 ? `${(acc30 * 100).toFixed(1)}%` : "\u2014"}
+          <span className={`font-bold ${acc30 ? "text-[#00D9FF]" : "text-[#4b5563]"}`} title={acc30 ? `30-day accuracy: ${(acc30 * 100).toFixed(1)}%` : "Needs resolved signals to compute"}>
+            {acc30 ? `${(acc30 * 100).toFixed(1)}%` : "N/A"}
           </span>
         </div>
         <div>
           <span className="text-[#94a3b8]">90d Acc</span>
           <br />
-          <span className="text-[#00D9FF] font-bold">
-            {acc90 ? `${(acc90 * 100).toFixed(1)}%` : "\u2014"}
+          <span className={`font-bold ${acc90 ? "text-[#00D9FF]" : "text-[#4b5563]"}`} title={acc90 ? `90-day accuracy: ${(acc90 * 100).toFixed(1)}%` : "Needs 90 days of data to compute"}>
+            {acc90 ? `${(acc90 * 100).toFixed(1)}%` : "N/A"}
           </span>
         </div>
         <div>
@@ -773,11 +781,28 @@ const SORT_PILLS = [
 ];
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 
+const SortTh = ({ label, colKey, sortCol, sortDir, onSort }) => (
+  <th
+    className="px-1.5 py-1 font-semibold cursor-pointer select-none hover:text-[#00D9FF] transition-colors"
+    onClick={() => onSort(colKey)}
+    title={`Sort by ${label}`}
+  >
+    {label}
+    {sortCol === colKey && (
+      <span className="ml-0.5 text-[#00D9FF]">{sortDir === "asc" ? "\u25B2" : "\u25BC"}</span>
+    )}
+  </th>
+);
+
 export default function Dashboard() {
   const navigate = useNavigate();
   // --- STATE ---
   const [activeSortKey, setActiveSortKey] = useState("Composite Score");
   const [selectedSymbol, setSelectedSymbol] = useState("SPY"); // default so Price Action chart loads
+  const [sortCol, setSortCol] = useState("score"); // column key for table header sort
+  const [sortDir, setSortDir] = useState("desc"); // "asc" or "desc"
+  const [symbolFilter, setSymbolFilter] = useState("");
+  const [dirFilter, setDirFilter] = useState("ALL"); // "ALL", "LONG", "SHORT"
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
 
@@ -890,6 +915,90 @@ export default function Dashboard() {
     const sortFn = SORT_MAP[activeSortKey] || SORT_MAP["Composite Score"];
     return merged.sort(sortFn);
   }, [signalsData, kellyData, activeSortKey, SORT_MAP]);
+
+  const displaySignals = useMemo(() => {
+    let list = [...processedSignals];
+    // Apply symbol filter
+    if (symbolFilter.trim()) {
+      const q = symbolFilter.trim().toUpperCase();
+      list = list.filter((s) => s.symbol?.toUpperCase().includes(q));
+    }
+    // Apply direction filter
+    if (dirFilter !== "ALL") {
+      list = list.filter((s) => s.direction === dirFilter);
+    }
+    // Apply column sort
+    const getVal = (sig) => {
+      switch (sortCol) {
+        case "symbol": return sig.symbol || "";
+        case "direction": return sig.direction || "";
+        case "score": return sig.score || 0;
+        case "regime": return sig.scores?.regime || 0;
+        case "ml": return sig.scores?.ml || 0;
+        case "sentiment": return sig.scores?.sentiment || 0;
+        case "technical": return sig.scores?.technical || 0;
+        case "kelly": return sig.kellyPercent || 0;
+        case "entry": return Number(sig.entry) || 0;
+        case "target": return Number(sig.target) || 0;
+        case "stop": return Number(sig.stop) || 0;
+        case "rMultiple": return sig.rMultiple || 0;
+        case "momentum": return sig.momentum || 0;
+        case "volSpike": return sig.volSpike || 0;
+        default: return sig.score || 0;
+      }
+    };
+    list.sort((a, b) => {
+      const va = getVal(a);
+      const vb = getVal(b);
+      if (typeof va === "string") {
+        return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      return sortDir === "asc" ? va - vb : vb - va;
+    });
+    return list;
+  }, [processedSignals, symbolFilter, dirFilter, sortCol, sortDir]);
+
+  const handleColSort = useCallback((colKey) => {
+    setSortCol((prev) => {
+      if (prev === colKey) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return colKey;
+      }
+      setSortDir("desc");
+      return colKey;
+    });
+  }, []);
+
+  // --- FETCH ALPACA SNAPSHOTS FOR SIGNAL SYMBOLS (ticker strip prices) ---
+  const [tickerSnapshots, setTickerSnapshots] = useState({});
+  useEffect(() => {
+    if (!processedSignals.length) return;
+    const symbols = processedSignals
+      .slice(0, 12)
+      .map((s) => s.symbol)
+      .filter(Boolean);
+    if (!symbols.length) return;
+    const ctrl = new AbortController();
+    const url = getApiUrl(`/api/v1/alpaca/snapshots?symbols=${symbols.join(",")}`);
+    fetch(url, { signal: ctrl.signal, headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && typeof data === "object") setTickerSnapshots(data);
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") log.warn("Ticker snapshot fetch failed:", e);
+      });
+    // Refresh every 15s
+    const interval = setInterval(() => {
+      fetch(url, { headers: getAuthHeaders() })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data && typeof data === "object") setTickerSnapshots(data);
+        })
+        .catch(() => {});
+    }, 15000);
+    return () => { ctrl.abort(); clearInterval(interval); };
+  }, [processedSignals.map((s) => s.symbol).slice(0, 12).join(",")]);
 
   // Auto-select first symbol on load
   useEffect(() => {
@@ -1116,10 +1225,10 @@ export default function Dashboard() {
     } else if (Array.isArray(swarm?.agents) && swarm.agents.length > 0) {
       agentList = swarm.agents;
     } else if (Array.isArray(swarm?.nodes) && swarm.nodes.length > 0) {
-      // Swarm topology returns { nodes: [...] } — show running agents
-      agentList = swarm.nodes.filter(n => n.status === "running").map(n => ({
+      // Swarm topology returns { nodes: [...] } — show agents (any status)
+      agentList = swarm.nodes.map(n => ({
         name: n.name,
-        vote: "ACTIVE",
+        vote: n.status === "running" ? "ACTIVE" : "HOLD",
         confidence: n.win_pct ?? 50,
       }));
     }
@@ -1177,8 +1286,8 @@ export default function Dashboard() {
         </div>
       )}
       {/* TOP HEADER BAR */}
-      <header className="flex items-center justify-between px-4 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="flex items-center justify-between px-4 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-2 pr-4 border-r border-[rgba(42,52,68,0.5)]">
             <HexagonLogo />
             <h1 className="text-xs font-bold text-white tracking-widest">
@@ -1187,7 +1296,8 @@ export default function Dashboard() {
           </div>
           {/* Regime Badges */}
           <div
-            className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === "BEAR" ? "bg-red-500/20 text-red-400 border border-red-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
+            className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === "BEAR" ? "bg-red-500/20 text-red-400 border border-red-500/50" : (openclaw.regime === "UNKNOWN" || !openclaw.regime) ? "bg-slate-500/20 text-slate-400 border border-slate-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
+            title={(openclaw.regime === "UNKNOWN" || !openclaw.regime) ? "Regime unknown -- market closed or insufficient data" : `Market regime: ${openclaw.regime}`}
           >
             {openclaw.regime || "\u2014"}
           </div>
@@ -1197,80 +1307,82 @@ export default function Dashboard() {
               {openclaw.compositeScore != null && openclaw.compositeScore !== "" ? openclaw.compositeScore : "\u2014"}
             </div>
           </div>
-          {/* Risk Score Badge */}
+          {/* Risk Score Badge — 100=safest, 0=riskiest */}
           <div
-            className={`px-2 py-0.5 rounded font-bold ${(riskScore.score ?? riskScore.risk_score ?? 0) > 70 ? "bg-red-500/20 text-red-400 border border-red-500/50" : (riskScore.score ?? riskScore.risk_score ?? 0) > 40 ? "bg-amber-500/20 text-amber-400 border border-amber-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
+            className={`px-2 py-0.5 rounded font-bold ${(riskScore.score ?? riskScore.risk_score ?? 0) >= 70 ? "bg-green-500/20 text-green-400 border border-green-500/50" : (riskScore.score ?? riskScore.risk_score ?? 0) >= 40 ? "bg-amber-500/20 text-amber-400 border border-amber-500/50" : "bg-red-500/20 text-red-400 border border-red-500/50"}`}
+            title="Risk safety score: 100 = all clear (no drawdown, low exposure), 0 = maximum risk"
           >
             RISK {riskScore.score ?? riskScore.risk_score ?? "\u2014"}
           </div>
           {/* Sentiment Badge */}
           <div
-            className={`px-2 py-0.5 rounded font-bold ${(globalSentiment.score ?? 0) >= 60 ? "bg-green-500/20 text-green-400" : (globalSentiment.score ?? 0) >= 40 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}
+            className={`px-2 py-0.5 rounded font-bold ${globalSentiment.score == null && globalSentiment.value == null ? "bg-slate-500/20 text-slate-400" : (globalSentiment.score ?? 0) >= 60 ? "bg-green-500/20 text-green-400" : (globalSentiment.score ?? 0) >= 40 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}
+            title={globalSentiment.score == null && globalSentiment.value == null ? "No sentiment data -- sentiment providers not returning data" : `Global sentiment score: ${globalSentiment.score ?? globalSentiment.value}`}
           >
-            SENT {globalSentiment.score ?? globalSentiment.value ?? "\u2014"}
+            SENT {globalSentiment.score ?? globalSentiment.value ?? "N/A"}
           </div>
         </div>
         {/* KPIs */}
-        <div className="flex items-center gap-4 font-mono text-[10px]">
+        <div className="flex items-center gap-4 font-mono text-[10px] shrink-0 whitespace-nowrap">
           <div className="flex gap-3 text-[#94a3b8]">
-            <span>
+            <span title="S&P 500">
               SPX{" "}
               <span className="text-green-400">
                 +{indices.SPX?.change || "\u2014"}%
               </span>
             </span>
-            <span>
+            <span title="NASDAQ">
               NDAQ{" "}
               <span className="text-red-400">
                 {indices.NDAQ?.change || "\u2014"}%
               </span>
             </span>
-            <span>
+            <span title="Bitcoin">
               BTC{" "}
               <span className="text-green-400">
                 +{indices.BTC?.change || "\u2014"}%
               </span>
             </span>
           </div>
-          <div className="w-px h-4 bg-[#1e293b]"></div>
+          <div className="w-px h-4 bg-[#1e293b] shrink-0"></div>
           <div className="flex gap-4">
-            <span>
+            <span title="Total Equity">
               Equity{" "}
               <span className="text-white font-mono">
                 ${Number(portfolio.totalEquity ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </span>
-            <span>
+            <span title="Day Profit & Loss">
               P&L{" "}
               <span className={`font-mono ${Number(portfolio.dayPnL ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
                 {Number(portfolio.dayPnL ?? 0) >= 0 ? "+" : ""}${Number(portfolio.dayPnL ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </span>
-            <span>
+            <span title="Capital Deployed">
               Deployed{" "}
               <span className="text-[#00D9FF] font-mono">
                 {Number(portfolio.deployedPercent ?? 0).toFixed(1)}%
               </span>
             </span>
-            <span>
+            <span title="Sharpe Ratio">
               Sharpe{" "}
               <span className="text-[#00D9FF] font-mono">
                 {performance.sharpe != null && performance.sharpe !== "" ? Number(performance.sharpe) : "0"}
               </span>
             </span>
-            <span>
+            <span title="Alpha vs Benchmark">
               Alpha{" "}
               <span className="text-green-400 font-mono">
                 +{performance.alpha != null && performance.alpha !== "" ? Number(performance.alpha) : "0"}%
               </span>
             </span>
-            <span>
+            <span title="Win Rate">
               Win{" "}
               <span className="text-green-400 font-mono">
                 {performance.winRate != null && performance.winRate !== "" ? Number(performance.winRate) : "0"}%
               </span>
             </span>
-            <span>
+            <span title="Maximum Drawdown">
               MaxDD{" "}
               <span className="text-red-400 font-mono">
                 {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? Number(performance.maxDrawdown) : "0"}%
@@ -1281,7 +1393,7 @@ export default function Dashboard() {
       </header>
 
       {/* SCROLLING TICKER STRIP */}
-      <TickerStrip indices={indices} signals={processedSignals} />
+      <TickerStrip indices={indices} signals={processedSignals} snapshots={tickerSnapshots} />
 
       {/* Signal-error banner (non-blocking) */}
       {sigErr && (
@@ -1292,10 +1404,10 @@ export default function Dashboard() {
       )}
 
       {/* MAIN CONTENT AREA: Center Table + Right Panel */}
-      <main className="flex flex-1 overflow-hidden">
+      <main className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
         {/* CENTER COLUMN: Sort Pills + Table (dominant area) */}
-        <section className="flex flex-col flex-1 min-w-0 border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
+        <section className="flex flex-col flex-1 min-w-0 md:border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14] min-h-[300px] md:min-h-0">
           {/* Sort Pills Row */}
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 overflow-x-auto no-scrollbar">
             {SORT_PILLS.map((pill) => (
@@ -1338,36 +1450,58 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Symbol & Direction Filters */}
+          <div className="flex items-center gap-2 px-2 py-1 bg-[#0B0E14] border-b border-[rgba(42,52,68,0.5)] shrink-0">
+            <input
+              type="text"
+              value={symbolFilter}
+              onChange={(e) => setSymbolFilter(e.target.value)}
+              placeholder="Filter symbol\u2026"
+              className="bg-[#1e293b] text-white text-[10px] font-mono px-2 py-0.5 rounded border border-[rgba(42,52,68,0.5)] w-24 outline-none focus:border-[#00D9FF]/50"
+            />
+            {["ALL", "LONG", "SHORT"].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDirFilter(d)}
+                className={`text-[9px] font-mono px-2 py-0.5 rounded ${dirFilter === d ? "bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/40" : "text-[#64748b] hover:text-white border border-transparent"}`}
+              >
+                {d}
+              </button>
+            ))}
+            <span className="flex-1" />
+            <span className="text-[9px] font-mono text-[#64748b]">{displaySignals.length}/{processedSignals.length} signals</span>
+          </div>
+
           {/* MAIN SIGNALS TABLE */}
           <div className="flex-1 overflow-auto bg-[#0B0E14]">
-            <table className="w-full text-left font-mono whitespace-nowrap">
+            <table className="w-full min-w-[900px] text-left font-mono whitespace-nowrap">
               <thead className="sticky top-0 bg-[#111827] text-[10px] uppercase text-slate-500 border-b border-[rgba(42,52,68,0.5)] shadow-md z-10">
                 <tr>
-                  <th className="px-1.5 py-1 font-semibold">Sym</th>
-                  <th className="px-1.5 py-1 font-semibold">Dir</th>
-                  <th className="px-1.5 py-1 font-semibold">Score</th>
-                  <th className="px-1.5 py-1 font-semibold">Regime</th>
-                  <th className="px-1.5 py-1 font-semibold">ML</th>
-                  <th className="px-1.5 py-1 font-semibold">Sent</th>
-                  <th className="px-1.5 py-1 font-semibold">Tech</th>
+                  <SortTh label="Sym" colKey="symbol" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Dir" colKey="direction" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Score" colKey="score" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Regime" colKey="regime" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="ML" colKey="ml" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Sent" colKey="sentiment" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Tech" colKey="technical" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
                   <th className="px-1.5 py-1 font-semibold">Agent</th>
                   <th className="px-1.5 py-1 font-semibold">Swarm</th>
                   <th className="px-1.5 py-1 font-semibold">SHAP</th>
-                  <th className="px-1.5 py-1 font-semibold">Kelly</th>
-                  <th className="px-1.5 py-1 font-semibold">Entry</th>
-                  <th className="px-1.5 py-1 font-semibold">Tgt</th>
-                  <th className="px-1.5 py-1 font-semibold">Stop</th>
-                  <th className="px-1.5 py-1 font-semibold">R-Mult</th>
+                  <SortTh label="Kelly" colKey="kelly" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Entry" colKey="entry" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Tgt" colKey="target" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Stop" colKey="stop" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="R-Mult" colKey="rMultiple" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
                   <th className="px-1.5 py-1 font-semibold">P&L</th>
                   <th className="px-1.5 py-1 font-semibold">Sec</th>
-                  <th className="px-1.5 py-1 font-semibold">Mom</th>
-                  <th className="px-1.5 py-1 font-semibold">Vol</th>
+                  <SortTh label="Mom" colKey="momentum" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
+                  <SortTh label="Vol" colKey="volSpike" sortCol={sortCol} sortDir={sortDir} onSort={handleColSort} />
                   <th className="px-1.5 py-1 font-semibold">News</th>
                   <th className="px-1.5 py-1 font-semibold">Pat</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e293b]/50">
-                {processedSignals.map((sig, idx) => {
+                {displaySignals.map((sig, idx) => {
                   const isSelected = selectedSymbol === sig.symbol;
                   const isLong = sig.direction === "LONG";
                   const dirColor = isLong ? "text-green-400" : "text-red-400";
@@ -1387,9 +1521,15 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.regime || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.ml || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.sentiment || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] font-mono" title={sig.scores?.regime ? `Regime score: ${sig.scores.regime}` : "Regime detection not active — market may be closed or no regime model loaded"}>
+                        {sig.scores?.regime ? <span className="text-[#94a3b8]">{sig.scores.regime}</span> : <span className="text-[#475569] italic">N/A</span>}
+                      </td>
+                      <td className="px-1.5 py-1 text-[0.65rem] font-mono" title={sig.scores?.ml ? `ML probability: ${sig.scores.ml}%` : "ML model not trained yet — run training pipeline to enable"}>
+                        {sig.scores?.ml ? <span className="text-[#94a3b8]">{sig.scores.ml}%</span> : <span className="text-[#475569] italic">No model</span>}
+                      </td>
+                      <td className="px-1.5 py-1 text-[0.65rem] font-mono" title={sig.scores?.sentiment ? `Sentiment score: ${sig.scores.sentiment}` : "No sentiment data — sentiment providers not returning data"}>
+                        {sig.scores?.sentiment ? <span className="text-[#94a3b8]">{sig.scores.sentiment}</span> : <span className="text-[#475569] italic">No data</span>}
+                      </td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.technical || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[80px] font-mono">{sig.leadAgent || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.swarmVote || "\u2014"}</td>
@@ -1424,24 +1564,27 @@ export default function Dashboard() {
               Exec Top 5
             </button>
             <div className="flex-1" />
-            <span className="text-[8px] font-mono text-[#64748b]">{processedSignals.length} signals</span>
+            <span className="text-[8px] font-mono text-[#64748b]">{displaySignals.length} signals</span>
           </div>
 
           {/* Alerts Bar */}
           {Array.isArray(alerts) && alerts.length > 0 && (
-            <div className="bg-amber-900/30 border-t border-amber-500/50 px-3 py-1 shrink-0 overflow-x-auto no-scrollbar">
-              <div className="flex items-center gap-4 text-[8px] font-mono text-amber-400">
-                <span className="font-bold">ALERTS:</span>
-                {alerts.slice(0, 5).map((a, i) => (
-                  <span key={i} className="whitespace-nowrap">{a.message || a.msg || a}</span>
-                ))}
+            <div className="bg-amber-900/30 border-t border-amber-500/50 px-3 py-1 shrink-0">
+              <div className="flex items-center gap-4 text-[8px] font-mono text-amber-400 flex-wrap">
+                <span className="font-bold shrink-0">ALERTS:</span>
+                {alerts.slice(0, 5).map((a, i) => {
+                  const msg = a.message || a.msg || (typeof a === "string" ? a : JSON.stringify(a));
+                  return (
+                    <span key={i} className="break-words" title={msg}>{msg}</span>
+                  );
+                })}
               </div>
             </div>
           )}
         </section>
 
         {/* RIGHT COLUMN: Intelligence Panel (~32%) */}
-        <section className="flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar">
+        <section className="flex flex-col w-full md:w-[32%] max-h-[50vh] md:max-h-none bg-[#111827] overflow-y-auto custom-scrollbar border-t md:border-t-0 border-[rgba(42,52,68,0.5)]">
           {/* Swarm Consensus Bars (prominent at top per mockup) — GET /api/v1/agents/consensus */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">SWARM CONSENSUS</h3>
@@ -1454,8 +1597,9 @@ export default function Dashboard() {
               />
             ))}
             {(!swarmForConsensus.agents || swarmForConsensus.agents.length === 0) && (
-              <div className="text-[8px] text-[#64748b] font-mono py-2 text-center">
-                Awaiting swarm agent data...
+              <div className="text-[8px] text-[#64748b] font-mono py-2 text-center space-y-1">
+                <div>No agent consensus votes available</div>
+                <div className="text-[7px]">Council conference has not run yet, or agents are still initializing. Votes will appear after the first trading conference completes.</div>
               </div>
             )}
           </div>
@@ -1504,8 +1648,8 @@ export default function Dashboard() {
                 {[
                   { label: "Overall Score", val: `${selectedSignal.score || 0}/100`, pct: selectedSignal.score || 0 },
                   { label: "Technical Rank", val: `${selectedSignal.scores?.technical || "\u2014"}`, pct: selectedSignal.scores?.technical || 0 },
-                  { label: "ML Probability", val: `${selectedSignal.scores?.ml || "\u2014"}%`, pct: selectedSignal.scores?.ml || 0 },
-                  { label: "Sentiment Pulse", val: `${selectedSignal.scores?.sentiment || "\u2014"}`, pct: selectedSignal.scores?.sentiment || 0 },
+                  { label: "ML Probability", val: selectedSignal.scores?.ml ? `${selectedSignal.scores.ml}%` : "No model", pct: selectedSignal.scores?.ml || 0 },
+                  { label: "Sentiment Pulse", val: selectedSignal.scores?.sentiment ? `${selectedSignal.scores.sentiment}` : "No data", pct: selectedSignal.scores?.sentiment || 0 },
                   { label: "Swarm Consensus", val: `${swarmForConsensus.consensus ?? swarm.consensus ?? "\u2014"}%`, pct: swarmForConsensus.consensus ?? swarm.consensus ?? 0 },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
@@ -1519,22 +1663,29 @@ export default function Dashboard() {
               </div>
 
               {/* Technical Analysis Grid */}
-              <div className="grid grid-cols-2 gap-1 font-mono text-[8px] bg-[#0B0E14] rounded p-1.5 border border-[rgba(42,52,68,0.3)]">
-                <div><span className="text-[#64748b]">RSI:</span> <span className="text-green-400">{techs.rsi || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">MACD:</span> <span className="text-green-400">{techs.macd || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">BB:</span> <span className="text-white">{techs.bb || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">VWAP:</span> <span className="text-[#00D9FF]">{techs.vwap || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">20 EMA:</span> <span className="text-white">{techs.ema20 || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">50 SMA:</span> <span className="text-green-400">{techs.sma50 || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">ADX:</span> <span className="text-white">{techs.adx || "\u2014"}</span></div>
-                <div><span className="text-[#64748b]">Stoch:</span> <span className="text-green-400">{techs.stoch || "\u2014"}</span></div>
+              <div className="font-mono text-[8px] bg-[#0B0E14] rounded p-1.5 border border-[rgba(42,52,68,0.3)]">
+                {!techs.rsi && !techs.macd && !techs.vwap && !techs.adx && (
+                  <div className="text-[#64748b] text-center py-1 mb-1 border-b border-[rgba(42,52,68,0.3)]">
+                    No indicator data for {selectedSignal?.symbol} -- market closed or bars not yet ingested
+                  </div>
+                )}
+              <div className="grid grid-cols-2 gap-1">
+                <div><span className="text-[#64748b]">RSI:</span> <span className="text-green-400">{techs.rsi ? (typeof techs.rsi === "number" ? techs.rsi.toFixed(1) : techs.rsi) : "N/A"}</span></div>
+                <div><span className="text-[#64748b]">MACD:</span> <span className="text-green-400">{techs.macd ? (typeof techs.macd === "number" ? techs.macd.toFixed(2) : techs.macd) : "N/A"}</span></div>
+                <div><span className="text-[#64748b]">BB:</span> <span className="text-white">{techs.bb && techs.bb !== "0" ? techs.bb : "N/A"}</span></div>
+                <div><span className="text-[#64748b]">VWAP:</span> <span className="text-[#00D9FF]">{techs.vwap ? (typeof techs.vwap === "number" ? techs.vwap.toFixed(2) : techs.vwap) : "N/A"}</span></div>
+                <div><span className="text-[#64748b]">20 EMA:</span> <span className="text-white">{techs.ema20 && techs.ema20 !== "0" ? techs.ema20 : "N/A"}</span></div>
+                <div><span className="text-[#64748b]">50 SMA:</span> <span className="text-green-400">{techs.sma50 ? (typeof techs.sma50 === "number" ? techs.sma50.toFixed(2) : techs.sma50) : "N/A"}</span></div>
+                <div><span className="text-[#64748b]">ADX:</span> <span className="text-white">{techs.adx ? (typeof techs.adx === "number" ? techs.adx.toFixed(1) : techs.adx) : "N/A"}</span></div>
+                <div><span className="text-[#64748b]">Stoch:</span> <span className="text-green-400">{techs.stoch ? (typeof techs.stoch === "number" ? techs.stoch.toFixed(1) : techs.stoch) : "N/A"}</span></div>
+              </div>
               </div>
 
               {/* SHAP Drivers */}
               <div className="font-mono text-[8px]">
                 <div className="flex justify-between mb-1 text-[#64748b]">
-                  <span>ML Prob: <span className="text-green-400 font-bold">{selectedSignal.scores?.ml || "\u2014"}%</span></span>
-                  <span>Drift: <span className="text-green-400">{techs.driftScore || "\u2014"}</span></span>
+                  <span>ML Prob: {selectedSignal.scores?.ml ? <span className="text-green-400 font-bold">{selectedSignal.scores.ml}%</span> : <span className="text-[#475569] italic">No model</span>}</span>
+                  <span>Drift: {techs.driftScore ? <span className="text-green-400">{techs.driftScore}</span> : <span className="text-[#475569] italic">N/A</span>}</span>
                 </div>
                 <div className="space-y-0.5">
                   {(techs.shapFeatures || selectedSignal.shapFeatures || []).slice(0, 5).map((s) => {
@@ -1683,18 +1834,18 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[#64748b]">Diversity:</span>
-                    <span className="text-white">{diversity != null ? Number(diversity).toFixed(2) : "—"}</span>
+                    <span className={diversity != null ? "text-white" : "text-[#4b5563]"}>{diversity != null ? Number(diversity).toFixed(2) : "Awaiting data"}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[#64748b]">Agreement:</span>
-                    <span className="text-white">{agreement != null ? `${(Number(agreement) * 100).toFixed(0)}%` : "—"}</span>
+                    <span className={agreement != null ? "text-white" : "text-[#4b5563]"}>{agreement != null ? `${(Number(agreement) * 100).toFixed(0)}%` : "Awaiting data"}</span>
                   </div>
                   <div className="flex items-center gap-1.5 col-span-2">
                     <span className="text-[#64748b]">Memory Precision:</span>
                     <div className="flex-1 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
                       <div className="h-full bg-[#00D9FF] rounded-full transition-all" style={{ width: `${(memPrec ?? 0) * 100}%` }} />
                     </div>
-                    <span className="text-white w-8 text-right">{memPrec != null ? `${(Number(memPrec) * 100).toFixed(0)}%` : "—"}</span>
+                    <span className={`w-8 text-right ${memPrec != null ? "text-white" : "text-[#4b5563]"}`}>{memPrec != null ? `${(Number(memPrec) * 100).toFixed(0)}%` : "N/A"}</span>
                   </div>
                 </div>
               </div>

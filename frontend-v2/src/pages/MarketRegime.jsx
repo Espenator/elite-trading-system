@@ -112,11 +112,12 @@ function KpiCard({ label, value, unit, color, alert }) {
   return (
     <div
       className={clsx(
-        "bg-[#111827] rounded px-2 py-1.5 border",
+        "bg-[#111827] rounded px-2 py-1.5 border min-w-[80px]",
         alert ? "border-red-500/50 animate-pulse" : "border-gray-700/30",
       )}
+      title={label}
     >
-      <div className="text-[9px] text-gray-500 uppercase tracking-wider truncate">
+      <div className="text-[9px] text-gray-500 uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis">
         {label}
       </div>
       <div
@@ -1363,7 +1364,7 @@ export default function MarketRegime() {
 
       {/* ============ KPI STRIP ============ */}
       <div className="px-4 py-2 border-b border-gray-800/30 bg-[#0A0E17]">
-        <div className="grid grid-cols-10 gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <KpiCard
             label="VIX"
             value={
@@ -1472,18 +1473,52 @@ export default function MarketRegime() {
             alert={(macroData?.vix ?? 0) > 40}
           />
         </div>
-        {/* Risk Gauges & Bridge Health from hooks */}
-        {(riskGauges != null || bridgeHealth != null) && (
-          <div className="mt-2 pt-2 border-t border-gray-700/30 flex flex-wrap gap-2 text-[9px] text-gray-500">
-            {riskGauges != null && (
-              <span className="font-mono">
-                Gauges: {typeof riskGauges === "object" ? JSON.stringify(riskGauges).slice(0, 60) + "…" : String(riskGauges)}
-              </span>
-            )}
-            {bridgeHealth != null && (
-              <span className="font-mono">
-                Bridge: {typeof bridgeHealth === "object" ? (bridgeHealth.ok ? "OK" : "Degraded") : String(bridgeHealth)}
-              </span>
+        {/* Risk Gauges */}
+        {riskGauges?.gauges?.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-gray-700/30">
+            <div className="text-[9px] text-gray-500 uppercase tracking-wider font-mono mb-1.5">Risk Gauges</div>
+            <div className="flex flex-wrap gap-1.5">
+              {riskGauges.gauges.map((g) => {
+                const pct = g.max > 0 ? Math.min((g.value / g.max) * 100, 100) : 0;
+                const barColor = pct > 80 ? "bg-[#FF4444]" : pct > 50 ? "bg-amber-400" : "bg-[#00FF00]";
+                return (
+                  <div
+                    key={g.name}
+                    className="bg-[#111827] border border-gray-700/30 rounded px-2 py-1 min-w-[90px]"
+                    title={`${g.name}: ${g.value}${g.unit ? ` ${g.unit}` : ""} / ${g.max > 0 ? g.max.toFixed(0) : "—"}`}
+                  >
+                    <div className="text-[8px] text-gray-500 uppercase tracking-wider whitespace-nowrap">{g.name}</div>
+                    <div className="text-[11px] font-mono font-bold text-cyan-400">
+                      {typeof g.value === "number" ? g.value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : g.value}
+                      {g.unit && <span className="text-[8px] text-gray-500 ml-0.5">{g.unit}</span>}
+                    </div>
+                    <div className="mt-0.5 h-[3px] rounded-full bg-gray-800 overflow-hidden">
+                      <div className={clsx("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {/* Bridge Health Status */}
+        {bridgeHealth != null && (
+          <div className="mt-2 pt-2 border-t border-gray-700/30 flex items-center gap-2">
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider font-mono">Bridge</span>
+            {typeof bridgeHealth === "object" ? (
+              bridgeHealth.ok ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono text-[#00FF00] bg-[#00FF00]/10 border border-[#00FF00]/30 rounded px-2 py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00FF00] inline-block" />
+                  OK
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                  DEGRADED
+                </span>
+              )
+            ) : (
+              <span className="text-[10px] font-mono text-gray-400">{String(bridgeHealth)}</span>
             )}
           </div>
         )}

@@ -295,15 +295,16 @@ function AgentHealthMatrix({ agents }) {
       <div className="grid grid-cols-3 gap-4 mb-3">
         {["Scanner", "Intelligence", "Execution"].map(g => (
           <div key={g}>
-            <div className="text-[9px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-2 border-b border-[#00D9FF]/10 pb-1">{g}</div>
-            <div className="flex flex-wrap gap-1">
+            <div className="text-[10px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-2 border-b border-[#00D9FF]/10 pb-1">{g}</div>
+            <div className="flex flex-col gap-1.5">
               {AGENT_CATEGORIES.filter(c => c.group === g).map(cat => {
                 const h = resolveHealth(cat.name);
-                const dotClass = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const dotColor = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const statusLabel = h === "healthy" ? "Healthy" : h === "degraded" ? "Degraded" : h === "error" ? "Error" : "Stopped";
                 return (
-                  <div key={cat.name} className="flex items-center gap-1 cursor-pointer">
-                    <div className={`w-3 h-3 rounded-full ${dotClass} shadow-[0_0_4px_currentColor]`} />
-                    <span className="text-[8px] text-gray-500">{cat.name}</span>
+                  <div key={cat.name} className="flex items-center gap-1.5 cursor-pointer group" title={`${cat.name}: ${statusLabel}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full ${dotColor} shadow-[0_0_4px_currentColor] shrink-0`} />
+                    <span className="text-[10px] text-gray-400 group-hover:text-gray-200 truncate">{cat.name}</span>
                   </div>
                 );
               })}
@@ -315,14 +316,17 @@ function AgentHealthMatrix({ agents }) {
       <div className="grid grid-cols-4 gap-2 mb-3">
         {["Streaming", "Sentiment", "MLLearning", "Conference"].map(g => (
           <div key={g}>
-            <div className="text-[9px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-1 border-b border-[#00D9FF]/10 pb-0.5">{g}</div>
-            <div className="flex flex-wrap gap-1">
+            <div className="text-[10px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-1 border-b border-[#00D9FF]/10 pb-0.5">{g}</div>
+            <div className="flex flex-col gap-1.5">
               {AGENT_CATEGORIES.filter(c => c.group === g).map(cat => {
                 const h = resolveHealth(cat.name);
-                const dotClass = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const statusLabel = h === "healthy" ? "Healthy" : h === "degraded" ? "Degraded" : h === "error" ? "Error" : "Stopped";
+                const bg = h === "healthy" ? "#34d399" : h === "degraded" ? "#fbbf24" : h === "error" ? "#ef4444" : "#4b5563";
                 return (
-                  <div key={cat.name} className="w-2.5 h-2.5 rounded-full cursor-pointer" title={cat.name}
-                    style={{ background: dotClass.includes("emerald") ? "#34d399" : dotClass.includes("amber") ? "#fbbf24" : dotClass.includes("red") ? "#ef4444" : "#4b5563" }} />
+                  <div key={cat.name} className="flex items-center gap-1.5 cursor-pointer group" title={`${cat.name}: ${statusLabel}`}>
+                    <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ background: bg }} />
+                    <span className="text-[10px] text-gray-400 group-hover:text-gray-200 truncate">{cat.name}</span>
+                  </div>
                 );
               })}
             </div>
@@ -952,9 +956,9 @@ function DriftMonitorPanel({ driftData = [] }) {
       <div className="space-y-1">
         {displayData.map((m, i) => (
           <div key={i} className="flex items-center justify-between text-[10px] font-mono">
-            <span className="text-[#94a3b8]">{m.name}</span>
+            <span className="text-[#94a3b8] shrink-0">{m.name}:</span>
             {m.val != null ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-2">
                 <span className={m.status === "high" ? "text-[#ef4444]" : m.status === "mid" ? "text-[#f59e0b]" : "text-[#10b981]"}>{typeof m.val === "number" ? m.val.toFixed(2) : m.val}</span>
                 <div className="w-20 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, m.val * 400)}%`, backgroundColor: barColor(m) }} />

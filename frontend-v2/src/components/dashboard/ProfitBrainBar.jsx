@@ -74,17 +74,17 @@ export default function ProfitBrainBar() {
 
       {/* Status indicators */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1">
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${calibrated ? "bg-green-500/10" : "bg-amber-500/10"}`}>
           <div className={`w-1.5 h-1.5 rounded-full ${calibrated ? "bg-green-400" : "bg-amber-400 animate-pulse"}`} />
-          <span className="text-gray-400">{calibrated ? "Kelly Calibrated" : "Learning..."}</span>
+          <span className={calibrated ? "text-green-400" : "text-amber-400"}>{calibrated ? "Kelly Calibrated" : "Learning..."}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${mlLoaded ? "bg-green-500/10" : "bg-gray-700/40"}`}>
           <div className={`w-1.5 h-1.5 rounded-full ${mlLoaded ? "bg-green-400" : "bg-gray-500"}`} />
-          <span className="text-gray-400">{mlLoaded ? "ML Active" : "ML Off"}</span>
+          <span className={mlLoaded ? "text-green-400" : "text-gray-500"}>{mlLoaded ? "ML Active" : "ML Off"}</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className={`w-1.5 h-1.5 rounded-full ${sensory >= 3 ? "bg-green-400" : "bg-amber-400"}`} />
-          <span className="text-gray-400">{sensory}/4 Sensors</span>
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${sensory >= 3 ? "bg-green-500/10" : sensory > 0 ? "bg-amber-500/10" : "bg-gray-700/40"}`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${sensory >= 3 ? "bg-green-400" : sensory > 0 ? "bg-amber-400" : "bg-gray-500"}`} />
+          <span className={sensory >= 3 ? "text-green-400" : sensory > 0 ? "text-amber-400" : "text-gray-500"}>{sensory}/4 Sensors</span>
         </div>
       </div>
     </div>

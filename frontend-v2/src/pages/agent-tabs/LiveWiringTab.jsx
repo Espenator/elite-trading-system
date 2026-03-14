@@ -68,8 +68,8 @@ function WsChannels({ channels = [] }) {
         {channels.length === 0 ? (
           <div className="text-[9px] text-[#64748b] font-mono">No channels</div>
         ) : (
-          channels.map(ch => (
-            <div key={ch.name} className="flex items-center gap-2 text-[9px]">
+          channels.map((ch, idx) => (
+            <div key={ch.name ?? ch.channel ?? ch.id ?? idx} className="flex items-center gap-2 text-[9px]">
               <StatusDot status={ch.status} />
               <span className="text-[#06b6d4] font-mono flex-1">{ch.name}</span>
               {ch.msgs != null && <span className="text-[#64748b] font-mono">{ch.msgs} msg/s</span>}
@@ -89,8 +89,8 @@ function ApiRouteStatus({ routes = [] }) {
         {routes.length === 0 ? (
           <div className="text-[9px] text-[#64748b] font-mono">No route data</div>
         ) : (
-          routes.map(r => (
-            <div key={r.path} className="flex items-center gap-2 text-[9px]">
+          routes.map((r, idx) => (
+            <div key={r.path ?? r.route ?? idx} className="flex items-center gap-2 text-[9px]">
               <StatusDot status={r.status} />
               <span className="text-[#94a3b8] font-mono flex-1 truncate">{r.path}</span>
               <span className="text-[#f8fafc] font-mono">{r.latency ?? "—"}</span>

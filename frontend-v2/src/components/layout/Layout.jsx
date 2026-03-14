@@ -8,6 +8,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import NotificationCenter from './NotificationCenter';
 import StatusFooter from './StatusFooter';
+import KeyboardShortcuts from '../ui/KeyboardShortcuts';
 import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import { useApi } from '../../hooks/useApi';
 import ws from '../../services/websocket';
@@ -59,7 +60,7 @@ function LayoutInner() {
       <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleSidebar} />
 
       {/* Main content area */}
-      <div className={`flex-1 flex flex-col overflow-hidden bg-dark min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+      <div className={`flex-1 flex flex-col overflow-hidden bg-dark min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
         {/* Header bar with CNS status */}
         <Header wsConnected={wsConnected} />
 
@@ -79,6 +80,8 @@ function LayoutInner() {
 
       {/* Global notification overlay */}
       <NotificationCenter />
+      {/* Keyboard shortcuts help (press ?) */}
+      <KeyboardShortcuts />
     </div>
   );
 }
