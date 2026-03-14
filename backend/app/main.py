@@ -1540,6 +1540,26 @@ async def lifespan(app: FastAPI):
             "Event-driven pipeline failed to start -- falling back to polling only"
         )
 
+    # 3a-issue76. Cancel stale unfilled orders older than 24h (Issue #76)
+    try:
+        from app.services.stale_order_cleanup import cancel_stale_orders
+
+        async def _cleanup_stale_orders():
+            await asyncio.sleep(10)  # Let Alpaca service initialize first
+            try:
+                result = await cancel_stale_orders()
+                if result.get("cancelled"):
+                    log.info(
+                        "Issue #76: Cancelled %d stale orders on startup",
+                        len(result["cancelled"]),
+                    )
+            except Exception as e:
+                log.debug("Stale order cleanup failed: %s", e)
+
+        asyncio.create_task(_cleanup_stale_orders())
+    except Exception as e:
+        log.debug("Stale order cleanup module not available: %s", e)
+
     # 3b. Flywheel scheduler (optional)
     try:
         from app.jobs.scheduler import start_scheduler
@@ -1766,6 +1786,40 @@ async def lifespan(app: FastAPI):
         log.info("✅ HealthMonitor started (auto-debug + self-healing)")
     except Exception as e:
         log.warning("HealthMonitor failed to start: %s", e)
+
+    # ── Issue #77: Agent Auto-Start Sequence ──
+    # If ALL 5 core agents are paused (from a previous "Kill All"), auto-restart them.
+    # Controlled by AGENT_AUTO_RESTART env var (default: true).
+    _agent_auto_restart = os.getenv("AGENT_AUTO_RESTART", "true").lower() in ("1", "true", "yes")
+    if _agent_auto_restart:
+        try:
+            from app.api.v1.agents import _get_agent_status, _set_agent_status, _append_log, _AGENTS_TEMPLATE
+            statuses = _get_agent_status()
+            core_ids = [str(a["id"]) for a in _AGENTS_TEMPLATE]  # ["1", "2", "3", "4", "5"]
+            core_statuses = [statuses.get(aid, "running") for aid in core_ids]
+
+            all_paused = all(s == "paused" for s in core_statuses)
+            if all_paused and core_statuses:
+                restarted = []
+                for agent in _AGENTS_TEMPLATE:
+                    _set_agent_status(agent["id"], "running")
+                    _append_log(agent["name"], "Auto-restarted on boot (was paused by Kill All)", "success")
+                    restarted.append(agent["name"])
+                log.info(
+                    "Agent auto-start: restarted %d core agents that were paused by Kill All: %s",
+                    len(restarted), ", ".join(restarted),
+                )
+            elif any(s == "paused" for s in core_statuses):
+                log.info(
+                    "Agent auto-start: some agents paused but not all — respecting individual states (%s)",
+                    dict(zip(core_ids, core_statuses)),
+                )
+            else:
+                log.info("Agent auto-start: agents already running — no action needed")
+        except Exception as e:
+            log.warning("Agent auto-start check failed (non-fatal): %s", e)
+    else:
+        log.info("Agent auto-start disabled (AGENT_AUTO_RESTART=false)")
 
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)

@@ -43,6 +43,8 @@ async def homeostasis_vitals():
             "directive_regime": h.get_directive_regime(),
             "vitals": vitals,
             "last_check": h._last_check,
+            "agent_tick_health": h.get_agent_tick_health(),
+            "high_water_mark": h._high_water_mark,
         }
     except Exception as e:
         logger.error("Homeostasis vitals failed: %s", e)
@@ -52,6 +54,8 @@ async def homeostasis_vitals():
             "directive_regime": "unknown",
             "vitals": {},
             "last_check": 0,
+            "agent_tick_health": {},
+            "high_water_mark": 0.0,
         }
 
 

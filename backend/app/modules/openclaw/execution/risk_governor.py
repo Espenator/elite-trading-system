@@ -134,7 +134,7 @@ class RiskGovernor:
         self.daily_trade_count = 0
         self.daily_pnl = 0.0
         self.trade_count_reset_date = datetime.now(ET).date()
-        self.equity = 100_000.0  # updated from Alpaca on each call
+        self.equity = 100_000.0  # default — updated from Alpaca on each call via _maybe_sync_alpaca
         self.open_positions: dict = {}   # ticker -> {value, sector, entry_time}
         self.recent_pnl_window: list = []  # (timestamp, pnl_delta) for velocity
         self.rejection_log: list = []
