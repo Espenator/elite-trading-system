@@ -153,6 +153,7 @@ class MessageBus:
         "perception.world_intel",
         "perception.regime.openclaw",
         "perception.regime.hmm",
+        "regime.current",
         "perception.macro.openclaw",
         "signal.openclaw.composite",
         "signal.openclaw.ensemble",
