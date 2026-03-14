@@ -13,6 +13,6 @@
   "errors": [
     "bayesian_weights_update: 'BayesianAgentWeights' object has no attribute 'update'",
     "bayesian_save_load_duckdb: 'BayesianAgentWeights' object has no attribute 'update'",
-    "postmortem_insert_query: IO Error: File is already open in \nC:\\Python313\\python.exe (PID 51016)"
+    "postmortem_insert_query: IO Error: File is already open in \nC:\\Python313\\python.exe (PID 44572)"
   ]
 }

@@ -440,7 +440,7 @@ class LLMHealthMonitor:
         }
         try:
             from app.websocket_manager import broadcast_ws
-            asyncio.get_event_loop().create_task(
+            asyncio.get_running_loop().create_task(
                 broadcast_ws("llm_health", payload)
             )
         except RuntimeError:

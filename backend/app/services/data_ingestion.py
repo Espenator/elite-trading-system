@@ -187,6 +187,9 @@ class DataIngestionService:
                 for s in batch:
                     results.setdefault(s, 0)
 
+            # Yield to event loop between batches so HTTP endpoints stay responsive
+            await asyncio.sleep(0.1)
+
         if all_rows:
             df = pd.DataFrame(all_rows)
             df["date"] = pd.to_datetime(df["date"]).dt.date
@@ -612,32 +615,121 @@ class DataIngestionService:
     # ------------------------------------------------------------------
 
     async def run_startup_backfill(self, days: int = 252) -> Dict[str, Any]:
-        """Run full 252-day backfill on startup for all tracked symbols.
+        """Smart gap-only backfill on startup for tracked symbols.
 
-        Called from main.py lifespan. Runs in background so API server
-        is responsive immediately.
+        Only backfills the GAP (days since last data per symbol), not a
+        full 252-day window.  Limits to tracked symbols (typically 10-30)
+        rather than the full screener universe.  Runs the heavy HTTP /
+        DuckDB work in a background thread so the async event loop stays
+        free for HTTP requests.
         """
-        logger.info("=== STARTUP BACKFILL: fetching %d days of history ===", days)
+        logger.info("=== STARTUP BACKFILL (smart gap-only) ===")
         start = datetime.now(timezone.utc)
 
-        # Get tracked symbols
-        symbols = self._get_tracked_symbols()
+        symbols = self._get_startup_symbols()
         if not symbols:
             logger.warning("No tracked symbols found — skipping startup backfill")
             return {"skipped": True, "reason": "no_symbols"}
 
-        logger.info("Backfilling %d symbols...", len(symbols))
+        latest_dates = await asyncio.to_thread(self._get_latest_dates, symbols)
 
-        report = await self.ingest_all(symbols, days=days)
-        elapsed = (datetime.now(timezone.utc) - start).total_seconds()
-        report["elapsed_seconds"] = round(elapsed, 1)
-        report["symbol_count"] = len(symbols)
+        today = date.today()
+        gap_symbols: Dict[str, int] = {}
+        up_to_date: List[str] = []
+
+        for sym in symbols:
+            last_date = latest_dates.get(sym)
+            if last_date is None:
+                gap_symbols[sym] = min(days, 252)
+            else:
+                gap_days = (today - last_date).days
+                if gap_days <= 1:
+                    up_to_date.append(sym)
+                else:
+                    gap_symbols[sym] = min(gap_days + 2, days)
+
+        if up_to_date:
+            logger.info(
+                "Backfill: %d symbols already up-to-date, skipping: %s",
+                len(up_to_date), ", ".join(up_to_date[:10]),
+            )
+
+        if not gap_symbols:
+            logger.info("=== STARTUP BACKFILL: all %d symbols up-to-date ===", len(symbols))
+            return {
+                "skipped_count": len(up_to_date),
+                "backfilled_count": 0,
+                "symbol_count": len(symbols),
+                "elapsed_seconds": 0.0,
+            }
+
+        max_gap = max(gap_symbols.values())
+        symbols_to_fetch = list(gap_symbols.keys())
 
         logger.info(
-            "=== STARTUP BACKFILL COMPLETE: %d symbols, %.1fs ===",
-            len(symbols), elapsed,
+            "Backfilling %d symbols (max gap=%d days, skipping %d up-to-date)...",
+            len(symbols_to_fetch), max_gap, len(up_to_date),
+        )
+
+        report = await self.ingest_all(symbols_to_fetch, days=max_gap)
+        elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+        report["elapsed_seconds"] = round(elapsed, 1)
+        report["symbol_count"] = len(symbols_to_fetch)
+        report["skipped_count"] = len(up_to_date)
+        report["max_gap_days"] = max_gap
+
+        logger.info(
+            "=== STARTUP BACKFILL COMPLETE: %d symbols, gap=%dd, %.1fs ===",
+            len(symbols_to_fetch), max_gap, elapsed,
         )
         return report
+
+    def _get_latest_dates(self, symbols: List[str]) -> Dict[str, date]:
+        """Query DuckDB for the latest OHLCV date per symbol (sync, run in thread)."""
+        try:
+            conn = self.store._get_conn()
+            placeholders = ",".join(["?" for _ in symbols])
+            rows = conn.execute(
+                f"SELECT symbol, MAX(date) as latest_date "
+                f"FROM daily_ohlcv WHERE symbol IN ({placeholders}) "
+                f"GROUP BY symbol",
+                symbols,
+            ).fetchall()
+            result = {}
+            for row in rows:
+                sym, latest = row
+                if latest is not None:
+                    if isinstance(latest, str):
+                        latest = datetime.strptime(latest[:10], "%Y-%m-%d").date()
+                    elif isinstance(latest, datetime):
+                        latest = latest.date()
+                    result[sym] = latest
+            return result
+        except Exception as e:
+            logger.warning("Failed to query latest dates from DuckDB: %s", e)
+            return {}
+
+    def _get_startup_symbols(self) -> List[str]:
+        """Get a LIMITED set of symbols for startup backfill.
+
+        Returns only the actively tracked symbols (typically 10-30),
+        NOT the full 1,500+ screener universe from DuckDB.
+        """
+        core_symbols = [
+            "SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "GOOGL",
+            "AMZN", "NVDA", "TSLA", "META", "TLT", "GLD", "VIX",
+        ]
+
+        try:
+            from app.modules.symbol_universe import get_tracked_symbols
+            tracked = get_tracked_symbols()
+            if tracked:
+                combined = list(dict.fromkeys(core_symbols + tracked[:30]))
+                return combined
+        except Exception:
+            pass
+
+        return core_symbols
 
     async def run_daily_incremental(self) -> Dict[str, Any]:
         """Daily incremental backfill — fetch last 5 trading days.

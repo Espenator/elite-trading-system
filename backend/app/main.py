@@ -936,23 +936,31 @@ async def _start_event_driven_pipeline():
         await asyncio.sleep(3)
 
         # D1: Autonomous data backfill (startup + daily scheduler)
+        # Smart gap-only backfill: queries DuckDB for latest date per symbol,
+        # only fetches the gap (not full 252 days), limited to tracked symbols
+        # (~14-44 instead of 1,589). This prevents event loop saturation.
         if os.getenv("STARTUP_BACKFILL_ENABLED", "true").lower() in ("1", "true", "yes"):
             async def _run_backfill():
                 try:
                     from app.services.data_ingestion import data_ingestion
-                    log.info("Starting startup data backfill (252 days) in background...")
+                    log.info("Starting smart startup backfill (gap-only, tracked symbols)...")
                     report = await data_ingestion.run_startup_backfill(days=252)
                     log.info(
-                        "\u2705 Startup backfill complete: %d symbols, %.1fs",
+                        "\u2705 Startup backfill complete: %d symbols (skipped %d up-to-date), %.1fs",
                         report.get("symbol_count", 0),
+                        report.get("skipped_count", 0),
                         report.get("elapsed_seconds", 0),
                     )
+                except Exception as e:
+                    log.warning("Data backfill failed: %s", e)
+                try:
+                    from app.services.data_ingestion import data_ingestion
                     asyncio.create_task(
                         _supervised_loop("data_ingestion_scheduler", data_ingestion.scheduler_loop)
                     )
                     log.info("\u2705 DataIngestion scheduler started (daily 4:30AM + weekly Sunday)")
                 except Exception as e:
-                    log.warning("Data backfill/scheduler failed to start: %s", e)
+                    log.warning("DataIngestion scheduler failed to start: %s", e)
             asyncio.create_task(_run_backfill())
         else:
             log.info("\u26a0\ufe0f Startup backfill skipped (STARTUP_BACKFILL_ENABLED=false)")

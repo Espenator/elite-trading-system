@@ -4,11 +4,22 @@ Idempotent: checks if a pending challenger exists before evaluating.
 CLI: python -m app.jobs.champion_challenger_eval
 """
 import logging
+import os
 from datetime import datetime, timezone
 
 import numpy as np
 
 log = logging.getLogger(__name__)
+
+
+def _configure_challenger_gpu() -> None:
+    """Align challenger workflows with shared XGBoost GPU settings."""
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["XGBOOST_GPU_ID"] = "0"
+    log.info(
+        "Configured challenger GPU context: CUDA_VISIBLE_DEVICES=0, XGBOOST_GPU_ID=0 "
+        "(trainer uses device='cuda', tree_method='hist', max_bin=256 with CPU fallback)"
+    )
 
 
 def run(model_name: str = "xgboost_daily") -> dict:
@@ -20,6 +31,7 @@ def run(model_name: str = "xgboost_daily") -> dict:
     Returns:
         Dict with status, eval results, promotion decision.
     """
+    _configure_challenger_gpu()
     log.info("Running champion_challenger_eval for %s", model_name)
 
     result = {

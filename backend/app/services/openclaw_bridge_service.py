@@ -34,6 +34,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import time
 import uuid
 from collections import deque
@@ -91,7 +92,8 @@ _ws_subscribers: List[Callable] = []
 def verify_bridge_signature(payload_bytes: bytes, signature: str) -> bool:
     """Verify HMAC-SHA256 signature from bridge_sender."""
     if not _BRIDGE_SECRET:
-        return True  # No secret configured → open mode
+        logger.warning("OPENCLAW_BRIDGE_SECRET not set — rejecting all bridge requests")
+        return False
     expected = hmac.new(
         _BRIDGE_SECRET.encode(), payload_bytes, hashlib.sha256
     ).hexdigest()
@@ -101,8 +103,9 @@ def verify_bridge_signature(payload_bytes: bytes, signature: str) -> bool:
 def validate_bridge_token(token: str) -> bool:
     """Validate bearer token from bridge_sender."""
     if not _BRIDGE_TOKEN:
-        return True  # No token configured → open mode
-    return token == _BRIDGE_TOKEN
+        logger.warning("OPENCLAW_BRIDGE_TOKEN not set — rejecting all bridge requests")
+        return False
+    return secrets.compare_digest(token, _BRIDGE_TOKEN)
 
 
 # ===========================================================================

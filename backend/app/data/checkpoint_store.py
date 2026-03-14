@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from pathlib import Path
 import logging
+from app.data.duckdb_config import configure_duckdb
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,15 @@ class CheckpointStore:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
+    def _connect(self):
+        """Create a configured DuckDB connection."""
+        conn = duckdb.connect(self.db_path)
+        configure_duckdb(conn, logger=logger)
+        return conn
+
     def _ensure_schema(self):
         """Create checkpoints table if it doesn't exist"""
-        with duckdb.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS adapter_checkpoints (
                     adapter_name VARCHAR PRIMARY KEY,
@@ -59,7 +66,7 @@ class CheckpointStore:
         Returns:
             Dictionary with checkpoint data or None if no checkpoint exists
         """
-        with duckdb.connect(self.db_path) as conn:
+        with self._connect() as conn:
             result = conn.execute("""
                 SELECT
                     adapter_name,
@@ -117,7 +124,7 @@ class CheckpointStore:
             error_message: Error message if status is failed
             metadata: Additional metadata as JSON
         """
-        with duckdb.connect(self.db_path) as conn:
+        with self._connect() as conn:
             # Calculate timestamp in Python since DuckDB has issues with CURRENT_TIMESTAMP in UPSERT
             now = datetime.utcnow()
             conn.execute("""
@@ -164,7 +171,7 @@ class CheckpointStore:
 
     def get_all_checkpoints(self) -> list[Dict[str, Any]]:
         """Get all adapter checkpoints for health monitoring"""
-        with duckdb.connect(self.db_path) as conn:
+        with self._connect() as conn:
             results = conn.execute("""
                 SELECT
                     adapter_name,
@@ -193,7 +200,7 @@ class CheckpointStore:
 
     def clear_checkpoint(self, adapter_name: str):
         """Clear checkpoint for an adapter (useful for resets/testing)"""
-        with duckdb.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("DELETE FROM adapter_checkpoints WHERE adapter_name = ?", [adapter_name])
             conn.commit()
             logger.info(f"Checkpoint cleared for {adapter_name}")

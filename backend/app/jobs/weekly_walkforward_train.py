@@ -4,11 +4,26 @@ Idempotent: checks last training date, skips if trained this week.
 CLI: python -m app.jobs.weekly_walkforward_train
 """
 import logging
+import os
 from datetime import date, datetime, timezone
 
 log = logging.getLogger(__name__)
 
 _last_train_date: str = ""
+
+
+def _log_gpu_memory(stage: str) -> None:
+    """Log CUDA memory allocation when torch is available."""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated()
+            log.info("CUDA memory %s: %d bytes", stage, allocated)
+        else:
+            log.warning("CUDA memory %s: torch available but CUDA is not available", stage)
+    except Exception as exc:
+        log.warning("CUDA memory %s: torch unavailable (%s)", stage, exc)
 
 
 def run(symbols: list = None, use_risk_adjusted: bool = True) -> dict:
@@ -52,6 +67,11 @@ def run(symbols: list = None, use_risk_adjusted: bool = True) -> dict:
     try:
         from app.modules.ml_engine.xgboost_trainer import train_xgboost_v2
 
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        os.environ["XGBOOST_GPU_ID"] = "0"
+        log.info("Set CUDA_VISIBLE_DEVICES=0 and XGBOOST_GPU_ID=0 for weekly training")
+        _log_gpu_memory("before_training")
+
         train_result = train_xgboost_v2(symbols)
 
         if train_result is None:
@@ -93,6 +113,8 @@ def run(symbols: list = None, use_risk_adjusted: bool = True) -> dict:
         log.warning("Training failed: %s", e)
         result["status"] = "error"
         result["error"] = str(e)
+    finally:
+        _log_gpu_memory("after_training")
 
     _last_train_date = today
     log.info("weekly_walkforward_train completed: %s", result.get("status"))

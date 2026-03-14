@@ -55,15 +55,17 @@ def split_by_time(
     return df[train_mask], df[val_mask]
 
 
-def _get_gpu_params_xgb() -> dict:
-    """XGBoost GPU params; fallback to CPU if CUDA unavailable or not built with GPU."""
-    try:
-        import xgboost as xgb
-
-        # gpu_hist requires XGBoost built with CUDA
-        return {"tree_method": "gpu_hist", "predictor": "gpu_predictor"}
-    except Exception:
-        return {"tree_method": "hist", "predictor": "cpu_predictor"}
+def _build_xgb_params(use_cuda: bool) -> dict:
+    """Build XGBoost params with GPU-first defaults and CPU fallback knobs."""
+    params = {
+        "tree_method": "hist",
+        "max_bin": 256,
+    }
+    if use_cuda:
+        params["device"] = "cuda"
+    else:
+        params["n_jobs"] = -1
+    return params
 
 
 def train_xgb(
@@ -101,7 +103,7 @@ def train_xgb(
         "n_estimators": n_estimators,
         "use_label_encoder": False,
     }
-    params.update(_get_gpu_params_xgb())
+    params.update(_build_xgb_params(use_cuda=True))
     model = xgb.XGBClassifier(**params)
     try:
         model.fit(
@@ -111,12 +113,16 @@ def train_xgb(
             verbose=False,
         )
     except Exception as e:
-        logger.warning("XGBoost GPU fit failed, falling back to CPU: %s", e)
-        params["tree_method"] = "hist"
-        params["predictor"] = "cpu_predictor"
-        model = xgb.XGBClassifier(**params)
+        logger.warning("XGBoost CUDA unavailable; falling back to CPU training: %s", e)
+        cpu_params = {
+            k: v for k, v in params.items()
+            if k not in {"device"}
+        }
+        cpu_params.update(_build_xgb_params(use_cuda=False))
+        model = xgb.XGBClassifier(**cpu_params)
         model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-    gpu_used = params.get("tree_method") == "gpu_hist"
+        params = cpu_params
+    gpu_used = params.get("device") == "cuda"
     acc = (model.predict(X_val) == y_val).mean()
     model.save_model(str(MODEL_FILE))
 

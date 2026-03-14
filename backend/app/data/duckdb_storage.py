@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 from app.core.config import settings
+from app.data.duckdb_config import configure_duckdb
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +149,7 @@ class DuckDBStorage:
             if self._conn is None:
                 duckdb = _get_duckdb()
                 self._conn = duckdb.connect(self._db_path)
-                # PC1: use all cores for analytical queries (ESPENMAIN i9)
-                self._conn.execute("SET threads = 8")
-                self._conn.execute("SET enable_progress_bar = true")
+                configure_duckdb(self._conn, logger=logger)
                 # Initialize schema on first connection
                 if not self._schema_initialized:
                     self._init_schema_internal(self._conn)

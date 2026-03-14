@@ -14,8 +14,41 @@ Usage:
 """
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import logging
 from typing import Any, Dict, List, Optional
 import uuid
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+try:
+    import cupy as cp
+    _GPU_AVAILABLE = True
+except Exception:
+    cp = None
+    _GPU_AVAILABLE = False
+
+logger.info(
+    "Blackboard GPU acceleration: %s",
+    "enabled (CuPy)" if _GPU_AVAILABLE else "disabled (NumPy fallback)",
+)
+
+
+def _append_numeric_values(payload: Any, values: List[float]) -> None:
+    """Collect numeric feature values from nested payloads."""
+    if isinstance(payload, bool):
+        return
+    if isinstance(payload, (int, float)):
+        values.append(float(payload))
+        return
+    if isinstance(payload, dict):
+        for value in payload.values():
+            _append_numeric_values(value, values)
+        return
+    if isinstance(payload, (list, tuple)):
+        for value in payload:
+            _append_numeric_values(value, values)
 
 
 @dataclass
@@ -181,6 +214,8 @@ class BlackboardState:
 
     # Extensible metadata (circuit breaker results, directives, etc.)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    _gpu_buffer: Any = field(default=None, init=False, repr=False, compare=False)
+    _gpu_pinned: bool = field(default=False, init=False, repr=False, compare=False)
 
     @property
     def is_expired(self) -> bool:
@@ -192,6 +227,50 @@ class BlackboardState:
     def features(self) -> Dict[str, Any]:
         """Convenience accessor — returns raw_features for backward compat with agents."""
         return self.raw_features
+
+    def _feature_vector(self) -> np.ndarray:
+        """Build a deterministic numeric vector from raw feature payload."""
+        feature_payload = self.raw_features.get("features", self.raw_features)
+        values: List[float] = []
+        _append_numeric_values(feature_payload, values)
+        if not values:
+            return np.empty(0, dtype=np.float32)
+        return np.asarray(values, dtype=np.float32)
+
+    def pin_to_gpu(self) -> bool:
+        """Best-effort pin of numeric feature vector to GPU memory."""
+        if not _GPU_AVAILABLE:
+            return False
+        try:
+            self._gpu_buffer = cp.asarray(self._feature_vector(), dtype=cp.float32)
+            self._gpu_pinned = True
+            return True
+        except Exception as exc:
+            logger.debug("Failed to pin blackboard features to GPU: %s", exc)
+            self._gpu_buffer = None
+            self._gpu_pinned = False
+            return False
+
+    def gpu_features(self) -> np.ndarray:
+        """Return numeric feature vector from GPU if available, else NumPy fallback."""
+        if _GPU_AVAILABLE and self._gpu_pinned and self._gpu_buffer is not None:
+            try:
+                return cp.asnumpy(self._gpu_buffer)
+            except Exception as exc:
+                logger.debug("Failed to read GPU features, using CPU fallback: %s", exc)
+                self._gpu_buffer = None
+                self._gpu_pinned = False
+        return self._feature_vector()
+
+    def release_gpu(self) -> None:
+        """Release GPU-backed buffers safely (no-op when GPU unavailable)."""
+        try:
+            self._gpu_buffer = None
+            self._gpu_pinned = False
+            if _GPU_AVAILABLE:
+                cp.get_default_memory_pool().free_all_blocks()
+        except Exception as exc:
+            logger.debug("Failed to release blackboard GPU resources: %s", exc)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize for logging, WebSocket broadcast, or postmortem storage."""

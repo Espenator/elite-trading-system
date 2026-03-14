@@ -47,16 +47,16 @@ def _emit_gate_denied(reason: str) -> None:
     try:
         from app.core.metrics import counter_inc
         counter_inc("execution_gate_denied_total", {"reason": reason})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Gate denied metric emission failed: %s", e)
 
 
 def _emit_execution_attempt(mode: str, status: str) -> None:
     try:
         from app.core.metrics import counter_inc
         counter_inc("execution_attempt_total", {"mode": mode, "status": status})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Execution attempt metric emission failed: %s", e)
 
 
 @dataclass
@@ -219,8 +219,8 @@ class OrderExecutor:
             gauge_set("signals_received_total", float(self._signals_received))
             gauge_set("signals_executed_total", float(self._signals_executed))
             gauge_set("daily_trade_count", float(self._daily_trade_count))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Metrics gauge update failed: %s", e)
 
         # Idempotency: deduplicate identical verdicts (message replay protection)
         import hashlib, time as _t
@@ -259,25 +259,36 @@ class OrderExecutor:
 
         # -- Gate 0: Decision TTL 30s — stale verdicts cannot execute (Swarm invariant #4) --
         verdict_ts = verdict_data.get("timestamp")
-        if verdict_ts:
-            try:
-                from datetime import datetime, timezone
-                if isinstance(verdict_ts, (int, float)):
-                    verdict_dt = datetime.fromtimestamp(verdict_ts, tz=timezone.utc)
-                else:
-                    verdict_dt = datetime.fromisoformat(
-                        verdict_ts.replace("Z", "+00:00")
-                    ).astimezone(timezone.utc)
-                elapsed = (datetime.now(timezone.utc) - verdict_dt).total_seconds()
-                if elapsed > 30:
-                    self._reject(
-                        symbol, score,
-                        f"Council decision expired (TTL 30s, age={elapsed:.0f}s)",
-                        ExecutionDenyReason.STALE_VERDICT,
-                    )
-                    return
-            except (ValueError, TypeError):
-                pass
+        if not verdict_ts:
+            self._reject(
+                symbol, score,
+                "Missing verdict timestamp — cannot verify TTL (rejecting)",
+                ExecutionDenyReason.STALE_VERDICT,
+            )
+            return
+        try:
+            from datetime import datetime, timezone
+            if isinstance(verdict_ts, (int, float)):
+                verdict_dt = datetime.fromtimestamp(verdict_ts, tz=timezone.utc)
+            else:
+                verdict_dt = datetime.fromisoformat(
+                    verdict_ts.replace("Z", "+00:00")
+                ).astimezone(timezone.utc)
+            elapsed = (datetime.now(timezone.utc) - verdict_dt).total_seconds()
+            if elapsed > 30:
+                self._reject(
+                    symbol, score,
+                    f"Council decision expired (TTL 30s, age={elapsed:.0f}s)",
+                    ExecutionDenyReason.STALE_VERDICT,
+                )
+                return
+        except (ValueError, TypeError):
+            self._reject(
+                symbol, score,
+                f"Invalid verdict timestamp: {verdict_ts}",
+                ExecutionDenyReason.STALE_VERDICT,
+            )
+            return
 
         # -- Gate 1: Council must approve --
         if direction == "hold":
@@ -317,7 +328,7 @@ class OrderExecutor:
         async def _check_regime():
             """Gate 2b: Regime enforcement."""
             try:
-                from app.api.v1.strategy import REGIME_PARAMS
+                from app.council.regime_params import REGIME_PARAMS
                 regime_key = regime.upper() if regime else "YELLOW"
                 regime_params = REGIME_PARAMS.get(regime_key, REGIME_PARAMS.get("YELLOW", {}))
                 max_positions = regime_params.get("max_pos", 5)
@@ -328,8 +339,8 @@ class OrderExecutor:
                 signal_mult = regime_params.get("signal_mult", 1.0)
                 return ("pass", "", None, signal_mult)
             except Exception as e:
-                logger.debug("Regime enforcement check failed (non-fatal): %s", e)
-                return ("pass", "", None, 1.0)
+                logger.warning("Regime enforcement check failed: %s", e)
+                return ("reject", f"Check failed: {e}", ExecutionDenyReason.REGIME_BLOCKED, None)
 
         async def _check_circuit_breaker():
             """Gate 2c: Circuit breaker enforcement."""
@@ -353,7 +364,8 @@ class OrderExecutor:
                                 return ("reject", f"Circuit breaker: top position {concentration:.0%} > 25% max",
                                         ExecutionDenyReason.CIRCUIT_BREAKER)
             except Exception as e:
-                logger.debug("Circuit breaker check failed (non-fatal): %s", e)
+                logger.warning("Circuit breaker check failed: %s", e)
+                return ("reject", f"Check failed: {e}", ExecutionDenyReason.CIRCUIT_BREAKER)
             return ("pass", "", None)
 
         async def _check_degraded_and_killswitch():
@@ -370,7 +382,8 @@ class OrderExecutor:
                                 % ", ".join(status.get("reasons", [])),
                                 ExecutionDenyReason.DEGRADED)
                 except Exception as e:
-                    logger.debug("Degraded check failed: %s", e)
+                    logger.warning("Degraded check failed: %s", e)
+                    return ("reject", f"Check failed: {e}", ExecutionDenyReason.DEGRADED)
             try:
                 from app.core.config import settings
                 if getattr(settings, "ENABLE_KILL_SWITCH", True):
@@ -379,7 +392,8 @@ class OrderExecutor:
                         return ("reject", "Kill switch / entries frozen — new orders blocked",
                                 ExecutionDenyReason.KILL_SWITCH_ACTIVE)
             except Exception as e:
-                logger.debug("Kill switch check failed: %s", e)
+                logger.warning("Kill switch check failed: %s", e)
+                return ("reject", f"Check failed: {e}", ExecutionDenyReason.KILL_SWITCH_ACTIVE)
             return ("pass", "", None)
 
         # Run all independent gates in parallel
@@ -424,7 +438,13 @@ class OrderExecutor:
                     )
                     return
         except Exception as e:
-            logger.debug("Regime position limit check failed (non-fatal): %s", e)
+            logger.warning("Regime position limit check failed — rejecting for safety: %s", e)
+            self._reject(
+                symbol, score,
+                f"Regime position limit check unavailable: {e}",
+                ExecutionDenyReason.REGIME_BLOCKED,
+            )
+            return
 
         # -- Gate 3: Daily trade limit --
         self._check_daily_reset()
@@ -554,7 +574,7 @@ class OrderExecutor:
                 regime=regime,
             )
             gov = get_governor()
-            gov_decision = await asyncio.get_event_loop().run_in_executor(
+            gov_decision = await asyncio.get_running_loop().run_in_executor(
                 None, gov.approve, gov_order
             )
             if not gov_decision.approved:
@@ -943,8 +963,8 @@ class OrderExecutor:
                 cached = cache.get_price(symbol)
                 if cached and cached > 0:
                     return cached
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Price cache lookup failed for %s: %s", symbol, e)
         # Fall back to Alpaca latest quote
         try:
             alpaca = self._get_alpaca_service()
@@ -954,8 +974,8 @@ class OrderExecutor:
                 ask = snapshot.get("ask_price") or snapshot.get("ap", 0)
                 if bid and ask and float(bid) > 0 and float(ask) > 0:
                     return round((float(bid) + float(ask)) / 2, 2)  # NBBO midpoint
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Alpaca quote lookup failed for %s: %s", symbol, e)
         return None
 
     # -- Fill Polling + Partial Fill Re-Execution (B6) --
@@ -1174,7 +1194,8 @@ class OrderExecutor:
                         equity = float(account["equity"])
                 except Exception as e:
                     logger.warning("Fresh Alpaca account fetch failed: %s", e)
-        except Exception:
+        except Exception as e:
+            logger.warning("Alpaca account equity fetch failed: %s", e)
             equity = None
 
         if equity is None or equity <= 0:
@@ -1209,8 +1230,8 @@ class OrderExecutor:
             ).fetchone()
             if row and row[0] and float(row[0]) > 0:
                 atr_estimate = float(row[0])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("ATR lookup failed for %s, using fallback: %s", symbol, e)
 
         stop_data = sizer.calculate_trailing_stop(
             entry_price=price,
@@ -1334,8 +1355,8 @@ class OrderExecutor:
                     if avg_loss > 0:
                         real_edge = win_rate * (avg_win / avg_loss) - (1 - win_rate)
                         real_edge = max(0, real_edge)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Viability edge lookup failed for %s: %s", symbol, e)
 
         # Fallback: use conservative minimum edge (don't use signal score as proxy)
         min_edge = 0.005  # 0.5% minimum — much lower than old 5% to reduce false rejects
@@ -1345,8 +1366,8 @@ class OrderExecutor:
             try:
                 from app.core.metrics import counter_inc
                 counter_inc("execution_viability_denied_total", {"reason": "cost_exceeds_edge"})
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Viability denied metric emission failed: %s", e)
             return False, (
                 f"Viability denied: cost {expected_cost_bps:.0f}bps >= edge {effective_edge:.4f}"
             )

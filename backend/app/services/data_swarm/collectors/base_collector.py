@@ -79,7 +79,7 @@ class BaseCollector(ABC):
         self._bus = get_message_bus()
         self._stop.clear()
         self._backoff_secs = BACKOFF_INITIAL
-        last_heartbeat = asyncio.get_event_loop().time()
+        last_heartbeat = asyncio.get_running_loop().time()
 
         while not self._stop.is_set():
             try:
@@ -88,7 +88,7 @@ class BaseCollector(ABC):
                 logger.info("Collector %s connected", self.source_name)
 
                 while not self._stop.is_set():
-                    now = asyncio.get_event_loop().time()
+                    now = asyncio.get_running_loop().time()
                     if now - last_heartbeat >= HEARTBEAT_INTERVAL:
                         await self._heartbeat()
                         last_heartbeat = now

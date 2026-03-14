@@ -1,7 +1,7 @@
 """XGBoost GPU trainer for Embodier Trader.
 
 APEX Phase 2 – XGBoost companion model:
-- GPU-accelerated training via tree_method='gpu_hist' (falls back to 'hist' on CPU)
+- GPU-accelerated training via device='cuda' + tree_method='hist' (falls back to CPU)
 - Grid search over key hyperparameters with cross-validation
 - Feature importance extraction and logging
 - v2.0: Reads from FeaturePipeline (30+ features) via feature_service
@@ -129,17 +129,51 @@ def _detect_gpu_id() -> int:
     return int(os.getenv("XGBOOST_GPU_ID", "0"))
 
 
-def _gpu_available() -> bool:
-    """Check whether CUDA is visible to XGBoost (nvidia-smi probe)."""
-    try:
-        import subprocess
+def _gpu_params(gpu_id: int) -> Dict[str, Any]:
+    """Standard GPU parameter block for all XGBoost training calls."""
+    return {
+        "device": "cuda",
+        "tree_method": "hist",
+        "max_bin": 256,
+        "gpu_id": gpu_id,
+    }
 
-        result = subprocess.run(
-            ["nvidia-smi"], capture_output=True, timeout=5
-        )
-        return result.returncode == 0
-    except Exception:
+
+def _cpu_fallback_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return CPU-safe params after a CUDA failure."""
+    cpu_params = dict(params)
+    cpu_params.pop("device", None)
+    cpu_params.pop("gpu_id", None)
+    cpu_params["tree_method"] = "hist"
+    cpu_params["max_bin"] = 256
+    cpu_params["n_jobs"] = -1
+    return cpu_params
+
+
+def _detect_gpu() -> bool:
+    """Probe XGBoost CUDA support using a tiny dummy train call."""
+    try:
+        import xgboost as xgb
+
+        probe_x = np.array([[0.0], [1.0]], dtype=np.float32)
+        probe_y = np.array([0, 1], dtype=np.float32)
+        dprobe = xgb.DMatrix(probe_x, label=probe_y)
+        probe_params = {
+            "objective": "binary:logistic",
+            **_gpu_params(gpu_id=0),
+        }
+        xgb.train(probe_params, dprobe, num_boost_round=1, verbose_eval=False)
+        return True
+    except Exception as exc:
+        log.warning("XGBoost CUDA probe failed; GPU UNAVAILABLE. Falling back to CPU where needed: %s", exc)
         return False
+
+
+GPU_READY = _detect_gpu()
+if GPU_READY:
+    log.info("XGBoost CUDA status: READY")
+else:
+    log.info("XGBoost CUDA status: UNAVAILABLE")
 
 
 # ---------------------------------------------------------------------------
@@ -310,33 +344,24 @@ def train_xgboost(
         pass
 
     # --- GPU config -----------------------------------------------------
-    use_gpu = _gpu_available()
+    use_gpu = GPU_READY
     gpu_id = _detect_gpu_id()
     base_params: Dict[str, Any] = {
         "objective": "binary:logistic",
         "eval_metric": ["logloss", "error"],
         "verbosity": 1,
         "seed": 42,
+        "tree_method": "hist",
+        "max_bin": 256,
     }
 
-    # GPU acceleration: use device='cuda' (XGBoost 2.0+) with gpu_hist,
-    # falling back to CPU hist if GPU init fails at runtime.
+    # GPU acceleration uses device='cuda' + hist; CPU fallback is explicit.
     if use_gpu:
-        try:
-            import xgboost as _xgb_check
-            # Verify GPU actually works by creating a tiny DMatrix + train
-            _test_dm = _xgb_check.DMatrix(np.array([[1.0]]), label=np.array([0]))
-            _test_params = {"tree_method": "gpu_hist", "device": f"cuda:{gpu_id}", "max_depth": 1}
-            _xgb_check.train(_test_params, _test_dm, num_boost_round=1, verbose_eval=False)
-            base_params["tree_method"] = "gpu_hist"
-            base_params["device"] = f"cuda:{gpu_id}"
-            log.info("XGBoost GPU verified — using gpu_hist on cuda:%d", gpu_id)
-        except Exception as gpu_err:
-            log.warning("XGBoost GPU probe failed (%s) — falling back to CPU hist", gpu_err)
-            use_gpu = False
-            base_params["tree_method"] = "hist"
+        base_params.update(_gpu_params(gpu_id=gpu_id))
+        log.info("XGBoost configured for CUDA on gpu_id=%d", gpu_id)
     else:
-        base_params["tree_method"] = "hist"
+        base_params = _cpu_fallback_params(base_params)
+        log.warning("XGBoost CUDA unavailable at module load; using CPU fallback with n_jobs=-1")
 
     # Risk-adjusted custom objective (anti-reward-hacking)
     if use_risk_adjusted:
@@ -371,8 +396,27 @@ def train_xgboost(
                 early_stopping_rounds=early_stopping_rounds,
             )
         except Exception as exc:
-            log.warning("CV combo %d/%d failed: %s", i, len(combos), exc)
-            continue
+            if merged.get("device") == "cuda":
+                log.warning(
+                    "CV combo %d/%d failed on CUDA; retrying on CPU fallback: %s",
+                    i, len(combos), exc
+                )
+                merged = _cpu_fallback_params(merged)
+                try:
+                    cv_result = xgb_cross_validate(
+                        X_train, y_train, merged,
+                        feature_names=_fcols,
+                        n_folds=n_folds,
+                        num_boost_round=num_boost_round,
+                        early_stopping_rounds=early_stopping_rounds,
+                    )
+                    use_gpu = False
+                except Exception as cpu_exc:
+                    log.warning("CV combo %d/%d CPU fallback also failed: %s", i, len(combos), cpu_exc)
+                    continue
+            else:
+                log.warning("CV combo %d/%d failed: %s", i, len(combos), exc)
+                continue
 
         if cv_result["cv_logloss"] < best_score:
             best_score = cv_result["cv_logloss"]
@@ -398,14 +442,29 @@ def train_xgboost(
     else:
         dval = None
 
-    final_model = xgb.train(
-        best_params,
-        dtrain,
-        num_boost_round=best_cv.get("best_round", num_boost_round),
-        evals=evals,
-        early_stopping_rounds=early_stopping_rounds,
-        verbose_eval=50,
-    )
+    try:
+        final_model = xgb.train(
+            best_params,
+            dtrain,
+            num_boost_round=best_cv.get("best_round", num_boost_round),
+            evals=evals,
+            early_stopping_rounds=early_stopping_rounds,
+            verbose_eval=50,
+        )
+    except Exception as exc:
+        if best_params.get("device") == "cuda":
+            log.warning("Final xgb.train failed on CUDA; retrying on CPU fallback: %s", exc)
+            best_params = _cpu_fallback_params(best_params)
+            final_model = xgb.train(
+                best_params,
+                dtrain,
+                num_boost_round=best_cv.get("best_round", num_boost_round),
+                evals=evals,
+                early_stopping_rounds=early_stopping_rounds,
+                verbose_eval=50,
+            )
+        else:
+            raise
 
     # --- validation metrics -------------------------------------------
     val_accuracy = 0.0

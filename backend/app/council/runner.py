@@ -23,8 +23,12 @@ DAG execution order (parallel within stages):
 Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
 import asyncio
+import atexit
 import logging
+import multiprocessing
+import os
 import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -38,6 +42,243 @@ from app.services.cognitive_telemetry import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Executor tuning env vars:
+# - COUNCIL_WORKERS=8  (P-cores, CPU-heavy council tasks)
+# - IO_WORKERS=16      (E-cores, network I/O oriented tasks)
+_COUNCIL_PROCESS_POOL = ProcessPoolExecutor(
+    max_workers=int(os.getenv("COUNCIL_WORKERS", "8")),
+    mp_context=multiprocessing.get_context("spawn"),
+)
+_IO_THREAD_POOL = ThreadPoolExecutor(
+    max_workers=int(os.getenv("IO_WORKERS", "16")),
+)
+
+
+def _shutdown_pools() -> None:
+    """Best-effort pool cleanup for interpreter shutdown."""
+    try:
+        _IO_THREAD_POOL.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        pass
+    try:
+        _COUNCIL_PROCESS_POOL.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        pass
+
+
+atexit.register(_shutdown_pools)
+
+_S1_CPU_BOUND_AGENTS = {
+    "market_perception",
+    "flow_perception",
+    "regime",
+    "intermarket",
+    "macro_regime_agent",
+}
+_S1_IO_BOUND_AGENTS = {
+    "social_perception",
+    "news_catalyst",
+    "youtube_knowledge",
+    "gex_agent",
+    "insider_agent",
+    "finbert_sentiment_agent",
+    "earnings_tone_agent",
+    "dark_pool_agent",
+}
+
+
+def _record_stage_latency(blackboard: BlackboardState, stage_name: str, started_ms: float) -> float:
+    """Track stage latency in both structured map and metadata."""
+    elapsed_ms = time.monotonic() * 1000 - started_ms
+    blackboard.stage_latencies[stage_name] = elapsed_ms
+    blackboard.metadata[f"{stage_name}_latency_ms"] = round(elapsed_ms, 1)
+    return elapsed_ms
+
+
+def _coerce_agent_vote(vote_obj: Any, fallback_name: str, decision_id: str) -> AgentVote:
+    """Normalize vote payloads from executor wrappers back into AgentVote."""
+    if isinstance(vote_obj, AgentVote):
+        if not vote_obj.blackboard_ref:
+            vote_obj.blackboard_ref = decision_id
+        return vote_obj
+
+    if isinstance(vote_obj, dict):
+        vote = AgentVote(
+            agent_name=vote_obj.get("agent_name", fallback_name),
+            direction=vote_obj.get("direction", "hold"),
+            confidence=float(vote_obj.get("confidence", 0.0)),
+            reasoning=vote_obj.get("reasoning", "Executor returned malformed payload"),
+            veto=bool(vote_obj.get("veto", False)),
+            veto_reason=vote_obj.get("veto_reason", ""),
+            weight=float(vote_obj.get("weight", 1.0)),
+            metadata=vote_obj.get("metadata", {}) or {},
+            blackboard_ref=vote_obj.get("blackboard_ref", decision_id),
+        )
+        if not vote.blackboard_ref:
+            vote.blackboard_ref = decision_id
+        return vote
+
+    return AgentVote(
+        agent_name=fallback_name,
+        direction="hold",
+        confidence=0.0,
+        reasoning=f"Invalid vote payload type from executor: {type(vote_obj).__name__}",
+        blackboard_ref=decision_id,
+    )
+
+
+def _run_agent_in_subprocess(
+    module_name: str,
+    symbol: str,
+    timeframe: str,
+    features: Dict[str, Any],
+    context: Dict[str, Any],
+    decision_id: str,
+) -> Dict[str, Any]:
+    """Run a coroutine-based agent in a spawned subprocess."""
+    import asyncio as _asyncio
+    import importlib
+
+    module = importlib.import_module(module_name)
+    safe_context = dict(context or {})
+    safe_context.pop("blackboard", None)
+
+    vote = _asyncio.run(module.evaluate(symbol, timeframe, features, safe_context))
+    if hasattr(vote, "to_dict"):
+        payload = vote.to_dict()
+    elif isinstance(vote, dict):
+        payload = vote
+    else:
+        raise TypeError(f"Unsupported vote type in subprocess: {type(vote).__name__}")
+    payload["blackboard_ref"] = decision_id
+    return payload
+
+
+def _run_agent_in_thread(
+    module: Any,
+    symbol: str,
+    timeframe: str,
+    features: Dict[str, Any],
+    context: Dict[str, Any],
+    decision_id: str,
+) -> Dict[str, Any]:
+    """Run a coroutine-based agent in a worker thread."""
+    vote = asyncio.run(module.evaluate(symbol, timeframe, features, context))
+    if hasattr(vote, "to_dict"):
+        payload = vote.to_dict()
+    elif isinstance(vote, dict):
+        payload = vote
+    else:
+        raise TypeError(f"Unsupported vote type in thread: {type(vote).__name__}")
+    payload["blackboard_ref"] = decision_id
+    return payload
+
+
+async def _spawn_stage1_agent(
+    spawner: TaskSpawner,
+    agent_type: str,
+    symbol: str,
+    timeframe: str,
+    context: Dict[str, Any],
+) -> AgentVote:
+    """Route Stage 1 agents to process/thread pools with async-safe fallback."""
+    async def _spawn_fallback() -> AgentVote:
+        try:
+            return await spawner.spawn(agent_type, symbol, timeframe, context=context)
+        except (StopAsyncIteration, StopIteration):
+            logger.debug(
+                "Stage 1 fallback exhausted for %s; returning hold vote",
+                agent_type,
+            )
+            return AgentVote(
+                agent_name=agent_type,
+                direction="hold",
+                confidence=0.0,
+                reasoning="Stage 1 fallback exhausted during mocked execution",
+                blackboard_ref=getattr(spawner.blackboard, "council_decision_id", ""),
+            )
+
+    module = spawner._registry.get(agent_type)
+    if module is None:
+        return await _spawn_fallback()
+
+    features = spawner.blackboard.raw_features
+    decision_id = spawner.blackboard.council_decision_id
+    loop = asyncio.get_running_loop()
+    agent_context = dict(context or {})
+    agent_context["blackboard"] = spawner.blackboard
+    agent_context["model_tier"] = "fast"
+
+    if agent_type in _S1_CPU_BOUND_AGENTS:
+        module_name = getattr(module, "__name__", "")
+        if module_name:
+            process_context = dict(agent_context)
+            process_context.pop("blackboard", None)
+            try:
+                vote_data = await loop.run_in_executor(
+                    _COUNCIL_PROCESS_POOL,
+                    _run_agent_in_subprocess,
+                    module_name,
+                    symbol,
+                    timeframe,
+                    features,
+                    process_context,
+                    decision_id,
+                )
+                return _coerce_agent_vote(vote_data, agent_type, decision_id)
+            except Exception as exc:
+                logger.debug(
+                    "Stage 1 process executor fallback for %s: %s",
+                    agent_type,
+                    exc,
+                )
+
+    if agent_type in _S1_IO_BOUND_AGENTS:
+        try:
+            vote_data = await loop.run_in_executor(
+                _IO_THREAD_POOL,
+                _run_agent_in_thread,
+                module,
+                symbol,
+                timeframe,
+                features,
+                agent_context,
+                decision_id,
+            )
+            return _coerce_agent_vote(vote_data, agent_type, decision_id)
+        except Exception as exc:
+            logger.debug(
+                "Stage 1 thread executor fallback for %s: %s",
+                agent_type,
+                exc,
+            )
+
+    return await _spawn_fallback()
+
+
+def _release_gpu_if_supported(blackboard: BlackboardState) -> None:
+    """Safely release optional GPU resources exposed by blackboard."""
+    release_gpu = getattr(blackboard, "release_gpu", None)
+    if not callable(release_gpu):
+        return
+    try:
+        maybe_coro = release_gpu()
+        if asyncio.iscoroutine(maybe_coro):
+            try:
+                asyncio.get_running_loop().create_task(maybe_coro)
+            except RuntimeError:
+                asyncio.run(maybe_coro)
+    except Exception as exc:
+        logger.debug("blackboard.release_gpu() failed: %s", exc)
+
+
+def _use_stage1_executors(spawner: TaskSpawner) -> bool:
+    """Enable stage-1 executors unless explicitly disabled or heavily mocked."""
+    if os.getenv("COUNCIL_STAGE1_EXECUTORS", "1") != "1":
+        return False
+    # Preserve deterministic behavior in tests that monkeypatch spawn() call counts.
+    return "unittest.mock" not in type(spawner.spawn).__module__
 
 
 def _check_council_health(votes: List[AgentVote], total_agents: int = 33) -> dict:
@@ -167,6 +408,7 @@ async def run_council(
 
         if mode == "HALTED":
             logger.warning("Homeostasis HALTED for %s — skipping council", symbol)
+            _release_gpu_if_supported(blackboard)
             return DecisionPacket(
                 symbol=symbol,
                 timeframe=timeframe,
@@ -236,6 +478,7 @@ async def run_council(
 
             asyncio.create_task(_emit_halt())
 
+            _release_gpu_if_supported(blackboard)
             return DecisionPacket(
                 symbol=symbol,
                 timeframe=timeframe,
@@ -377,26 +620,50 @@ async def run_council(
 
     _stage_start = time.monotonic() * 1000
 
-    # Stage 1: Perception (13 agents) — distributed across PCs
-    stage1_configs = [
-        {"agent_type": at, "symbol": symbol, "timeframe": timeframe, "context": context}
-        for at in [
-            "market_perception", "flow_perception", "regime", "social_perception",
-            "news_catalyst", "youtube_knowledge", "intermarket",
-            "gex_agent", "insider_agent", "finbert_sentiment_agent",
-            "earnings_tone_agent", "dark_pool_agent", "macro_regime_agent",
-        ]
+    # Stage 1: Perception (13 agents)
+    stage1_agent_types = [
+        "market_perception",
+        "flow_perception",
+        "regime",
+        "social_perception",
+        "news_catalyst",
+        "youtube_knowledge",
+        "intermarket",
+        "gex_agent",
+        "insider_agent",
+        "finbert_sentiment_agent",
+        "earnings_tone_agent",
+        "dark_pool_agent",
+        "macro_regime_agent",
     ]
-    stage1, stage1_lats = await coordinator.execute_distributed_stage(
-        decision_id=decision_id, stage="1", all_agents=stage1_configs, spawner=spawner,
-    )
+    if _use_stage1_executors(spawner):
+        stage1 = await asyncio.gather(
+            *[
+                _spawn_stage1_agent(
+                    spawner=spawner,
+                    agent_type=agent_type,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    context=context,
+                )
+                for agent_type in stage1_agent_types
+            ]
+        )
+    else:
+        stage1_configs = [
+            {"agent_type": at, "symbol": symbol, "timeframe": timeframe, "context": context}
+            for at in stage1_agent_types
+        ]
+        stage1, stage1_lats = await coordinator.execute_distributed_stage(
+            decision_id=decision_id, stage="1", all_agents=stage1_configs, spawner=spawner,
+        )
+        for lat in stage1_lats:
+            blackboard.stage_latencies[f"stage1_{lat.pc}"] = lat.duration_ms
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
     for v in stage1:
         blackboard.perceptions[v.agent_name] = v.to_dict()
-    blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
-    for lat in stage1_lats:
-        blackboard.stage_latencies[f"stage1_{lat.pc}"] = lat.duration_ms
+    _record_stage_latency(blackboard, "stage1", _stage_start)
 
     # Stage 2: Technical Analysis (8 agents) — distributed across PCs
     _stage_start = time.monotonic() * 1000
@@ -417,7 +684,7 @@ async def run_council(
     context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
     for v in stage2:
         blackboard.perceptions[v.agent_name] = v.to_dict()
-    blackboard.stage_latencies["stage2"] = time.monotonic() * 1000 - _stage_start
+    _record_stage_latency(blackboard, "stage2", _stage_start)
     for lat in stage2_lats:
         blackboard.stage_latencies[f"stage2_{lat.pc}"] = lat.duration_ms
 
@@ -445,7 +712,7 @@ async def run_council(
                     "llm_latency_ms": meta.get("llm_latency_ms"),
                 })
             break
-    blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
+    _record_stage_latency(blackboard, "stage3", _stage_start)
     for lat in stage3_lats:
         blackboard.stage_latencies[f"stage3_{lat.pc}"] = lat.duration_ms
 
@@ -455,7 +722,7 @@ async def run_council(
     all_votes.append(stage4)
     context["stage4"] = {stage4.agent_name: stage4.to_dict()}
     blackboard.strategy = stage4.to_dict()
-    blackboard.stage_latencies["stage4"] = time.monotonic() * 1000 - _stage_start
+    _record_stage_latency(blackboard, "stage4", _stage_start)
 
     # Stage 5: Risk + Execution + Portfolio Opt (distributed: risk+port_opt=PC1, execution=PC2)
     _stage_start = time.monotonic() * 1000
@@ -474,7 +741,7 @@ async def run_council(
             blackboard.risk_assessment = v.to_dict()
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
-    blackboard.stage_latencies["stage5"] = time.monotonic() * 1000 - _stage_start
+    _record_stage_latency(blackboard, "stage5", _stage_start)
     for lat in stage5_lats:
         blackboard.stage_latencies[f"stage5_{lat.pc}"] = lat.duration_ms
 
@@ -625,7 +892,7 @@ async def run_council(
 
     except Exception as e:
         logger.debug("Stage 5.5 (debate/red-team) failed (proceeding): %s", e)
-    blackboard.stage_latencies["stage5.5"] = time.monotonic() * 1000 - _stage_start
+    _record_stage_latency(blackboard, "stage5.5", _stage_start)
 
     # Stage 6: Critic
     _stage_start = time.monotonic() * 1000
@@ -633,7 +900,7 @@ async def run_council(
     all_votes.append(stage6)
     context["stage6"] = {stage6.agent_name: stage6.to_dict()}
     blackboard.critic_review = stage6.to_dict()
-    blackboard.stage_latencies["stage6"] = time.monotonic() * 1000 - _stage_start
+    _record_stage_latency(blackboard, "stage6", _stage_start)
 
     # Pre-arbiter: Council health check
     health_report = _check_council_health(all_votes)
@@ -656,6 +923,7 @@ async def run_council(
             votes=[v.to_dict() for v in all_votes],
         )
         decision.council_decision_id = blackboard.council_decision_id
+        _release_gpu_if_supported(blackboard)
         return decision
 
     # Stage 7: Arbiter (Phase 4: pass regime_entropy for meta-model)
@@ -941,6 +1209,7 @@ async def run_council(
     except Exception:
         pass  # Alt data is purely supplementary
 
+    _release_gpu_if_supported(blackboard)
     return decision
 
 

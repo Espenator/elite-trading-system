@@ -122,7 +122,7 @@ ENDPOINTS_TO_CHECK = [
     ("GET", "/api/v1/alignment/critique"),
     ("GET", "/api/v1/council/status"),
     ("GET", "/api/v1/briefing/weekly"),
-    ("GET", "/api/v1/briefing/webhook/test"),  # POST in backend
+    ("POST", "/api/v1/briefing/webhook/test"),
     ("GET", "/api/v1/tradingview/config"),
     ("GET", "/api/v1/tradingview/pine-script"),
     ("GET", "/api/v1/features/compute"),  # POST in backend; 405 ok
@@ -169,7 +169,6 @@ EXPECT_405_OR_404 = {
     "/api/v1/features/compute",
     "/api/v1/metrics/auto-execute",
     "/api/v1/metrics/emergency-flatten",
-    "/api/v1/briefing/webhook/test",
     "/api/v1/alignment/evaluate",
 }
 

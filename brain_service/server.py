@@ -48,7 +48,7 @@ logging.basicConfig(
 logger = logging.getLogger("brain_service")
 
 PORT = int(os.getenv("BRAIN_PORT", "50051"))
-MAX_WORKERS = int(os.getenv("BRAIN_MAX_WORKERS", "8"))
+MAX_WORKERS = int(os.getenv("BRAIN_MAX_WORKERS", "12"))
 
 
 class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
@@ -366,7 +366,16 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
 
 
 async def serve():
-    server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
+    server = grpc.aio.server(
+        futures.ThreadPoolExecutor(max_workers=MAX_WORKERS),
+        options=[
+            ("grpc.max_concurrent_streams", 8),
+            ("grpc.keepalive_time_ms", 10000),
+            ("grpc.http2.max_pings_without_data", 0),
+            ("grpc.max_receive_message_length", 50 * 1024 * 1024),
+            ("grpc.max_send_message_length", 50 * 1024 * 1024),
+        ],
+    )
     brain_pb2_grpc.add_BrainServiceServicer_to_server(
         BrainServiceServicer(), server
     )

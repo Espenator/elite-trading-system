@@ -190,6 +190,34 @@ async def test_tradingview_webhook_direct_execution_rejected_when_not_paper(clie
 
 
 @pytest.mark.asyncio
+async def test_webhook_signal_requires_auth(client):
+    """POST /webhooks/signal without auth returns 401."""
+    r = await client.post(
+        "/api/v1/webhooks/signal",
+        json={"symbol": "AAPL", "direction": "LONG", "score": 70},
+    )
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_webhook_signal_accepts_with_auth(client, auth_headers):
+    """POST /webhooks/signal with valid Bearer token returns 200."""
+    with patch("app.core.message_bus.get_message_bus") as mbus:
+        bus = MagicMock()
+        bus.publish = AsyncMock()
+        mbus.return_value = bus
+        r = await client.post(
+            "/api/v1/webhooks/signal",
+            json={"symbol": "AAPL", "direction": "LONG", "score": 70},
+            headers=auth_headers,
+        )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert data["symbol"] == "AAPL"
+
+
+@pytest.mark.asyncio
 async def test_tradingview_webhook_backward_compat_minimal_payload(client, monkeypatch):
     """Minimal payload (ticker, action, price only) is accepted and routed to council."""
     async def _stub_run_council(symbol, timeframe="1d", features=None, context=None):

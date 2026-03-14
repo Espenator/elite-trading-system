@@ -125,17 +125,7 @@ def _memory_to_vote(
 
 
 async def _recall_short_term(symbol: str) -> List[Dict[str, Any]]:
-    """Recall last 20 trades for the current ticker."""
-    # Try DuckDB trade history
-    try:
-        from app.services.duckdb_service import query_recent_trades
-        trades = await query_recent_trades(symbol, limit=_SHORT_TERM_TRADES)
-        if trades:
-            return trades
-    except Exception:
-        pass
-
-    # Fallback to in-memory
+    """Recall last 20 trades for the current ticker (in-memory store)."""
     trades = _memory_store["short_term"].get(symbol, [])
 
     # Apply decay (remove trades older than 5 trading days)
@@ -158,51 +148,19 @@ async def _recall_short_term(symbol: str) -> List[Dict[str, Any]]:
 
 
 async def _recall_mid_term(symbol: str, features: Dict) -> Dict[str, Any]:
-    """Recall sector-level patterns over past quarter."""
+    """Recall sector-level patterns over past quarter (in-memory store)."""
     sector = str(features.get("sector", "unknown"))
-
-    # Try DuckDB
-    try:
-        from app.services.duckdb_service import query_sector_patterns
-        patterns = await query_sector_patterns(sector, days=_MID_TERM_DAYS)
-        if patterns:
-            return patterns
-    except Exception:
-        pass
-
-    # Fallback to in-memory
     return _memory_store["mid_term"].get(sector, {})
 
 
 async def _recall_long_term(features: Dict) -> Dict[str, Any]:
-    """Recall historical regime transitions and their outcomes."""
+    """Recall historical regime transitions and their outcomes (in-memory store)."""
     regime = str(features.get("regime", "unknown")).lower()
-
-    # Try DuckDB
-    try:
-        from app.services.duckdb_service import query_regime_transitions
-        transitions = await query_regime_transitions(days=_LONG_TERM_DAYS)
-        if transitions:
-            return transitions
-    except Exception:
-        pass
-
-    # Fallback to in-memory
     return _memory_store["long_term"].get(regime, {})
 
 
 async def _recall_reflection() -> Dict[str, Any]:
-    """Meta-analysis of agent's own performance."""
-    # Try DuckDB for historical performance
-    try:
-        from app.services.duckdb_service import query_agent_performance
-        performance = await query_agent_performance(days=30)
-        if performance:
-            return _compute_reflection(performance)
-    except Exception:
-        pass
-
-    # Fallback to in-memory
+    """Meta-analysis of agent's own performance (in-memory store)."""
     return _memory_store["reflection"].get("overall", {})
 
 

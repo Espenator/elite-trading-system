@@ -21,6 +21,11 @@ services:
       BRAIN_HOST: brain
       BRAIN_PORT: "50051"
       REDIS_URL: redis://redis:6379
+      COUNCIL_WORKERS: "8"
+      IO_WORKERS: "16"
+      OMP_NUM_THREADS: "12"
+      MKL_NUM_THREADS: "12"
+      CUDA_VISIBLE_DEVICES: "0"
     depends_on:
       brain:
         condition: service_healthy
@@ -45,6 +50,18 @@ services:
       BRAIN_PORT: "50051"
       OLLAMA_HOST: ${OLLAMA_HOST:-host.docker.internal}
       OLLAMA_PORT: "11434"
+      OLLAMA_FLASH_ATTENTION: "1"
+      OLLAMA_NUM_PARALLEL: "4"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      CUDA_VISIBLE_DEVICES: "0"
+      BRAIN_MAX_WORKERS: "12"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',50051)); s.close()\" || exit 1"]
       interval: 15s

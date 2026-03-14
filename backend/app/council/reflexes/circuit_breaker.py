@@ -46,8 +46,8 @@ def _get_thresholds() -> dict:
         max_single = directive_loader.get_threshold("Max single position")
         if max_single is not None:
             out["cb_max_single_position_pct"] = float(max_single)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to load thresholds from directives: %s", e)
     # Override with agent_config / settings if available
     try:
         from app.council.agent_config import get_agent_thresholds
@@ -55,8 +55,8 @@ def _get_thresholds() -> dict:
         for k, v in _DEFAULTS.items():
             if k in cfg:
                 out[k] = cfg[k]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to load agent_config thresholds: %s", e)
     return out
 
 
@@ -87,8 +87,8 @@ class CircuitBreaker:
             return "Circuit breaker timeout — halting as precaution"
         for reason in results:
             if isinstance(reason, Exception):
-                logger.warning("Circuit breaker check raised: %s", reason)
-                continue
+                logger.error("Circuit breaker check FAILED: %s — halting for safety", reason)
+                return f"Circuit breaker check failed ({type(reason).__name__}: {reason}) — halting as precaution"
             if reason:
                 logger.warning("Circuit breaker FIRED: %s", reason)
                 return reason
@@ -140,8 +140,9 @@ class CircuitBreaker:
             daily_pnl_pct = dd.get("daily_pnl_pct", 0)
             if daily_pnl_pct < -thresholds["cb_daily_drawdown_limit"]:
                 return f"Daily PnL {daily_pnl_pct:.2%} below -{thresholds['cb_daily_drawdown_limit']:.0%} limit"
-        except Exception:
-            pass  # Risk API unavailable — don't block
+        except Exception as e:
+            logger.warning("Circuit breaker drawdown check unavailable: %s", e)
+            return "Circuit breaker unavailable — halting as precaution"
         return None
 
     async def position_limit_check(self, blackboard: BlackboardState) -> Optional[str]:
@@ -152,8 +153,9 @@ class CircuitBreaker:
             positions = await alpaca_service.get_positions()
             if len(positions) >= thresholds["cb_max_positions"]:
                 return f"Position limit reached: {len(positions)}/{thresholds['cb_max_positions']} positions"
-        except Exception:
-            pass  # Alpaca unavailable — don't block
+        except Exception as e:
+            logger.warning("Circuit breaker position check unavailable: %s", e)
+            return "Circuit breaker unavailable — halting as precaution"
         return None
 
     async def market_hours_check(self, blackboard: BlackboardState) -> Optional[str]:

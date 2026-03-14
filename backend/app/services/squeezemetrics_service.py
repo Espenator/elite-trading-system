@@ -165,7 +165,7 @@ async def get_dix_gex() -> Optional[Dict[str, Any]]:
                 bus = get_message_bus()
                 if bus._running:
                     import asyncio
-                    asyncio.get_event_loop().create_task(bus.publish("perception.squeezemetrics", {
+                    asyncio.get_running_loop().create_task(bus.publish("perception.squeezemetrics", {
                         "type": "dix_gex",
                         "data": result,
                         "source": "squeezemetrics_service",

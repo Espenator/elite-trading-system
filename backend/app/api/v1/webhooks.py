@@ -9,11 +9,13 @@ TradingView payload shape (see schemas.tradingview.TradingViewWebhookPayload):
 """
 
 import logging
+import secrets
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from app.core.security import require_auth
 from app.schemas.tradingview import TradingViewWebhookPayload
 
 logger = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ def _validate_tradingview_secret(payload_secret: Optional[str], configured_secre
         return
     if not payload_secret or not str(payload_secret).strip():
         raise HTTPException(status_code=401, detail="Missing webhook secret")
-    if str(payload_secret).strip() != configured_secret.strip():
+    if not secrets.compare_digest(str(payload_secret).strip(), configured_secret.strip()):
         logger.warning("TradingView webhook: secret mismatch (rejecting)")
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
@@ -221,7 +223,7 @@ class ExternalSignal(BaseModel):
     message: Optional[str] = None
 
 
-@router.post("/signal")
+@router.post("/signal", dependencies=[Depends(require_auth)])
 async def receive_external_signal(signal: ExternalSignal):
     """Receive a generic external signal and publish to MessageBus."""
     logger.info(

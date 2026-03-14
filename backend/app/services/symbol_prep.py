@@ -155,7 +155,7 @@ class SymbolPrepService:
         """Request prep, then wait for symbol.prep.ready (registers future before publish so worker can complete it)."""
         t = timeout if timeout is not None else PREP_TIMEOUT
         symbols = symbols[:25] if symbols else []
-        fut = asyncio.get_event_loop().create_future()
+        fut = asyncio.get_running_loop().create_future()
         self._pending[request_id] = fut
         bus = bus or self._bus
         try:

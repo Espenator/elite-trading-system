@@ -75,6 +75,13 @@ htmlcov/
 .deps-hash
 .build-hash
 
+# ── Runtime / PID ──
+*.pid
+.embodier.pid
+
+# ── Test output (temporary) ──
+test_results*.txt
+
 # ── Misc ──
 *.bak
 *.tmp

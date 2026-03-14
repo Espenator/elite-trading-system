@@ -1,5 +1,6 @@
 # ── Core Framework ──
-fastapi==0.104.0
+# FastAPI 0.115+ required for Starlette 0.52+ (0.104 + Starlette 0.52 = middleware unpack error)
+fastapi>=0.115.0,<0.120.0
 uvicorn[standard]==0.24.0
 slowapi>=0.1.9,<1.0.0
 pydantic>=2.0.0,<3.0.0

@@ -52,10 +52,10 @@ def _run_daily_backfill():
     import asyncio
     from app.services.data_ingestion import data_ingestion
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(data_ingestion.run_daily_incremental())
-        else:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(data_ingestion.run_daily_incremental())
+        except RuntimeError:
             asyncio.run(data_ingestion.run_daily_incremental())
         log.info("Scheduled daily_backfill triggered")
     except Exception as e:
@@ -67,10 +67,10 @@ def _run_overnight_refresh():
     import asyncio
     from app.services.data_ingestion import data_ingestion
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(data_ingestion.ingest_macro_data(days=30))
-        else:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(data_ingestion.ingest_macro_data(days=30))
+        except RuntimeError:
             asyncio.run(data_ingestion.ingest_macro_data(days=30))
         log.info("Scheduled overnight_refresh triggered")
     except Exception as e:
