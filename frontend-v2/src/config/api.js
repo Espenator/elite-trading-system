@@ -189,6 +189,7 @@ const API_CONFIG = {
 
     // ---- STARTUP HEALTH (7-phase full system check) ----
     startupCheck:     "/health/startup-check",
+    systemHealth:     "/health/system",
 
     // ---- CNS ROUTES ----
     cnsHomeostasis:            "/cns/homeostasis/vitals",

@@ -31,6 +31,7 @@ import {
   Radar,
   ExternalLink,
   Activity,
+  Heart,
 } from "lucide-react";
 import { useApi } from "../../hooks/useApi";
 
@@ -73,6 +74,7 @@ const navSections = [
   {
     label: "SYSTEM",
     items: [
+      { to: "/health", icon: Heart, label: "System Health" },
       { to: "/startup-health", icon: Activity, label: "Startup Health" },
       { to: "/settings", icon: Settings, label: "Settings" },
     ],
