@@ -1,0 +1,147 @@
+You are working on Embodier Trader (elite-trading-system) on ESPENMAIN (PC1, Windows).
+Repo path: C:\Users\Espen\elite-trading-system
+Branch: claude/review-repo-docs-LmWVI
+
+Two commits already fixed the main issue (asyncio event loop blocked by sync DuckDB calls):
+- dc11870 -- threaded blocking startup calls
+- 6672d93 -- threaded health_check() calls
+
+Your job is to finish stabilization. Do these tasks in order:
+
+
+TASK 1 -- KILL ZOMBIES AND RECLAIM PORTS
+
+Disable the scheduled task so nothing respawns:
+  Disable-ScheduledTask -TaskName "EmbodierTrader-24-7" -ErrorAction SilentlyContinue
+
+Kill all supervisor PowerShell scripts (not the current terminal):
+  Get-Process powershell, pwsh -EA SilentlyContinue | Where-Object { $_.Id -ne $PID } | ForEach-Object { $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)").CommandLine; if ($cmd -match 'run_full_stack|run_backend_autorestart|service_supervisor|health_monitor|start-embodier') { Stop-Process -Id $_.Id -Force } }
+
+Kill all python processes:
+  Stop-Process -Name python -Force -EA SilentlyContinue
+
+Kill all node processes:
+  Stop-Process -Name node -Force -EA SilentlyContinue
+
+Remove stale PID file:
+  Remove-Item "C:\Users\Espen\elite-trading-system\.embodier.pid" -EA SilentlyContinue
+
+Wait 3 seconds, then verify ports 8000 and 5173 are free:
+  Start-Sleep 3
+  Get-NetTCPConnection -LocalPort 8000 -EA SilentlyContinue
+  Get-NetTCPConnection -LocalPort 5173 -EA SilentlyContinue
+
+Both should return nothing (ports free).
+
+
+TASK 2 -- SET PYTHONUTF8=1 PERMANENTLY
+
+Set it as a user environment variable so it survives reboots:
+  [Environment]::SetEnvironmentVariable("PYTHONUTF8", "1", "User")
+
+Also add $env:PYTHONUTF8 = "1" near the top (after param blocks) of these startup scripts:
+- start-embodier.ps1
+- scripts/run_full_stack_24_7.ps1
+- scripts/run_backend_autorestart.ps1 (if this file exists)
+
+
+TASK 3 -- FIX .ENV BAD BYTE
+
+The file backend/.env has a byte 0x9D that causes cp1252 decode errors. Fix it:
+  $envPath = "C:\Users\Espen\elite-trading-system\backend\.env"
+  $bytes = [System.IO.File]::ReadAllBytes($envPath)
+  $bytes = $bytes | ForEach-Object { if ($_ -eq 0x9D) { [byte]0x20 } else { $_ } }
+  [System.IO.File]::WriteAllBytes($envPath, $bytes)
+
+IMPORTANT: backend/.env is gitignored. Do NOT commit it.
+
+
+TASK 4 -- VERIFY DUCKDB PATH
+
+Open backend/.env and check DUCKDB_PATH. It must be:
+  DUCKDB_PATH=data/analytics.duckdb
+
+NOT analytics_dev.duckdb (that one is empty). If wrong, fix it.
+
+
+TASK 5 -- VERIFY CORS CONFIG
+
+Read backend/app/core/config.py and find the effective_cors_origins property. Confirm it includes:
+  http://localhost:5173
+  http://localhost:5174
+  http://localhost:3000
+  http://localhost:8501
+These are already hardcoded. Just confirm, no changes needed unless missing.
+
+
+TASK 6 -- PULL LATEST FIXES
+
+  cd C:\Users\Espen\elite-trading-system
+  git fetch origin claude/review-repo-docs-LmWVI
+  git merge origin/claude/review-repo-docs-LmWVI --no-edit
+
+Verify HEAD includes commits dc11870 and 6672d93.
+
+
+TASK 7 -- START BACKEND ON PORT 8000
+
+  cd C:\Users\Espen\elite-trading-system\backend
+  venv\Scripts\Activate.ps1
+  $env:PYTHONUTF8 = "1"
+  uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+
+TASK 8 -- START FRONTEND ON PORT 5173
+
+In a new terminal:
+  cd C:\Users\Espen\elite-trading-system\frontend-v2
+  npm run dev
+
+Vite should bind to port 5173. If it falls back to 5174, that is OK (CORS covers both).
+
+
+TASK 9 -- VERIFY HEALTH
+
+  Measure-Command { Invoke-WebRequest "http://localhost:8000/api/v1/health" -UseBasicParsing -TimeoutSec 10 } | Select-Object TotalMilliseconds
+
+Must respond in under 2000ms (was timing out at 10s+ before the fix).
+
+Check DuckDB rows:
+  (Invoke-WebRequest "http://localhost:8000/api/v1/health" -UseBasicParsing).Content | ConvertFrom-Json | Select-Object -ExpandProperty duckdb
+
+total_rows should be 952000+ (not 0).
+
+Open http://localhost:5173 in browser. Check DevTools Network tab for API calls returning 200.
+
+
+TASK 10 -- COMMIT AND PUSH STARTUP SCRIPT CHANGES
+
+Only commit the startup script changes from Task 2 (the .env fix is gitignored):
+
+  cd C:\Users\Espen\elite-trading-system
+  git add start-embodier.ps1 scripts/run_full_stack_24_7.ps1 scripts/run_backend_autorestart.ps1
+  git commit -m "chore: add PYTHONUTF8=1 to startup scripts to prevent cp1252 decode errors"
+  git push -u origin claude/review-repo-docs-LmWVI
+
+
+TASK 11 -- FINAL VERIFICATION
+
+Run this block and report results:
+
+  Write-Host "=== FINAL STATUS ==="
+  try { $h = Invoke-WebRequest "http://localhost:8000/api/v1/health" -UseBasicParsing -TimeoutSec 5; Write-Host "Backend (8000): OK" } catch { Write-Host "Backend (8000): FAIL" }
+  try { $f = Invoke-WebRequest "http://localhost:5173" -UseBasicParsing -TimeoutSec 5; Write-Host "Frontend (5173): OK" } catch { Write-Host "Frontend (5173): FAIL" }
+  Write-Host "Python procs: $((Get-Process python -EA SilentlyContinue).Count) (expect 2)"
+  Write-Host "Node procs: $((Get-Process node -EA SilentlyContinue).Count) (expect 1-2)"
+  $t = Get-ScheduledTask "EmbodierTrader-24-7" -EA SilentlyContinue
+  Write-Host "Scheduled task: $($t.State) (expect Disabled)"
+  Write-Host "=== DONE ==="
+
+
+RULES:
+- No mock data ever. All data from real API endpoints.
+- No yfinance. Use Alpaca/FinViz/UW.
+- DuckDB via get_conn() only, never raw connections.
+- Python 4-space indent.
+- Do NOT commit backend/.env (gitignored, contains secrets).
+- Run: cd backend && python -m pytest --tb=short -q after any code changes.
