@@ -441,12 +441,17 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
 
 
 async def _build_health_response() -> dict:
-    """Build the full health response for the /health HTTP endpoint."""
+    """Build the full health response for the /health HTTP endpoint.
+
+    Returns all fields that PC1's /api/health/pc2 proxy expects:
+    VRAM metrics, loaded models, last_inference, cpu_affinity, ollama env flags.
+    """
     from datetime import datetime, timezone
 
     # GPU info via PyTorch
     cuda_available = False
     gpu_name = "none"
+    cuda_version = "unavailable"
     total_vram_gb = used_vram_gb = free_vram_gb = 0.0
     try:
         import torch
@@ -454,6 +459,7 @@ async def _build_health_response() -> dict:
         if cuda_available:
             props = torch.cuda.get_device_properties(0)
             total_vram_gb = props.total_memory / 1e9
+            cuda_version = torch.version.cuda or "unknown"
             try:
                 free_bytes, total_bytes = torch.cuda.mem_get_info(0)
                 used_vram_gb = (total_bytes - free_bytes) / 1e9
@@ -465,14 +471,35 @@ async def _build_health_response() -> dict:
     except ImportError:
         pass
 
+    # Market hours check for VRAM budget status
+    market_hours_mode = False
+    try:
+        from app.jobs.gpu_trainer import is_market_hours
+        market_hours_mode = is_market_hours()
+    except Exception:
+        pass
+
+    # VRAM budget object
+    vram_budget = {
+        "total_gb": round(total_vram_gb, 2),
+        "used_gb": round(used_vram_gb, 2),
+        "free_gb": round(free_vram_gb, 2),
+        "budget_ok": free_vram_gb >= 0.7,  # True if headroom maintained
+        "market_hours_mode": market_hours_mode,
+    }
+
     # Ollama loaded models
     ollama_models = []
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     try:
         import httpx
         async with httpx.AsyncClient(timeout=2.0) as client:
-            r = await client.get("http://localhost:11434/api/tags")
+            r = await client.get(f"{ollama_url}/api/tags")
             ollama_models = [
-                {"name": m["name"], "size": m.get("size", 0)}
+                {
+                    "name": m["name"],
+                    "size_gb": round(m.get("size", 0) / 1e9, 2),
+                }
                 for m in r.json().get("models", [])
             ]
     except Exception:
@@ -489,16 +516,28 @@ async def _build_health_response() -> dict:
     return {
         "pc": "PC2-ProfitTrader",
         "status": "healthy",
+        "role": "secondary",
+        # GPU
         "cuda_available": cuda_available,
+        "cuda_version": cuda_version,
         "gpu_name": gpu_name,
-        "vram_total_gb": round(total_vram_gb, 2),
-        "vram_used_gb": round(used_vram_gb, 2),
-        "vram_free_gb": round(free_vram_gb, 2),
+        "vram": vram_budget,
+        # Flat fields kept for PC1 proxy backwards compat
+        "vram_total_gb": vram_budget["total_gb"],
+        "vram_used_gb": vram_budget["used_gb"],
+        "vram_free_gb": vram_budget["free_gb"],
+        # Models
         "loaded_models": ollama_models,
+        # Inference
         "last_inference": _last_inference or None,
         "grpc_status": "healthy",
         "gpu_worker": "active",
+        # Hardware
         "cpu_affinity": affinity_info,
+        # Ollama env flags
+        "ollama_flash_attention": os.getenv("OLLAMA_FLASH_ATTENTION", "0"),
+        "ollama_kv_cache_type": os.getenv("OLLAMA_KV_CACHE_TYPE", "default"),
+        # Connectivity
         "redis_mesh": "connected",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

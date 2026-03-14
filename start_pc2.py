@@ -46,8 +46,82 @@ processes = []
 # ── Ollama GPU optimization flags (set before any subprocess starts) ──
 os.environ.setdefault("OLLAMA_FLASH_ATTENTION", "1")
 os.environ.setdefault("OLLAMA_KV_CACHE_TYPE", "q8_0")
+os.environ.setdefault("OLLAMA_NUM_THREAD", "4")  # 4 CPU threads for tokenization/sampling
 os.environ.setdefault("OLLAMA_NUM_GPU", "1")
 os.environ.setdefault("OLLAMA_GPU_LAYERS", "50")
+
+
+def _print_gpu_info():
+    """Print GPU detection info at startup."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            props = torch.cuda.get_device_properties(0)
+            print(f"  {GREEN}[GPU] {props.name} | {props.total_memory/1e9:.1f}GB VRAM{RESET}")
+            print(f"  {GREEN}[GPU] CUDA {torch.version.cuda} | PyTorch {torch.__version__}{RESET}")
+        else:
+            print(f"  {YELLOW}[GPU] WARNING: CUDA not available — inference will use CPU{RESET}")
+    except ImportError:
+        print(f"  {YELLOW}[GPU] PyTorch not installed — GPU detection skipped{RESET}")
+
+
+def _verify_models_loaded(max_wait: int = 30) -> bool:
+    """Block until Ollama models are verified loaded (sync version)."""
+    import json as _json
+    import urllib.request
+    ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    required = {"gemma3:12b", "qwen3:8b"}
+
+    for attempt in range(max_wait):
+        try:
+            req = urllib.request.Request(f"{ollama_url}/api/tags")
+            resp = urllib.request.urlopen(req, timeout=2)
+            data = _json.loads(resp.read().decode())
+            loaded = {m["name"] for m in data.get("models", [])}
+            if required.issubset(loaded):
+                print(f"  {GREEN}[models] Both models loaded: {sorted(loaded & required)}{RESET}")
+                return True
+        except Exception:
+            pass
+        time.sleep(1)
+
+    print(f"  {YELLOW}[models] WARNING: models not verified after {max_wait}s{RESET}")
+    return False
+
+
+def _start_ollama_watchdog():
+    """Start a background thread that restarts Ollama if it becomes unresponsive."""
+    import threading
+    import urllib.request
+
+    def _watchdog():
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        consecutive_failures = 0
+        while True:
+            time.sleep(30)
+            try:
+                req = urllib.request.Request(f"{ollama_url}/api/tags")
+                urllib.request.urlopen(req, timeout=5)
+                consecutive_failures = 0
+            except Exception as e:
+                consecutive_failures += 1
+                if consecutive_failures >= 3:
+                    print(f"  {RED}[watchdog] Ollama unresponsive ({consecutive_failures}x): {e}. Attempting restart...{RESET}")
+                    try:
+                        subprocess.Popen(
+                            ["ollama", "serve"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                        time.sleep(15)
+                        print(f"  {YELLOW}[watchdog] Ollama restart triggered{RESET}")
+                        consecutive_failures = 0
+                    except Exception as restart_err:
+                        print(f"  {RED}[watchdog] Ollama restart failed: {restart_err}{RESET}")
+
+    t = threading.Thread(target=_watchdog, daemon=True, name="ollama-watchdog")
+    t.start()
+    return t
 
 
 def banner():
@@ -157,6 +231,9 @@ def main():
         except Exception as e:
             print(f" {YELLOW}[skip: {e}]{RESET}")
 
+    # ── Hardware info ──
+    _print_gpu_info()
+
     if gpu_only:
         # Just the GPU worker
         p = start_process("GPU Worker", [python, "gpu_worker.py"], BACKEND)
@@ -164,6 +241,9 @@ def main():
     else:
         # ── 1b. Pre-warm Ollama primary model ──
         prewarm_ollama()
+
+        # ── 1c. Verify both models loaded ──
+        _verify_models_loaded(max_wait=30)
 
         # ── 2. Brain Service (gRPC on 50051) -- P-cores (latency-sensitive) ──
         brain_server = BRAIN / "server.py"
@@ -187,6 +267,9 @@ def main():
             npm = "npm.cmd" if sys.platform == "win32" else "npm"
             start_process("Frontend", [npm, "run", "dev"], FRONTEND)
 
+    # ── Start Ollama watchdog (restarts Ollama if unresponsive) ──
+    _start_ollama_watchdog()
+
     print(f"""
 {BOLD}{GREEN}======================================================={RESET}
 {BOLD}  All processes started!{RESET}
@@ -194,7 +277,9 @@ def main():
   {CYAN}Dashboard:  http://localhost:5173{RESET}
   {CYAN}API:        http://localhost:8001/health{RESET}
   {CYAN}Brain gRPC: localhost:50051{RESET}
+  {CYAN}Brain Health: http://localhost:50052/health{RESET}
   {CYAN}GPU Status: http://localhost:8001/api/v1/health{RESET}
+  {CYAN}Ollama Watchdog: active (30s interval){RESET}
 
   Press Ctrl+C to stop all processes.
 {BOLD}{GREEN}======================================================={RESET}

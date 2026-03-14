@@ -39,6 +39,9 @@ async def get_brain_channel():
                 ("grpc.keepalive_permit_without_calls", True),
                 ("grpc.http2.max_pings_without_data", 0),
                 ("grpc.connect_timeout_ms", 5000),
+                # Max message size 10MB — enough for full BlackboardState
+                ("grpc.max_receive_message_length", 10 * 1024 * 1024),
+                ("grpc.max_send_message_length", 10 * 1024 * 1024),
             ]
             _channel = grpc.aio.insecure_channel(
                 f"{host}:{port}", options=options
