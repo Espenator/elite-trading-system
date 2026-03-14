@@ -816,11 +816,24 @@ async def _start_event_driven_pipeline():
         ]
         symbols = list(set(tracked or default_symbols))
         _stream_manager = AlpacaStreamManager(_message_bus, symbols)
-        _alpaca_stream_task = asyncio.create_task(_stream_manager.start())
+        # Delay WS connect to let previous Alpaca connections close after restart
+        _alpaca_ws_delay = int(os.getenv("ALPACA_WS_CONNECT_DELAY", "30"))
+
+        async def _delayed_alpaca_start():
+            if _alpaca_ws_delay > 0:
+                log.info(
+                    "Delaying Alpaca WS connect by %ds (ALPACA_WS_CONNECT_DELAY) "
+                    "to avoid 'connection limit exceeded' after restart",
+                    _alpaca_ws_delay,
+                )
+                await asyncio.sleep(_alpaca_ws_delay)
+            await _stream_manager.start()
+
+        _alpaca_stream_task = asyncio.create_task(_delayed_alpaca_start())
         _alpaca_stream_task.add_done_callback(_log_task_exception)  # TIER 3c
         # Keep _alpaca_stream reference for backward compat in health checks
         _alpaca_stream = _stream_manager
-        log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
+        log.info("\u2705 AlpacaStreamManager launched for %d symbols (WS delay %ds)", len(symbols), _alpaca_ws_delay)
 
     # -- WS bridges for swarm/macro (register immediately, services start deferred) --
     async def _bridge_swarm_to_ws(result_data):

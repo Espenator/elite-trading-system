@@ -15,7 +15,7 @@ param(
     [int]$RestartDelaySeconds = 3,
     [int]$HealthCheckIntervalSeconds = 30,
     [int]$UnhealthyCountMax = 3,
-    [int]$StartupGraceSeconds = 120,
+    [int]$StartupGraceSeconds = 180,
     [int]$MaxCrashesInWindow = 5,
     [int]$CrashWindowMinutes = 10,
     [switch]$ShowBackendWindow  # If set, uvicorn opens in visible console (for debugging). Default: hidden to avoid new window every restart.
