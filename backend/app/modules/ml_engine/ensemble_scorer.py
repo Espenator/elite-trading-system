@@ -295,7 +295,10 @@ class EnsembleScorer:
         return await asyncio.to_thread(_batch_sync)
 
     def get_status(self) -> Dict[str, Any]:
-        """Return ensemble scorer status."""
+        """Return ensemble scorer status with GPU info."""
+        gpu_device = None
+        if TORCH_AVAILABLE and torch.cuda.is_available():
+            gpu_device = torch.cuda.get_device_name(0)
         return {
             "xgb_loaded": self._xgb_model is not None,
             "lstm_loaded": self._lstm_model is not None,
@@ -305,6 +308,9 @@ class EnsembleScorer:
             ),
             "xgb_weight": XGB_WEIGHT,
             "lstm_weight": LSTM_WEIGHT,
+            "xgb_gpu": self._xgb_use_gpu,
+            "lstm_gpu": TORCH_AVAILABLE and torch.cuda.is_available(),
+            "gpu_device": gpu_device,
         }
 
 

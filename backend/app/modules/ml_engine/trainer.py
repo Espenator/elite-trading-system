@@ -59,11 +59,15 @@ def _get_gpu_params_xgb() -> dict:
     """XGBoost GPU params; fallback to CPU if CUDA unavailable or not built with GPU."""
     try:
         import xgboost as xgb
-
+        import os
+        gpu_id = int(os.getenv("XGBOOST_GPU_ID", "0"))
         # gpu_hist requires XGBoost built with CUDA
-        return {"tree_method": "gpu_hist", "predictor": "gpu_predictor"}
+        return {
+            "tree_method": "gpu_hist",
+            "device": f"cuda:{gpu_id}",
+        }
     except Exception:
-        return {"tree_method": "hist", "predictor": "cpu_predictor"}
+        return {"tree_method": "hist"}
 
 
 def train_xgb(
@@ -113,7 +117,7 @@ def train_xgb(
     except Exception as e:
         logger.warning("XGBoost GPU fit failed, falling back to CPU: %s", e)
         params["tree_method"] = "hist"
-        params["predictor"] = "cpu_predictor"
+        params.pop("device", None)
         model = xgb.XGBClassifier(**params)
         model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
     gpu_used = params.get("tree_method") == "gpu_hist"

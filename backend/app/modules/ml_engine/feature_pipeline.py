@@ -26,6 +26,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from app.core.gpu_compute import (
+    gpu_available, gpu_rolling_mean, gpu_rolling_std, gpu_rsi,
+    to_cpu, to_gpu, xp,
+)
+
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -89,35 +94,71 @@ def _safe_ta_import():
 # ---------------------------------------------------------------------------
 
 def _add_return_features(df: pd.DataFrame) -> List[str]:
-    """Multi-horizon return features."""
+    """Multi-horizon return features. GPU-accelerated when CuPy available."""
     cols = []
-    for period in [1, 2, 3, 5, 10, 20]:
-        col = f"return_{period}d"
-        df[col] = df.groupby("symbol")["close"].pct_change(period)
-        cols.append(col)
+    if gpu_available():
+        # GPU path: vectorized per-symbol return computation
+        for period in [1, 2, 3, 5, 10, 20]:
+            col = f"return_{period}d"
+            results = np.full(len(df), np.nan)
+            for sym, grp in df.groupby("symbol"):
+                close_gpu = to_gpu(grp["close"].values)
+                _xp = xp()
+                shifted = _xp.roll(close_gpu, period)
+                shifted[:period] = _xp.nan
+                ret = (close_gpu - shifted) / (_xp.maximum(shifted, 1e-10))
+                results[grp.index.values] = to_cpu(ret)
+            df[col] = results
+            cols.append(col)
+    else:
+        for period in [1, 2, 3, 5, 10, 20]:
+            col = f"return_{period}d"
+            df[col] = df.groupby("symbol")["close"].pct_change(period)
+            cols.append(col)
     return cols
 
 
 def _add_ma_features(df: pd.DataFrame) -> List[str]:
-    """Moving average distance features across multiple timeframes."""
+    """Moving average distance features across multiple timeframes. GPU-accelerated."""
     cols = []
     for period in [10, 20, 50, 200]:
         col = f"ma_{period}_dist"
-        ma = df.groupby("symbol")["close"].transform(lambda x: x.rolling(period).mean())
+        if gpu_available():
+            ma_results = np.full(len(df), np.nan)
+            for sym, grp in df.groupby("symbol"):
+                close_arr = to_gpu(grp["close"].values.astype(np.float64))
+                ma_results[grp.index.values] = to_cpu(gpu_rolling_mean(close_arr, period))
+            ma = pd.Series(ma_results, index=df.index)
+        else:
+            ma = df.groupby("symbol")["close"].transform(lambda x: x.rolling(period).mean())
         df[col] = (df["close"] - ma) / (ma + 1e-10)
         cols.append(col)
     return cols
 
 
 def _add_volatility_features(df: pd.DataFrame) -> List[str]:
-    """Realized volatility at multiple scales."""
+    """Realized volatility at multiple scales. GPU-accelerated when CuPy available."""
     cols = []
-    ret = df.groupby("symbol")["close"].pct_change()
 
-    for window in [5, 10, 20, 60]:
-        col = f"vol_{window}"
-        df[col] = ret.groupby(df["symbol"]).transform(lambda x: x.rolling(window).std())
-        cols.append(col)
+    if gpu_available():
+        for window in [5, 10, 20, 60]:
+            col = f"vol_{window}"
+            results = np.full(len(df), np.nan)
+            for sym, grp in df.groupby("symbol"):
+                close_arr = to_gpu(grp["close"].values.astype(np.float64))
+                _xp = xp()
+                ret = _xp.diff(close_arr) / _xp.maximum(close_arr[:-1], 1e-10)
+                ret = _xp.concatenate([_xp.array([_xp.nan]), ret])
+                vol = to_cpu(gpu_rolling_std(ret, window))
+                results[grp.index.values] = vol
+            df[col] = results
+            cols.append(col)
+    else:
+        ret = df.groupby("symbol")["close"].pct_change()
+        for window in [5, 10, 20, 60]:
+            col = f"vol_{window}"
+            df[col] = ret.groupby(df["symbol"]).transform(lambda x: x.rolling(window).std())
+            cols.append(col)
 
     # Volatility ratio (short/long) — mean reversion signal
     if "vol_5" in df.columns and "vol_60" in df.columns:
@@ -126,8 +167,17 @@ def _add_volatility_features(df: pd.DataFrame) -> List[str]:
 
     # Relative volume (today's volume vs 20d average)
     if "volume" in df.columns:
-        avg_vol = df.groupby("symbol")["volume"].transform(lambda x: x.rolling(20).mean())
-        df["vol_rel"] = df["volume"] / (avg_vol + 1)
+        if gpu_available():
+            results = np.full(len(df), np.nan)
+            for sym, grp in df.groupby("symbol"):
+                vol_arr = to_gpu(grp["volume"].values.astype(np.float64))
+                avg_vol = gpu_rolling_mean(vol_arr, 20)
+                rel = to_cpu(vol_arr / (avg_vol + 1))
+                results[grp.index.values] = rel
+            df["vol_rel"] = results
+        else:
+            avg_vol = df.groupby("symbol")["volume"].transform(lambda x: x.rolling(20).mean())
+            df["vol_rel"] = df["volume"] / (avg_vol + 1)
         cols.append("vol_rel")
 
     return cols
@@ -170,11 +220,21 @@ def _add_momentum_features(df: pd.DataFrame) -> List[str]:
 
 
 def _add_bollinger_features(df: pd.DataFrame) -> List[str]:
-    """Bollinger Band features — %B and bandwidth."""
+    """Bollinger Band features — %B and bandwidth. GPU-accelerated when CuPy available."""
     cols = []
     for window in [20]:
-        ma = df.groupby("symbol")["close"].transform(lambda x: x.rolling(window).mean())
-        std = df.groupby("symbol")["close"].transform(lambda x: x.rolling(window).std())
+        if gpu_available():
+            ma_results = np.full(len(df), np.nan)
+            std_results = np.full(len(df), np.nan)
+            for sym, grp in df.groupby("symbol"):
+                close_arr = to_gpu(grp["close"].values.astype(np.float64))
+                ma_results[grp.index.values] = to_cpu(gpu_rolling_mean(close_arr, window))
+                std_results[grp.index.values] = to_cpu(gpu_rolling_std(close_arr, window))
+            ma = pd.Series(ma_results, index=df.index)
+            std = pd.Series(std_results, index=df.index)
+        else:
+            ma = df.groupby("symbol")["close"].transform(lambda x: x.rolling(window).mean())
+            std = df.groupby("symbol")["close"].transform(lambda x: x.rolling(window).std())
         upper = ma + 2 * std
         lower = ma - 2 * std
         df[f"bb_pct_{window}"] = (df["close"] - lower) / (upper - lower + 1e-10)
@@ -204,17 +264,34 @@ def _add_volume_profile_features(df: pd.DataFrame) -> List[str]:
 
 
 def _add_atr_features(df: pd.DataFrame) -> List[str]:
-    """Average True Range features."""
+    """Average True Range features. GPU-accelerated when CuPy available."""
     cols = []
     if all(c in df.columns for c in ["high", "low", "close"]):
         for period in [14]:
-            prev_close = df.groupby("symbol")["close"].shift(1)
-            tr = pd.concat([
-                df["high"] - df["low"],
-                (df["high"] - prev_close).abs(),
-                (df["low"] - prev_close).abs()
-            ], axis=1).max(axis=1)
-            df[f"atr_{period}"] = tr.groupby(df["symbol"]).transform(lambda x: x.rolling(period).mean())
+            if gpu_available():
+                atr_results = np.full(len(df), np.nan)
+                _xp = xp()
+                for sym, grp in df.groupby("symbol"):
+                    h = to_gpu(grp["high"].values.astype(np.float64))
+                    l = to_gpu(grp["low"].values.astype(np.float64))
+                    c = to_gpu(grp["close"].values.astype(np.float64))
+                    prev_c = _xp.roll(c, 1)
+                    prev_c[0] = c[0]
+                    tr = _xp.maximum(
+                        h - l,
+                        _xp.maximum(_xp.abs(h - prev_c), _xp.abs(l - prev_c))
+                    )
+                    atr = gpu_rolling_mean(tr, period)
+                    atr_results[grp.index.values] = to_cpu(atr)
+                df[f"atr_{period}"] = atr_results
+            else:
+                prev_close = df.groupby("symbol")["close"].shift(1)
+                tr = pd.concat([
+                    df["high"] - df["low"],
+                    (df["high"] - prev_close).abs(),
+                    (df["low"] - prev_close).abs()
+                ], axis=1).max(axis=1)
+                df[f"atr_{period}"] = tr.groupby(df["symbol"]).transform(lambda x: x.rolling(period).mean())
             # Normalize ATR by close price
             df[f"atr_{period}_pct"] = df[f"atr_{period}"] / (df["close"] + 1e-10)
             cols.append(f"atr_{period}_pct")
@@ -222,11 +299,21 @@ def _add_atr_features(df: pd.DataFrame) -> List[str]:
 
 
 def _add_regime_features(df: pd.DataFrame) -> List[str]:
-    """Market regime proxy features (from HMM or heuristic)."""
+    """Market regime proxy features (from HMM or heuristic). GPU-accelerated."""
     cols = []
     # Heuristic regime: SMA cross
-    ma50 = df.groupby("symbol")["close"].transform(lambda x: x.rolling(50).mean())
-    ma200 = df.groupby("symbol")["close"].transform(lambda x: x.rolling(200).mean())
+    if gpu_available():
+        ma50_results = np.full(len(df), np.nan)
+        ma200_results = np.full(len(df), np.nan)
+        for sym, grp in df.groupby("symbol"):
+            close_arr = to_gpu(grp["close"].values.astype(np.float64))
+            ma50_results[grp.index.values] = to_cpu(gpu_rolling_mean(close_arr, 50))
+            ma200_results[grp.index.values] = to_cpu(gpu_rolling_mean(close_arr, 200))
+        ma50 = pd.Series(ma50_results, index=df.index)
+        ma200 = pd.Series(ma200_results, index=df.index)
+    else:
+        ma50 = df.groupby("symbol")["close"].transform(lambda x: x.rolling(50).mean())
+        ma200 = df.groupby("symbol")["close"].transform(lambda x: x.rolling(200).mean())
     df["regime_sma"] = (ma50 > ma200).astype(float)  # 1=bull, 0=bear
     cols.append("regime_sma")
 
@@ -382,8 +469,9 @@ class FeaturePipeline:
         df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
         all_feature_cols: List[str] = []
 
-        log.info("FeaturePipeline v%s: generating features for %d rows, %d symbols",
-                 PIPELINE_VERSION, len(df), df["symbol"].nunique())
+        log.info("FeaturePipeline v%s: generating features for %d rows, %d symbols (GPU=%s)",
+                 PIPELINE_VERSION, len(df), df["symbol"].nunique(),
+                 "ON" if gpu_available() else "OFF")
 
         # --- Feature generators ---
         all_feature_cols += _add_return_features(df)

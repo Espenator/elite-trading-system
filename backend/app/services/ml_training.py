@@ -189,6 +189,10 @@ class LSTMTrainer:
             criterion = nn.BCELoss()
             optimizer = optim.Adam(model.parameters(), lr=lr)
 
+            # Mixed precision (AMP) for ~2x speedup on RTX 4080
+            use_amp = device.type == "cuda"
+            scaler = torch.amp.GradScaler("cuda") if use_amp else None
+
             # If training is tracked by an existing run row, mark start time (truthful)
             if run_db_id is not None:
                 try:
@@ -237,11 +241,19 @@ class LSTMTrainer:
 
                 epoch_loss = 0.0
                 for batch_x, batch_y in loader:
-                    out = model(batch_x)
-                    loss = criterion(out, batch_y)
                     optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                    if use_amp:
+                        with torch.amp.autocast("cuda"):
+                            out = model(batch_x)
+                            loss = criterion(out, batch_y)
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        out = model(batch_x)
+                        loss = criterion(out, batch_y)
+                        loss.backward()
+                        optimizer.step()
                     epoch_loss += float(loss.item())
 
                 final_loss = epoch_loss / max(len(loader), 1)

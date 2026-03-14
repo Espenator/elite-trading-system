@@ -16,6 +16,9 @@ import time
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.core.gpu_compute import (
+    gpu_available, gpu_macd, gpu_rsi, to_cpu, to_gpu, xp,
+)
 from app.modules.symbol_universe import get_tracked_symbols
 
 logger = logging.getLogger(__name__)
@@ -67,9 +70,17 @@ def _numeric(val, default: float = 0.0) -> float:
 
 
 def _compute_rsi(closes: List[float], period: int = 14) -> float:
-    """Compute RSI (0-100) from close prices. Returns 50 if insufficient data."""
+    """Compute RSI (0-100) from close prices. GPU-accelerated when CuPy available."""
     if len(closes) < period + 1:
         return 50.0
+    if gpu_available() and len(closes) >= 30:
+        # GPU-vectorized RSI for larger arrays
+        arr = np.array(closes, dtype=np.float64)
+        rsi_arr = to_cpu(gpu_rsi(arr, period))
+        # Return the last valid RSI value
+        val = rsi_arr[-1]
+        return float(val) if not np.isnan(val) else 50.0
+    # CPU fallback for small arrays
     gains, losses = [], []
     for i in range(1, len(closes)):
         delta = closes[i] - closes[i - 1]
@@ -86,10 +97,17 @@ def _compute_rsi(closes: List[float], period: int = 14) -> float:
 
 
 def _compute_macd(closes: List[float]) -> Tuple[float, float, float]:
-    """Compute MACD line, signal line, histogram. Returns (0,0,0) if insufficient data."""
+    """Compute MACD line, signal line, histogram. GPU-accelerated when CuPy available."""
     if len(closes) < 26:
         return 0.0, 0.0, 0.0
 
+    if gpu_available() and len(closes) >= 30:
+        # GPU-vectorized MACD
+        arr = np.array(closes, dtype=np.float64)
+        macd_line, signal_line, histogram = gpu_macd(arr)
+        return float(to_cpu(macd_line)[-1]), float(to_cpu(signal_line)[-1]), float(to_cpu(histogram)[-1])
+
+    # CPU fallback
     def ema(data, period):
         k = 2.0 / (period + 1)
         result = [data[0]]
