@@ -183,20 +183,46 @@ class BrainClient:
         self._circuit = CircuitBreaker()
 
     def _ensure_channel(self):
-        """Lazy-init gRPC channel and stub."""
+        """Lazy-init gRPC channel and stub.
+
+        Uses the persistent singleton channel from brain_channel.py
+        when available, creating it on first call with keepalive options
+        for long-lived connections to PC2.
+        """
         if self._channel is not None:
             return
         try:
             import grpc
 
-            target = f"{self.host}:{self.port}"
-            self._channel = grpc.aio.insecure_channel(
-                target,
-                options=[
-                    ("grpc.connect_timeout_ms", BRAIN_CONNECT_TIMEOUT * 1000),
-                    ("grpc.keepalive_time_ms", 30000),
-                ],
-            )
+            # Try reusing the persistent singleton from brain_channel
+            try:
+                from app.core.brain_channel import _channel as _singleton_ch
+                if _singleton_ch is not None:
+                    self._channel = _singleton_ch
+                    logger.debug("Reusing persistent brain_channel singleton")
+                else:
+                    raise ValueError("not yet initialized")
+            except (ImportError, ValueError):
+                # Create channel with enhanced keepalive options
+                target = f"{self.host}:{self.port}"
+                self._channel = grpc.aio.insecure_channel(
+                    target,
+                    options=[
+                        ("grpc.connect_timeout_ms", BRAIN_CONNECT_TIMEOUT * 1000),
+                        ("grpc.keepalive_time_ms", 30_000),
+                        ("grpc.keepalive_timeout_ms", 10_000),
+                        ("grpc.keepalive_permit_without_calls", True),
+                        ("grpc.http2.max_pings_without_data", 0),
+                    ],
+                )
+                # Store into brain_channel module for sharing
+                try:
+                    import app.core.brain_channel as _bc_mod
+                    _bc_mod._channel = self._channel
+                except Exception:
+                    pass
+                logger.info("Brain gRPC persistent channel created: %s", target)
+
             import sys
             from pathlib import Path
 
@@ -210,7 +236,6 @@ class BrainClient:
             from proto import brain_pb2_grpc
 
             self._stub = brain_pb2_grpc.BrainServiceStub(self._channel)
-            logger.info("Brain gRPC channel created: %s", target)
         except Exception as e:
             logger.warning("Failed to create brain gRPC channel: %s", e)
             self._channel = None

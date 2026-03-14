@@ -1782,6 +1782,20 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
+        # Close persistent brain gRPC channel
+        try:
+            from app.core.brain_channel import close_brain_channel
+            await close_brain_channel()
+        except Exception:
+            pass
+
+        # Close brain_client singleton channel
+        try:
+            from app.services.brain_client import get_brain_client
+            await get_brain_client().close()
+        except Exception:
+            pass
+
         # Close DuckDB connection
         try:
             from app.data.duckdb_storage import duckdb_store

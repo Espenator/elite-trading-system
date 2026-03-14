@@ -412,6 +412,15 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
 
 
 async def serve():
+    # Pin brain_service to P-cores for low-latency inference dispatch (PC2 only)
+    try:
+        from app.core.hardware_profile import apply_affinity, set_process_priority
+        apply_affinity("p_cores")  # Logical CPUs 0-15 on i7-13700
+        set_process_priority("above_normal")
+        logger.info("Brain Service pinned to P-cores with above_normal priority")
+    except Exception as e:
+        logger.debug("CPU affinity/priority not applied: %s", e)
+
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
     brain_pb2_grpc.add_BrainServiceServicer_to_server(
         BrainServiceServicer(), server

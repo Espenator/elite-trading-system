@@ -624,11 +624,28 @@ async def aggregate(
             volatility_features = _compute_volatility_features(ohlcv_rows)
             cycle_features = _get_cycle_features(ohlcv_rows)
 
-            # Collect parallel results
-            regime_features = f_regime.result(timeout=5)
-            flow_features = f_flow.result(timeout=5)
-            indicator_features = f_indicators.result(timeout=5)
-            intermarket_features = f_intermarket.result(timeout=5)
+            # Collect parallel results with graceful exception handling
+            # (don't let one failure kill the entire aggregation)
+            try:
+                regime_features = f_regime.result(timeout=5)
+            except Exception as e:
+                logger.warning("Regime fetch failed for %s: %s", symbol, e)
+                regime_features = {"regime": "unknown", "regime_confidence": 0.0}
+            try:
+                flow_features = f_flow.result(timeout=5)
+            except Exception as e:
+                logger.warning("Flow fetch failed for %s: %s", symbol, e)
+                flow_features = {}
+            try:
+                indicator_features = f_indicators.result(timeout=5)
+            except Exception as e:
+                logger.warning("Indicator fetch failed for %s: %s", symbol, e)
+                indicator_features = {}
+            try:
+                intermarket_features = f_intermarket.result(timeout=5)
+            except Exception as e:
+                logger.warning("Intermarket fetch failed for %s: %s", symbol, e)
+                intermarket_features = {}
 
         extended = _compute_extended_indicators(ohlcv_rows)
         for k, v in extended.items():
