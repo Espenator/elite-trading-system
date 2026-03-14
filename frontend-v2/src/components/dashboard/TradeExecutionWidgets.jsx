@@ -7,7 +7,7 @@
  *   - CouncilDecisionPanel — AI council verdict with agent vote breakdown
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import clsx from 'clsx';
 import { getApiUrl } from '../../config/api';
 
@@ -94,7 +94,7 @@ const DirectionBadge = ({ direction, size = 'sm' }) => {
  *   currentPrice {number}  Live price
  *   symbol       {string}  Ticker symbol
  */
-export function VisualPriceLadder({
+export const VisualPriceLadder = memo(function VisualPriceLadder({
   entry        = 0,
   stop         = 0,
   target       = 0,
@@ -422,7 +422,7 @@ export function VisualPriceLadder({
       )}
     </div>
   );
-}
+});
 
 /* ═════════════════════════════════════════════════════════════════
    2. CouncilDecisionPanel
@@ -514,7 +514,7 @@ function ConfBar({ value }) {
  *   onOverride   {function} Called when "Override" is clicked
  *   onDismiss    {function} Called when "Dismiss" is clicked
  */
-export function CouncilDecisionPanel({
+export const CouncilDecisionPanel = memo(function CouncilDecisionPanel({
   councilData,
   onExecute = () => {},
   onOverride = () => {},
@@ -882,4 +882,4 @@ export function CouncilDecisionPanel({
       </div>
     </div>
   );
-}
+});

@@ -15,6 +15,7 @@ export default function DataTable({
   headerClassName,
   bodyClassName,
   rowClassName,
+  "aria-label": ariaLabel = "Data table",
 }) {
   return (
     <div
@@ -23,7 +24,7 @@ export default function DataTable({
         className,
       )}
     >
-      <table className="w-full text-sm text-left">
+      <table className="w-full text-sm text-left" role="table" aria-label={ariaLabel}>
         <thead
           className={clsx(
             "bg-surface border-b border-secondary/30",
@@ -34,6 +35,8 @@ export default function DataTable({
             {columns.map((col) => (
               <th
                 key={col.key}
+                role="columnheader"
+                aria-sort={col.sortable ? (col.sortDirection === 'asc' ? 'ascending' : col.sortDirection === 'desc' ? 'descending' : 'none') : undefined}
                 className={clsx(
                   "px-4 py-3 text-left text-xs font-medium text-cyan-400 uppercase whitespace-nowrap",
                   col.headerClassName ?? col.className,

@@ -2,7 +2,7 @@
 // agent health summary, latest verdict, and position scale.
 // Designed to sit at the top of the Dashboard page.
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Brain, Shield, ShieldAlert, Activity, TrendingUp, TrendingDown,
   Gauge, Heart, AlertTriangle, ChevronDown, ChevronUp, Zap,
@@ -17,7 +17,7 @@ const MODE_CONFIG = {
   HALTED: { color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/40', label: 'HALTED', scale: '0.0x', icon: ShieldAlert },
 };
 
-export default function CNSVitals() {
+function CNSVitals() {
   const { mode, positionScale, latestVerdict, circuitBreakerFired } = useCNS();
   const cbStatus = useCircuitBreakerStatus(15000);
   const agentsHealth = useCnsAgentsHealth(15000);
@@ -192,3 +192,5 @@ export default function CNSVitals() {
     </div>
   );
 }
+
+export default React.memo(CNSVitals);

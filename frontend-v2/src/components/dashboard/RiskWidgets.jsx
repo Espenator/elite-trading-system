@@ -2,7 +2,7 @@
 // RiskWidgets.jsx — Embodier Trader | Risk Intelligence Visualization Components
 // Exports: CorrelationMatrixHeatmap, ParameterSweepsPanel
 // =============================================================================
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, memo } from 'react';
 
 // ─── COLOR PALETTE (mirrors RiskIntelligence.jsx) ───────────────────────────
 const C = {
@@ -64,7 +64,7 @@ function getCorrColor(val) {
  *   correlations – number[][]        (default: zero matrix, diagonal = 1)
  *   className   – string
  */
-export function CorrelationMatrixHeatmap({
+export const CorrelationMatrixHeatmap = memo(function CorrelationMatrixHeatmap({
   assets = DEFAULT_ASSETS,
   correlations = ZERO_CORR,
   className = '',
@@ -304,7 +304,7 @@ export function CorrelationMatrixHeatmap({
       </div>
     </div>
   );
-}
+});
 
 // =============================================================================
 // PARAMETER SWEEPS PANEL
@@ -493,7 +493,7 @@ function SweepSlider({ param, value, onChange }) {
  *   parameters   – array of param config objects (optional override)
  *   className    – string
  */
-export function ParameterSweepsPanel({
+export const ParameterSweepsPanel = memo(function ParameterSweepsPanel({
   onRun,
   onStop,
   parameters = DEFAULT_PARAMETERS,
@@ -735,7 +735,7 @@ export function ParameterSweepsPanel({
       </div>
     </div>
   );
-}
+});
 
 // =============================================================================
 // DEFAULT EXPORT — convenience re-export of both

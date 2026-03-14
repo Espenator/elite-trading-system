@@ -12,7 +12,7 @@
  *   "SPY 598.42 +0.34% | QQQ 518.73 +0.52% | DIA 441.20 +0.18% | VIX 14.20 -2.31% | IWM 226.84 +0.67% | REGIME: GREEN"
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 
 // ── Colour helpers ────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ function fmtTime(d) {
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
-export default function StatusFooter({
+function StatusFooter({
   // Connection status
   apiStatus    = "red",
   wsStatus     = "red",
@@ -303,3 +303,21 @@ export default function StatusFooter({
     </footer>
   );
 }
+
+export default React.memo(StatusFooter, (prev, next) => {
+  return (
+    prev.apiStatus === next.apiStatus &&
+    prev.wsStatus === next.wsStatus &&
+    prev.mlStatus === next.mlStatus &&
+    prev.agentCount === next.agentCount &&
+    prev.llmFlow === next.llmFlow &&
+    prev.conferenceCur === next.conferenceCur &&
+    prev.conferenceMax === next.conferenceMax &&
+    prev.loadCur === next.loadCur &&
+    prev.loadMax === next.loadMax &&
+    prev.uptimeDays === next.uptimeDays &&
+    prev.uptimeHours === next.uptimeHours &&
+    prev.regime === next.regime &&
+    prev.tickerItems === next.tickerItems
+  );
+});

@@ -154,6 +154,7 @@ export default function Header() {
 
   return (
     <header
+      role="banner"
       className="sticky top-0 z-10 h-16 flex items-center justify-between gap-4 px-3 md:px-6 overflow-x-auto no-scrollbar"
       style={{
         background:   "#111827",
@@ -188,6 +189,7 @@ export default function Header() {
                 handleSearchSubmit();
               }
             }}
+            aria-label="Search tickers and signals"
             className="w-full pl-9 pr-12 py-2 bg-transparent text-sm text-white placeholder-[#6B7280] outline-none"
           />
           <kbd
@@ -338,6 +340,7 @@ export default function Header() {
         <div className="relative">
           <button
             type="button"
+            aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
             onClick={() => {
               setShowNotifications(!showNotifications);
               setShowUserMenu(false);
@@ -448,6 +451,7 @@ export default function Header() {
         <div className="relative">
           <button
             type="button"
+            aria-label="User menu"
             onClick={() => {
               setShowUserMenu(!showUserMenu);
               setShowNotifications(false);

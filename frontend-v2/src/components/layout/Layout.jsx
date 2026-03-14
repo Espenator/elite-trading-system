@@ -11,9 +11,11 @@ import StatusFooter from './StatusFooter';
 import KeyboardShortcuts from '../ui/KeyboardShortcuts';
 import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import { useApi } from '../../hooks/useApi';
+import useKeyboardShortcuts from '../../hooks/useKeyboardShortcuts';
 import ws from '../../services/websocket';
 
 function LayoutInner() {
+  useKeyboardShortcuts();
   const { wsConnected, wsReconnecting, mode } = useCNS();
 
   // Lightweight health probe for footer — /healthz (25s timeout; backend can be slow when event loop busy)
@@ -54,6 +56,9 @@ function LayoutInner() {
 
   return (
     <div className="flex min-h-screen bg-dark text-white overflow-hidden">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-cyan-600 focus:text-white focus:rounded">
+        Skip to main content
+      </a>
       {/* Glass House Sidebar */}
       <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleSidebar} />
 
@@ -63,7 +68,7 @@ function LayoutInner() {
         <Header wsConnected={wsConnected} />
 
         {/* Page content - scrollable */}
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-6 pb-10">
+        <main id="main-content" role="main" className="flex-1 overflow-y-auto custom-scrollbar p-6 pb-10">
           <Outlet />
         </main>
         <StatusFooter
