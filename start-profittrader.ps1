@@ -23,6 +23,7 @@ param(
 )
 
 $ErrorActionPreference = "SilentlyContinue"
+$env:PYTHONUTF8 = "1"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Get-Location }
 $BackendDir      = Join-Path $Root "backend"
@@ -31,7 +32,7 @@ $PythonExe       = Join-Path $BackendDir "venv\Scripts\python.exe"
 
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Magenta
-Write-Host "    EMBODIER TRADER v4.1.0  PC2: ProfitTrader" -ForegroundColor Magenta
+Write-Host "    EMBODIER TRADER v5.0.0  PC2: ProfitTrader" -ForegroundColor Magenta
 Write-Host "    Intelligence & GPU Compute Node" -ForegroundColor Magenta
 Write-Host "  ============================================" -ForegroundColor Magenta
 Write-Host ""

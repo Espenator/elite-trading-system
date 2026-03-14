@@ -25,6 +25,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+$env:PYTHONUTF8 = "1"
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $RepoRoot "backend"
 $FrontendDir = Join-Path $RepoRoot "frontend-v2"

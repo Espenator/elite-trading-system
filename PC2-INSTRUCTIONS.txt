@@ -1,0 +1,96 @@
+PC2 ProfitTrader -- Post-Fix Instructions (March 2026)
+======================================================
+
+After today's fixes on claude/review-repo-docs-LmWVI, PC2 needs these steps.
+Run these on ProfitTrader (192.168.1.116).
+
+Read this file, then execute each step in order.
+
+
+STEP 1 -- SET PYTHONUTF8=1 PERMANENTLY
+
+  [Environment]::SetEnvironmentVariable("PYTHONUTF8", "1", "User")
+
+
+STEP 2 -- PULL LATEST CODE
+
+  cd C:\Users\ProfitTrader\elite-trading-system
+  git fetch origin claude/review-repo-docs-LmWVI
+  git checkout claude/review-repo-docs-LmWVI
+  git pull origin claude/review-repo-docs-LmWVI
+
+Verify these commits are present:
+  git log --oneline -5
+
+You should see:
+  dc11870 fix: thread blocking startup calls
+  6672d93 fix: thread DuckDB health_check() calls
+  701fd4f fix: harden startup to prevent port bind races
+  e864c34 feat: add PID-file process lock
+
+
+STEP 3 -- FIX .ENV BAD BYTE (if PC2 has its own backend/.env)
+
+  $envPath = "C:\Users\ProfitTrader\elite-trading-system\backend\.env"
+  if (Test-Path $envPath) {
+    $bytes = [System.IO.File]::ReadAllBytes($envPath)
+    $bytes = $bytes | ForEach-Object { if ($_ -eq 0x9D) { [byte]0x20 } else { $_ } }
+    [System.IO.File]::WriteAllBytes($envPath, $bytes)
+    Write-Host ".env fixed"
+  } else {
+    Write-Host "No .env on PC2 -- OK if using start-profittrader.ps1 (brain only)"
+  }
+
+
+STEP 4 -- VERIFY DUCKDB_PATH (only if PC2 runs backend)
+
+If PC2 runs in full mode (start-pc2.ps1), check backend/.env:
+  DUCKDB_PATH=data/analytics.duckdb
+
+NOT analytics_dev.duckdb (that one is empty).
+
+If PC2 runs brain-only (start-profittrader.ps1), skip this step.
+
+
+STEP 5 -- CHOOSE LAUNCHER
+
+Option A -- Brain-only (production, recommended):
+  cd C:\Users\ProfitTrader\elite-trading-system
+  .\start-profittrader.ps1
+
+  This starts Ollama + brain_service gRPC on port 50051.
+  PC1 connects via BRAIN_HOST=192.168.1.116.
+
+Option B -- Full stack (development/testing):
+  cd C:\Users\ProfitTrader\elite-trading-system
+  .\start-pc2.ps1
+
+  This starts backend (8001) + frontend (3000) + brain_service (50051).
+
+
+STEP 6 -- VERIFY BRAIN SERVICE
+
+From PC2, verify Ollama is responding:
+  Invoke-WebRequest "http://localhost:11434/api/tags" -UseBasicParsing
+
+From PC1 (ESPENMAIN), test gRPC connectivity:
+  Invoke-WebRequest "http://localhost:8000/api/v1/health" -UseBasicParsing |
+    ConvertFrom-Json | Select-Object -ExpandProperty brain
+
+Should show: connected=True, host=192.168.1.116, port=50051
+
+
+WHAT NOT TO DO ON PC2:
+- Do NOT run start-embodier.ps1 -- that is PC1-only
+- Do NOT run scripts/run_full_stack_24_7.ps1 -- that is PC1-only
+- Do NOT trade from PC2 -- orders only execute on PC1 (Key 1)
+- Do NOT change ALPACA_API_KEY on PC2 -- it uses Key 2 (discovery only)
+
+
+WHAT CHANGED TODAY (summary):
+- asyncio.to_thread() wrapping for all DuckDB health_check() and init_schema() calls
+  so the event loop no longer blocks during startup or health checks
+- PID-file process lock prevents duplicate backend instances
+- DUCKDB_PATH env override lets each PC use a different database file
+- PYTHONUTF8=1 added to all startup scripts (PC1 and PC2)
+- Port bind race hardening prevents respawn storms
