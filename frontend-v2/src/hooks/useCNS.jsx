@@ -48,32 +48,44 @@ export function CNSProvider({ children }) {
   const cbStatus = useCircuitBreakerStatus(15000);
   const lastVerdict = useCnsLastVerdict(10000);
 
-  // Sync polling data into state
+  // Sync polling data into state (defensive: catch errors so CNSProvider never crashes)
   useEffect(() => {
-    if (homeostasis.data) {
-      const newMode = homeostasis.data.mode || 'NORMAL';
-      if (newMode !== prevModeRef.current) {
-        addNotification(CNS_EVENTS.MODE_CHANGE, {
-          from: prevModeRef.current,
-          to: newMode,
-          message: `System mode changed: ${prevModeRef.current} → ${newMode}`,
-        });
-        prevModeRef.current = newMode;
+    try {
+      if (homeostasis.data) {
+        const newMode = homeostasis.data.mode || 'NORMAL';
+        if (newMode !== prevModeRef.current) {
+          addNotification(CNS_EVENTS.MODE_CHANGE, {
+            from: prevModeRef.current,
+            to: newMode,
+            message: `System mode changed: ${prevModeRef.current} → ${newMode}`,
+          });
+          prevModeRef.current = newMode;
+        }
+        setMode(newMode);
+        setPositionScale(homeostasis.data.position_scale ?? 1.0);
       }
-      setMode(newMode);
-      setPositionScale(homeostasis.data.position_scale ?? 1.0);
+    } catch (err) {
+      console.warn('[CNS] Error processing homeostasis data:', err);
     }
   }, [homeostasis.data]);
 
   useEffect(() => {
-    if (cbStatus.data) {
-      setCircuitBreakerArmed(cbStatus.data.armed ?? true);
+    try {
+      if (cbStatus.data) {
+        setCircuitBreakerArmed(cbStatus.data.armed ?? true);
+      }
+    } catch (err) {
+      console.warn('[CNS] Error processing circuit breaker data:', err);
     }
   }, [cbStatus.data]);
 
   useEffect(() => {
-    if (lastVerdict.data?.verdict) {
-      setLatestVerdict(lastVerdict.data.verdict);
+    try {
+      if (lastVerdict.data?.verdict) {
+        setLatestVerdict(lastVerdict.data.verdict);
+      }
+    } catch (err) {
+      console.warn('[CNS] Error processing last verdict data:', err);
     }
   }, [lastVerdict.data]);
 
