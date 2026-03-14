@@ -2,7 +2,9 @@
 // Matches Operator Console style: cyan icon, bold white title, light gray description
 // Supports optional top/bottom decorative banner images
 
-export default function PageHeader({
+import React from 'react';
+
+function PageHeader({
   icon: Icon,
   title,
   description,
@@ -50,3 +52,5 @@ export default function PageHeader({
     </div>
   );
 }
+
+export default React.memo(PageHeader);

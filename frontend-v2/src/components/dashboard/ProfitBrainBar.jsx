@@ -3,9 +3,10 @@
  * Fetches from /api/v1/cns/profit-brain every 10s via standard useApi hook.
  * Shows: win rate, total PnL, brain weights, feedback loop status, active systems count.
  */
+import React from 'react';
 import { useProfitBrain } from "../../hooks/useApi";
 
-export default function ProfitBrainBar() {
+function ProfitBrainBar() {
   const { data: brain } = useProfitBrain();
 
   if (!brain) return null;
@@ -90,3 +91,5 @@ export default function ProfitBrainBar() {
     </div>
   );
 }
+
+export default React.memo(ProfitBrainBar);

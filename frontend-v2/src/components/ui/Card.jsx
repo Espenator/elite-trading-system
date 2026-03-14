@@ -1,3 +1,4 @@
+import React from 'react';
 import clsx from 'clsx';
 
 /**
@@ -24,7 +25,7 @@ import clsx from 'clsx';
  *   onRetry      function           — shows "Retry" link when error is set
  *   noHover      bool               — disable hover glow (for static info cards)
  */
-export default function Card({
+function Card({
   title,
   subtitle,
   action,
@@ -121,3 +122,5 @@ export default function Card({
     </div>
   );
 }
+
+export default React.memo(Card);

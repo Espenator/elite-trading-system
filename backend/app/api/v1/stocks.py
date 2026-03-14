@@ -8,6 +8,7 @@ If Finviz is unavailable (no API key), endpoints return Alpaca-sourced data
 instead of crashing with a 500 error.
 """
 import logging
+import time
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -157,6 +158,8 @@ async def get_tracked():
     }
 
 
+_stock_list_cache: Dict = {"data": None, "timestamp": 0}
+
 @router.get("/list", response_model=List[Dict])
 async def get_stock_list(
     filters: Optional[str] = Query(
@@ -179,7 +182,13 @@ async def get_stock_list(
 
     BUG FIX 9: When FINVIZ_API_KEY is not configured, falls back to Alpaca
     snapshot data for default symbols instead of crashing with a 500 error.
+
+    Cached for 1 hour (3600s) — stock list rarely changes.
     """
+    # Return cached result if fresh (1 hour TTL)
+    if _stock_list_cache["data"] and time.time() - _stock_list_cache["timestamp"] < 3600:
+        return _stock_list_cache["data"]
+
     # Try Finviz first (if API key is configured)
     if _finviz_available:
         try:
@@ -188,6 +197,8 @@ async def get_stock_list(
             stocks = await finviz_service.get_stock_list(
                 filters=filters, version=version, filter_type=filter_type, columns=columns
             )
+            _stock_list_cache["data"] = stocks
+            _stock_list_cache["timestamp"] = time.time()
             return stocks
         except Exception as e:
             logger.warning("Finviz stock list failed, trying Alpaca fallback: %s", e)
@@ -195,6 +206,8 @@ async def get_stock_list(
     # Alpaca fallback (works 24/7 including weekends)
     alpaca_stocks = await _alpaca_stock_list()
     if alpaca_stocks:
+        _stock_list_cache["data"] = alpaca_stocks
+        _stock_list_cache["timestamp"] = time.time()
         return alpaca_stocks
 
     # Return empty list as last resort (never crash)

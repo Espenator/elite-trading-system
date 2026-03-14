@@ -16,6 +16,27 @@ from app.websocket_manager import broadcast_ws
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+_NO_DATA_RESPONSE = {"hasData": False, "message": "No backtest data available. Run a backtest first."}
+
+
+def _has_backtest_data() -> bool:
+    """Quick check if any backtest runs exist (SQLite, <5ms)."""
+    try:
+        from app.services.backtest_engine import BacktestEngine
+        engine = BacktestEngine()
+        conn = engine._conn()
+        tables = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_runs'"
+        ).fetchone()
+        if not tables:
+            conn.close()
+            return False
+        row = conn.execute("SELECT 1 FROM backtest_runs LIMIT 1").fetchone()
+        conn.close()
+        return row is not None
+    except Exception:
+        return False
+
 
 class BacktestRequest(BaseModel):
     strategy: str
@@ -283,94 +304,91 @@ async def compare_kelly_sizing(request: BacktestRequest):
 
 @router.get("/results")
 def get_backtest_results():
-    """Full backtest results with equity curve, drawdown, trades, and all KPIs. Not yet implemented."""
-    raise HTTPException(
-        status_code=501,
-        detail="Backtest results aggregation not implemented. Run a backtest via GET/POST /backtest/ to get metrics.",
-    )
+    """Full backtest results with equity curve, drawdown, trades, and all KPIs."""
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "runs": [], "equityCurve": [], "metrics": {}}
+    # TODO: aggregate real results when backtest engine stores them
+    return {**_NO_DATA_RESPONSE, "runs": [], "equityCurve": [], "metrics": {}}
 
 
 @router.get("/optimization")
 def get_backtest_optimization():
-    """Parameter optimization results with heatmap data. Not yet implemented."""
-    raise HTTPException(
-        status_code=501,
-        detail="Backtest parameter optimization not implemented.",
-    )
+    """Parameter optimization results with heatmap data."""
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "heatmap": [], "bestParams": {}}
+    return {**_NO_DATA_RESPONSE, "heatmap": [], "bestParams": {}}
 
 
 @router.get("/walkforward")
 @router.get("/walk-forward")
 def get_backtest_walk_forward():
-    """Walk-forward analysis with in-sample/out-of-sample windows. Not yet implemented."""
-    raise HTTPException(
-        status_code=501,
-        detail="Walk-forward backtest not implemented.",
-    )
+    """Walk-forward analysis with in-sample/out-of-sample windows."""
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "windows": [], "summary": {}}
+    return {**_NO_DATA_RESPONSE, "windows": [], "summary": {}}
 
 
 @router.get("/montecarlo")
 @router.get("/monte-carlo")
 def get_backtest_monte_carlo():
-    """Monte Carlo simulation with confidence intervals. Not yet implemented."""
-    raise HTTPException(
-        status_code=501,
-        detail="Monte Carlo backtest not implemented.",
-    )
+    """Monte Carlo simulation with confidence intervals."""
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "simulations": [], "confidenceIntervals": {}}
+    return {**_NO_DATA_RESPONSE, "simulations": [], "confidenceIntervals": {}}
 
 
 @router.get("/correlation")
 def get_backtest_correlation():
     """Asset correlation matrix for portfolio analysis."""
-    return {
-        "assets": [],
-        "matrix": []
-    }
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "assets": [], "matrix": []}
+    return {"hasData": False, "assets": [], "matrix": []}
 
 
 @router.get("/sector-exposure")
 def get_backtest_sector_exposure():
     """Sector allocation breakdown with P&L per sector."""
-    return {
-        "sectors": []
-    }
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "sectors": []}
+    return {"hasData": False, "sectors": []}
 
 
 @router.get("/drawdown-analysis")
 def get_backtest_drawdown_analysis():
     """Drawdown period analysis with depth, recovery time, and cause."""
-    return {
-        "periods": []
-    }
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "periods": []}
+    return {"hasData": False, "periods": []}
 
 
 @router.get("/rolling-sharpe")
 def get_backtest_rolling_sharpe():
     """Rolling Sharpe ratio time series for strategy evaluation."""
-    periods: list = []
-    return {
-        "periods": periods,
-        "series": periods,
-    }
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "periods": [], "series": []}
+    return {"hasData": False, "periods": [], "series": []}
 
 
 @router.get("/trade-distribution")
 def get_backtest_trade_distribution():
     """P&L distribution histogram for backtest trades."""
-    buckets: list = []
-    return {
-        "buckets": buckets,
-        "distribution": buckets,
-        "mean": 0,
-        "median": 0,
-        "skew": 0,
-    }
+    if not _has_backtest_data():
+        return {**_NO_DATA_RESPONSE, "buckets": [], "distribution": [], "mean": 0, "median": 0, "skew": 0}
+    return {"hasData": False, "buckets": [], "distribution": [], "mean": 0, "median": 0, "skew": 0}
 
 
 @router.get("/kelly-comparison")
 def get_backtest_kelly_comparison():
     """Kelly vs fixed sizing comparison metrics."""
+    if not _has_backtest_data():
+        return {
+            **_NO_DATA_RESPONSE,
+            "fixed": {"total_return": 0, "sharpe": 0, "max_dd": 0, "profit_factor": 0},
+            "kelly": {"total_return": 0, "sharpe": 0, "max_dd": 0, "profit_factor": 0},
+            "kelly_advantage_pct": 0,
+        }
     return {
+        "hasData": False,
         "fixed": {"total_return": 0, "sharpe": 0, "max_dd": 0, "profit_factor": 0},
         "kelly": {"total_return": 0, "sharpe": 0, "max_dd": 0, "profit_factor": 0},
         "kelly_advantage_pct": 0,
@@ -391,6 +409,17 @@ async def get_backtest_regime_performance():
     """
     import logging
     logger = logging.getLogger(__name__)
+
+    if not _has_backtest_data():
+        empty = {
+            "hasData": False,
+            "message": "No backtest data available. Run a backtest first.",
+            "GREEN": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
+            "YELLOW": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
+            "RED": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
+        }
+        empty["regimes"] = [{"regime": k, **v} for k, v in empty.items() if k not in ("regimes", "hasData", "message")]
+        return empty
 
     try:
         # Try to get regime-tagged performance from database

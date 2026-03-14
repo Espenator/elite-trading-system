@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 // ─── COLOR PALETTE ────────────────────────────────────────────────────────────
 // #0B0E14  background
@@ -14,7 +14,7 @@ import React from 'react';
 //    Large circular badge with animated draw-on SVG ring showing the grade.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function TradingGradeHero({ grade = '—', score = 0, size = 120 }) {
+export const TradingGradeHero = memo(function TradingGradeHero({ grade = '—', score = 0, size = 120 }) {
   const gradeColors = {
     A: '#10B981',
     B: '#06B6D4',
@@ -107,7 +107,7 @@ export function TradingGradeHero({ grade = '—', score = 0, size = 120 }) {
       </div>
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. ReturnsHeatmapCalendar
@@ -126,7 +126,7 @@ function heatmapCellStyle(value) {
   return             { bg: 'rgba(239,68,68,0.42)',  text: '#f87171', label: `${value.toFixed(1)}%` };
 }
 
-export function ReturnsHeatmapCalendar({ data = [], className = '', onCellClick }) {
+export const ReturnsHeatmapCalendar = memo(function ReturnsHeatmapCalendar({ data = [], className = '', onCellClick }) {
   // Build lookup: { year: { month: return_pct } }
   const lookup = {};
   const yearsSet = new Set();
@@ -226,7 +226,7 @@ export function ReturnsHeatmapCalendar({ data = [], className = '', onCellClick 
       </div>
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. ConcentricAIDial
@@ -270,7 +270,7 @@ function ConcentricRing({ cx, cy, r, trackColor, fillColor, value, strokeWidth, 
   );
 }
 
-export function ConcentricAIDial({ metrics = [], centerLabel }) {
+export const ConcentricAIDial = memo(function ConcentricAIDial({ metrics = [], centerLabel }) {
   const svgSize = 180;
   const cx = svgSize / 2;
   const cy = svgSize / 2;
@@ -442,4 +442,4 @@ export function ConcentricAIDial({ metrics = [], centerLabel }) {
       </div>
     </div>
   );
-}
+});

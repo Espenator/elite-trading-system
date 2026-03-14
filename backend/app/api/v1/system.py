@@ -7,9 +7,10 @@ APEX Phase 2 additions:
 """
 import logging
 import subprocess
+import time
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.modules.social_news_engine import get_status as social_news_status
 from app.modules.chart_patterns import get_status as chart_patterns_status
@@ -61,16 +62,34 @@ async def _system_summary_impl():
 
 
 # ---------------------------------------------------------------------------
-# /status
+# /health-check  — ultra-fast endpoint for frontend keep-alive
 # ---------------------------------------------------------------------------
+@router.get("/health-check")
+def health_check():
+    """Ultra-fast health check (<10ms). Use for frontend keep-alive."""
+    return {"status": "ok", "timestamp": time.time()}
+
+
+# ---------------------------------------------------------------------------
+# /status  — cached system status (10s TTL)
+# ---------------------------------------------------------------------------
+_status_cache: Dict[str, Any] = {"data": None, "timestamp": 0, "ttl": 10}
+
+
 @router.get("/status")
 async def system_status():
     """
     Return system-wide status for glass-box UI:
     - trading_mode: paper | live
     - modules: status of each component (symbol_universe, social_news, chart_patterns, ml_engine, execution)
+
+    Cached for 10 seconds to avoid redundant subsystem polling.
     """
-    return {
+    now = time.time()
+    if _status_cache["data"] and (now - _status_cache["timestamp"]) < _status_cache["ttl"]:
+        return _status_cache["data"]
+
+    result = {
         "trading_mode": get_trading_mode(),
         "modules": {
             "symbol_universe": {
@@ -83,6 +102,9 @@ async def system_status():
             "execution_engine": execution_status(),
         },
     }
+    _status_cache["data"] = result
+    _status_cache["timestamp"] = now
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -446,3 +468,21 @@ async def device_info():
         "brainHost": device_settings.get("brainHost", "localhost"),
         "brainPort": device_settings.get("brainPort", 50051),
     }
+
+
+# ---------------------------------------------------------------------------
+# /frontend-errors  — Receive frontend error reports for monitoring
+# ---------------------------------------------------------------------------
+@router.post("/frontend-errors")
+async def report_frontend_error(request: Request):
+    """Receive frontend error reports for monitoring."""
+    try:
+        data = await request.json()
+        log.warning(
+            "Frontend error in %s: %s",
+            data.get("component", "unknown"),
+            data.get("error", "unknown")[:200],
+        )
+        return {"status": "received"}
+    except Exception:
+        return {"status": "received"}

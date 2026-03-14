@@ -632,12 +632,12 @@ export default function MLBrainFlywheel() {
       </div>
 
       {/* GLOBAL SCROLLBAR CSS */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00D9FF; }
-      `}} />
+      `}</style>
     </div>
   );
 }

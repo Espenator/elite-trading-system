@@ -101,6 +101,8 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
 
   return (
     <aside
+      role="navigation"
+      aria-label="Main navigation"
       style={{
         background:   "#111827",
         borderRight:  "1px solid rgba(42,52,68,0.5)",
@@ -178,6 +180,8 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
         {navSections.map((section, sectionIdx) => (
           <div
             key={section.label}
+            role="group"
+            aria-label={section.label}
             className={collapsed ? "" : "mb-0.5"}
           >
             {/* Section label (expanded) */}
@@ -209,6 +213,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
                     <NavLink
                       to={item.to}
                       title={item.label}
+                      aria-label={item.label}
                       className="outline-none"
                     >
                       {({ isActive }) => (

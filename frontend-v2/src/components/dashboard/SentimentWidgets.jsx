@@ -4,7 +4,7 @@
 // Palette: #0B0E14 bg | #111827 surface | #10B981 green | #EF4444 red
 //          #06B6D4 cyan | #F59E0B amber | #8B5CF6 purple
 
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 
 // ─────────────────────────────────────────────
 // 1. SectorTreemap
@@ -22,7 +22,7 @@ function treemapCellColor(pct) {
   return 'rgba(239,68,68,0.80)';                    // strong red
 }
 
-export function SectorTreemap({ data = [], width = '100%', height = 300 }) {
+export const SectorTreemap = memo(function SectorTreemap({ data = [], width = '100%', height = 300 }) {
   // Group stocks by sector
   const sectors = useMemo(() => {
     const map = {};
@@ -160,7 +160,7 @@ export function SectorTreemap({ data = [], width = '100%', height = 300 }) {
       ))}
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────
 // 2. MultiFactorRadar
@@ -190,7 +190,7 @@ const DEFAULT_RADAR_AXES = [
   'Options Flow',
 ];
 
-export function MultiFactorRadar({ data = [], fillColor = '#06B6D4' }) {
+export const MultiFactorRadar = memo(function MultiFactorRadar({ data = [], fillColor = '#06B6D4' }) {
   const cx = 150;
   const cy = 150;
   const maxR = 95; // outer radius in SVG units
@@ -331,7 +331,7 @@ export function MultiFactorRadar({ data = [], fillColor = '#06B6D4' }) {
       ))}
     </svg>
   );
-}
+});
 
 // ─────────────────────────────────────────────
 // 3. ScannerStatusMatrix
@@ -355,7 +355,7 @@ const STATUS_LABELS = {
   off:   'Not configured',
 };
 
-export function ScannerStatusMatrix({
+export const ScannerStatusMatrix = memo(function ScannerStatusMatrix({
   symbols = DEFAULT_SYMBOLS,
   sources = DEFAULT_SOURCES,
   statusMap = {},
@@ -505,7 +505,7 @@ export function ScannerStatusMatrix({
       </div>
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────
 // 4. PredictionMarketCard
@@ -603,7 +603,7 @@ function TrendArrow({ trend }) {
   );
 }
 
-export function PredictionMarketCard({
+export const PredictionMarketCard = memo(function PredictionMarketCard({
   question = '',
   probability = 0,
   volume = '0',
@@ -717,4 +717,4 @@ export function PredictionMarketCard({
       </div>
     </div>
   );
-}
+});

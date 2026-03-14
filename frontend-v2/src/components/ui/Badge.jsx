@@ -1,3 +1,4 @@
+import React from 'react';
 import clsx from 'clsx';
 
 const variantStyles = {
@@ -14,7 +15,7 @@ const sizeStyles = {
   lg: 'px-2.5 py-1.5 text-sm rounded-lg',
 };
 
-export default function Badge({ variant = 'secondary', size = 'md', className, children, ...props }) {
+function Badge({ variant = 'secondary', size = 'md', className, children, ...props }) {
   return (
     <span
       className={clsx(
@@ -29,3 +30,5 @@ export default function Badge({ variant = 'secondary', size = 'md', className, c
     </span>
   );
 }
+
+export default React.memo(Badge);

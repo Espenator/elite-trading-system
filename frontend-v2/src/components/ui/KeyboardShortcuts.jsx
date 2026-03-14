@@ -9,6 +9,15 @@ const SHORTCUT_GROUPS = [
     title: "Navigation",
     shortcuts: [
       { keys: ["Ctrl", "K"], description: "Open command palette" },
+      { keys: ["Ctrl", "1"], description: "Dashboard" },
+      { keys: ["Ctrl", "2"], description: "Agent Command Center" },
+      { keys: ["Ctrl", "3"], description: "Signal Intelligence" },
+      { keys: ["Ctrl", "4"], description: "Active Trades" },
+      { keys: ["Ctrl", "5"], description: "Risk Intelligence" },
+      { keys: ["Ctrl", "6"], description: "Performance Analytics" },
+      { keys: ["Ctrl", "7"], description: "Market Regime" },
+      { keys: ["Ctrl", "8"], description: "Settings" },
+      { keys: ["Ctrl", "9"], description: "ML Brain" },
       { keys: ["?"], description: "Show keyboard shortcuts" },
       { keys: ["Esc"], description: "Close overlay / dialog" },
     ],
@@ -16,6 +25,7 @@ const SHORTCUT_GROUPS = [
   {
     title: "Dashboard",
     shortcuts: [
+      { keys: ["R"], description: "Refresh all data" },
       { keys: ["F5"], description: "Run scan" },
       { keys: ["F7"], description: "Export CSV" },
       { keys: ["N"], description: "Spawn agent (go to Agent Command Center)" },
