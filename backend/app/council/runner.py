@@ -725,49 +725,53 @@ async def run_council(
         len(all_votes),
     )
 
-    # Phase C (C4): Persist council decision audit trail to DuckDB
-    try:
-        import json as _json
-        from app.data.duckdb_storage import duckdb_store
-        _conn = duckdb_store.get_thread_cursor()
-        _votes_json = _json.dumps([
-            {"agent": v.agent_name, "vote": v.direction,
-             "confidence": round(v.confidence, 3), "reasoning": v.reasoning[:200]}
-            for v in all_votes
-        ])
-        _degraded = sum(1 for v in all_votes if v.direction == "hold") >= 5
-        _conn.execute("""
-            INSERT OR REPLACE INTO council_decisions
-            (decision_id, signal_id, symbol, regime, agent_votes,
-             final_verdict, final_confidence, arbiter_weighted_score,
-             gate_threshold_used, was_gated, degraded, homeostasis_mode)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [
-            blackboard.council_decision_id,
-            context.get("signal_id", ""),
-            symbol,
-            blackboard.regime_belief.get("state", "UNKNOWN") if blackboard.regime_belief else "UNKNOWN",
-            _votes_json,
-            decision.final_direction,
-            round(decision.final_confidence, 4),
-            round(decision.final_confidence, 4),
-            context.get("gate_threshold", 65.0),
-            False,
-            _degraded,
-            blackboard.metadata.get("homeostasis_mode", "NORMAL"),
-        ])
-    except Exception as _e:
-        logger.debug("Council decision audit trail failed: %s", _e)
+    # Phase C (C4 + C3): Persist audit trail and debate history to DuckDB (background) ──
+    # These writes don't affect the current decision — run off the hot path.
+    _audit_decision_id = blackboard.council_decision_id
+    _audit_votes = [(v.agent_name, v.direction, round(v.confidence, 3), v.reasoning[:200])
+                    for v in all_votes]
+    _audit_regime = blackboard.regime_belief.get("state", "UNKNOWN") if blackboard.regime_belief else "UNKNOWN"
+    _audit_final_dir = decision.final_direction
+    _audit_final_conf = round(decision.final_confidence, 4)
+    _audit_gate_threshold = context.get("gate_threshold", 65.0)
+    _audit_homeo_mode = blackboard.metadata.get("homeostasis_mode", "NORMAL")
+    _audit_signal_id = context.get("signal_id", "")
+    _audit_degraded = sum(1 for v in all_votes if v.direction == "hold") >= 5
+    _audit_debate_result = blackboard.metadata.get("debate_result")
+    _audit_debate_votes = [
+        (v.agent_name, v.direction, round(v.confidence, 3), v.reasoning[:200] if v.reasoning else "")
+        for v in all_votes if v.agent_name in ("bull_debater", "bear_debater", "red_team")
+    ]
 
-    # Phase C (C3): Record debate results to debate_history
-    try:
-        import json as _json
-        from app.data.duckdb_storage import duckdb_store
-        _debate_result = blackboard.metadata.get("debate_result")
-        if _debate_result and hasattr(_debate_result, "winner"):
+    async def _persist_audit_trail():
+        try:
+            import json as _json
+            from app.data.duckdb_storage import duckdb_store
             _conn = duckdb_store.get_thread_cursor()
-            for v in all_votes:
-                if v.agent_name in ("bull_debater", "bear_debater", "red_team"):
+            _votes_json = _json.dumps([
+                {"agent": a, "vote": d, "confidence": c, "reasoning": r}
+                for a, d, c, r in _audit_votes
+            ])
+            _conn.execute("""
+                INSERT OR REPLACE INTO council_decisions
+                (decision_id, signal_id, symbol, regime, agent_votes,
+                 final_verdict, final_confidence, arbiter_weighted_score,
+                 gate_threshold_used, was_gated, degraded, homeostasis_mode)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [
+                _audit_decision_id, _audit_signal_id, symbol, _audit_regime,
+                _votes_json, _audit_final_dir, _audit_final_conf, _audit_final_conf,
+                _audit_gate_threshold, False, _audit_degraded, _audit_homeo_mode,
+            ])
+        except Exception as _e:
+            logger.debug("Council decision audit trail (background) failed: %s", _e)
+
+        # Phase C (C3): Record debate results to debate_history
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            if _audit_debate_result and hasattr(_audit_debate_result, "winner"):
+                _conn = duckdb_store.get_thread_cursor()
+                for agent_name, vote, conf, reasoning_summary in _audit_debate_votes:
                     _conn.execute("""
                         INSERT INTO debate_history
                         (id, debate_id, signal_id, symbol, agent_name, vote,
@@ -775,19 +779,16 @@ async def run_council(
                         VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM debate_history),
                                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, [
-                        blackboard.council_decision_id,
-                        context.get("signal_id", ""),
-                        symbol,
-                        v.agent_name,
-                        v.direction,
-                        round(v.confidence, 3),
-                        v.reasoning[:200] if v.reasoning else "",
-                        getattr(_debate_result, "winner", ""),
-                        getattr(_debate_result, "quality_score", 0.0),
-                        getattr(_debate_result, "action_modifier", "neutral"),
+                        _audit_decision_id, _audit_signal_id, symbol,
+                        agent_name, vote, conf, reasoning_summary,
+                        getattr(_audit_debate_result, "winner", ""),
+                        getattr(_audit_debate_result, "quality_score", 0.0),
+                        getattr(_audit_debate_result, "action_modifier", "neutral"),
                     ])
-    except Exception as _e:
-        logger.debug("Debate history recording failed: %s", _e)
+        except Exception as _e:
+            logger.debug("Debate history recording (background) failed: %s", _e)
+
+    asyncio.create_task(_persist_audit_trail())
 
     # Phase C (C9): Silent failure alerting — degraded council detection
     try:
@@ -877,57 +878,61 @@ async def run_council(
     except Exception as e:
         logger.debug("Cognitive telemetry record failed: %s", e)
 
-    # ── Knowledge System: store agent memories for compound learning ──
-    # Batch embedding generation to avoid 17 serial GPU calls on the hot path
+    # ── Knowledge System: store agent memories for compound learning (background) ──
+    # Batch embedding generation is moved off the hot path — GPU embedding can take
+    # 50-300ms per call and doesn't affect the current decision.
+    # Check the feature flag here (not inside the task) to avoid creating a no-op task.
     try:
-        from app.core.config import settings as app_settings
-        if getattr(app_settings, "KNOWLEDGE_SYSTEM_ENABLED", True):
-            from app.knowledge.memory_bank import get_memory_bank, AgentMemory
-            from app.knowledge.embedding_service import get_embedding_engine
+        from app.core.config import settings as _ks_settings
+        _knowledge_enabled = getattr(_ks_settings, "KNOWLEDGE_SYSTEM_ENABLED", True)
+    except Exception:
+        _knowledge_enabled = True
 
-            bank = get_memory_bank()
-            embed_engine = get_embedding_engine()
-            f = features.get("features", features)
-            regime = str(f.get("regime", "unknown")).lower()
-            trade_id = context.get("trade_id", blackboard.council_decision_id)
+    if _knowledge_enabled:
+        _votes_snapshot = [(v.agent_name, v.direction, v.confidence, v.reasoning) for v in all_votes]
+        _features_snapshot = features
+        _decision_id = blackboard.council_decision_id
+        _trade_id = context.get("trade_id", _decision_id)
 
-            market_ctx = {
-                k: v for k, v in f.items()
-                if isinstance(v, (int, float, str)) and k in (
-                    "rsi_14", "macd", "atr_14", "adx_14", "sma_20",
-                    "sma_50", "volume", "close", "vix_close",
-                )
-            }
-
-            # Build all memories and embedding texts upfront
-            memories = []
-            embed_texts = []
-            for vote in all_votes:
-                obs = {
-                    "direction": vote.direction,
-                    "confidence": vote.confidence,
-                    "reasoning": vote.reasoning[:200],
+        async def _store_knowledge_memories():
+            try:
+                from app.knowledge.memory_bank import get_memory_bank, AgentMemory
+                from app.knowledge.embedding_service import get_embedding_engine
+                bank = get_memory_bank()
+                embed_engine = get_embedding_engine()
+                f = _features_snapshot.get("features", _features_snapshot)
+                _regime = str(f.get("regime", "unknown")).lower()
+                market_ctx = {
+                    k: v for k, v in f.items()
+                    if isinstance(v, (int, float, str)) and k in (
+                        "rsi_14", "macd", "atr_14", "adx_14", "sma_20",
+                        "sma_50", "volume", "close", "vix_close",
+                    )
                 }
-                memory = AgentMemory(
-                    agent_name=vote.agent_name,
-                    symbol=symbol,
-                    regime=regime,
-                    market_context=market_ctx,
-                    agent_observation=obs,
-                    agent_vote=vote.direction,
-                    confidence=vote.confidence,
-                    trade_id=trade_id,
-                )
-                memories.append(memory)
-                embed_texts.append(bank._context_to_text(market_ctx | obs, regime))
+                memories = []
+                embed_texts = []
+                for agent_name, direction, confidence, reasoning in _votes_snapshot:
+                    obs = {"direction": direction, "confidence": confidence, "reasoning": reasoning[:200]}
+                    mem = AgentMemory(
+                        agent_name=agent_name,
+                        symbol=symbol,
+                        regime=_regime,
+                        market_context=market_ctx,
+                        agent_observation=obs,
+                        agent_vote=direction,
+                        confidence=confidence,
+                        trade_id=_trade_id,
+                    )
+                    memories.append(mem)
+                    embed_texts.append(bank._context_to_text(market_ctx | obs, _regime))
+                embeddings = embed_engine.embed(embed_texts)
+                for mem, embedding in zip(memories, embeddings):
+                    mem.embedding = embedding
+                    bank.store_observation(mem)
+            except Exception as _e:
+                logger.debug("Knowledge memory storage (background) failed: %s", _e)
 
-            # Single batched embedding call instead of N serial calls
-            embeddings = embed_engine.embed(embed_texts)
-            for memory, embedding in zip(memories, embeddings):
-                memory.embedding = embedding
-                bank.store_observation(memory)
-    except Exception as e:
-        logger.debug("Knowledge memory storage failed: %s", e)
+        asyncio.create_task(_store_knowledge_memories())
 
     # NOTE: council.verdict publish is handled canonically by council_gate.py.
     # Removed duplicate publish here to prevent OrderExecutor from firing twice.

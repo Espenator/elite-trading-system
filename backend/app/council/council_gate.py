@@ -307,9 +307,11 @@ class CouncilGate:
                     "signal_score": score,
                     "signal_label": signal_data.get("label", ""),
                     "signal_regime": regime,
+                    "signal_direction": direction,  # buy or sell — agents use this to align their vote
                     "signal_price": price,
                     "signal_volume": signal_data.get("volume", 0),
                     "signal_timestamp": signal_data.get("timestamp", ""),
+                    "signal_created_at": signal_data.get("created_at", 0.0),  # propagate age for TTL check
                     "source": "council_gate",
                 }
 

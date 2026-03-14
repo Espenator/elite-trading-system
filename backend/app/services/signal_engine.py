@@ -623,13 +623,14 @@ class EventDrivenSignalEngine:
                 "symbol": symbol,
                 "score": round(final_score, 1),
                 "label": label,
-                                "direction": "buy",
+                "direction": "buy",
                 "price": data.get("close", 0),
                 "volume": data.get("volume", 0),
                 "regime": self._regime_state,
                 "regime_mult": self._regime_mult,
                 "bar_count": len(history),
                 "timestamp": data.get("timestamp", ""),
+                "created_at": time.time(),  # Signal creation time for age-checking in OrderExecutor
                 "source": "event_driven_signal_engine",
             }
             await self.message_bus.publish("signal.generated", signal_data)
@@ -656,6 +657,7 @@ class EventDrivenSignalEngine:
                 "regime_mult": self._bear_regime_mult,
                 "bar_count": len(history),
                 "timestamp": data.get("timestamp", ""),
+                "created_at": time.time(),  # Signal creation time for age-checking in OrderExecutor
                 "source": "event_driven_signal_engine",
             }
             await self.message_bus.publish("signal.generated", short_signal_data)

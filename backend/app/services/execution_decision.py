@@ -31,6 +31,7 @@ class ExecutionDenyReason(str, Enum):
     REGIME_BLOCKED = "regime_blocked"
     CIRCUIT_BREAKER = "circuit_breaker"
     STALE_VERDICT = "stale_verdict"  # decision TTL 30s exceeded
+    STALE_SIGNAL = "stale_signal"    # underlying signal data too old (queued + council latency)
     HOMEOSTASIS_HALTED = "homeostasis_halted"  # autonomic HALTED mode blocks orders
 
 

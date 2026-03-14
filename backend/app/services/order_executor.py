@@ -31,6 +31,7 @@ Connects to:
 """
 import asyncio
 import logging
+import os
 import time
 import uuid
 import collections
@@ -276,6 +277,27 @@ class OrderExecutor:
                         ExecutionDenyReason.STALE_VERDICT,
                     )
                     return
+            except (ValueError, TypeError):
+                pass
+
+        # -- Gate 0b: Signal age check — underlying market data must not be too stale --
+        # A signal may have been queued for up to 60s + council evaluation takes up to 90s,
+        # so without this gate a trade could execute on data that is 2+ minutes old.
+        # SIGNAL_MAX_AGE_SECONDS defaults to 120s; set 0 to disable.
+        signal_created_at = signal_data.get("created_at")
+        if signal_created_at:
+            try:
+                _signal_max_age = float(os.environ.get("SIGNAL_MAX_AGE_SECONDS", "120"))
+                if _signal_max_age > 0:
+                    signal_age = time.time() - float(signal_created_at)
+                    if signal_age > _signal_max_age:
+                        self._reject(
+                            symbol, score,
+                            f"Signal data too stale (age={signal_age:.0f}s > max={_signal_max_age:.0f}s)"
+                            " — market conditions may have changed",
+                            ExecutionDenyReason.STALE_SIGNAL,
+                        )
+                        return
             except (ValueError, TypeError):
                 pass
 
