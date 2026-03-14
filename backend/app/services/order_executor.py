@@ -1141,7 +1141,8 @@ class OrderExecutor:
             trade_count = 0
             stats_source = "hardcoded_fallback"
 
-        pos = sizer.calculate(
+        pos = await asyncio.to_thread(
+            sizer.calculate,
             win_rate=win_rate,
             avg_win_pct=avg_win_pct,
             avg_loss_pct=avg_loss_pct,
@@ -1198,17 +1199,19 @@ class OrderExecutor:
         # ATR-based stop/take-profit using REAL ATR from features
         atr_estimate = price * 0.02  # fallback
         try:
-            from app.features.feature_aggregator import aggregate
-            # Use cached features if available
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store.get_thread_cursor()
-            row = conn.execute(
-                "SELECT atr_14 FROM technical_indicators "
-                "WHERE symbol = ? ORDER BY date DESC LIMIT 1",
-                [symbol.upper()],
-            ).fetchone()
-            if row and row[0] and float(row[0]) > 0:
-                atr_estimate = float(row[0])
+            def _fetch_atr(sym):
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store.get_thread_cursor()
+                row = conn.execute(
+                    "SELECT atr_14 FROM technical_indicators "
+                    "WHERE symbol = ? ORDER BY date DESC LIMIT 1",
+                    [sym.upper()],
+                ).fetchone()
+                return float(row[0]) if row and row[0] and float(row[0]) > 0 else None
+
+            atr_val = await asyncio.to_thread(_fetch_atr, symbol)
+            if atr_val:
+                atr_estimate = atr_val
         except Exception:
             pass
 

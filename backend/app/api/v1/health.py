@@ -76,9 +76,9 @@ async def _check_brain_grpc() -> Dict[str, Any]:
         return {"status": "error", "connected": False, "error": str(e)[:200]}
 
 
-def _messagebus_queue_depth() -> Dict[str, Any]:
-    """MessageBus queue depth."""
-    try:
+async def _messagebus_queue_depth() -> Dict[str, Any]:
+    """MessageBus queue depth (threaded to avoid blocking event loop)."""
+    def _get_depth():
         from app.core.message_bus import get_message_bus
         bus = get_message_bus()
         q = getattr(bus, "_queue", None)
@@ -88,6 +88,8 @@ def _messagebus_queue_depth() -> Dict[str, Any]:
             "queue_depth": depth,
             "running": metrics.get("running", False),
         }
+    try:
+        return await asyncio.to_thread(_get_depth)
     except Exception as e:
         return {"queue_depth": -1, "error": str(e)[:200]}
 
@@ -124,7 +126,7 @@ async def system_health():
     result["duckdb"] = await _check_duckdb()
     result["alpaca"] = await _check_alpaca()
     result["brain_grpc"] = await _check_brain_grpc()
-    result["message_bus"] = _messagebus_queue_depth()
+    result["message_bus"] = await _messagebus_queue_depth()
     result["council"] = _last_council_eval()
 
     # Existing data source aggregator
@@ -233,7 +235,7 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
         overall_ok = False
 
     pipe_checks = []
-    mb = _messagebus_queue_depth()
+    mb = await _messagebus_queue_depth()
     council = _last_council_eval()
     mb_ok = mb.get("queue_depth") is not None or mb.get("running") is not None
     # Pipeline is "ok" if council block is present (wired); no eval yet is fine after fresh start

@@ -23,6 +23,7 @@ Connects to:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
@@ -392,50 +393,65 @@ class KellyPositionSizer:
         trade_count: int,
         heat_scale: float,
     ) -> None:
-        """Store Kelly parameter distributions in DuckDB for audit trail."""
-        try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store.get_thread_cursor()
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS kelly_audit (
-                    id INTEGER PRIMARY KEY,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    regime VARCHAR,
-                    beta_alpha DOUBLE,
-                    beta_beta DOUBLE,
-                    bayesian_win_rate DOUBLE,
-                    bayesian_uncertainty DOUBLE,
-                    raw_kelly DOUBLE,
-                    kelly_fraction DOUBLE,
-                    final_pct DOUBLE,
-                    trade_count INTEGER,
-                    heat_scale DOUBLE,
-                    beta_params_json VARCHAR
+        """Store Kelly parameter distributions in DuckDB for audit trail.
+
+        Offloads the DuckDB write to a thread pool so the event loop
+        is never blocked by synchronous database operations.
+        """
+        # Capture values for the closure
+        params = [
+            regime,
+            round(beta_dist.alpha, 4),
+            round(beta_dist.beta, 4),
+            round(beta_dist.mean, 4),
+            round(beta_dist.std, 4),
+            round(raw_kelly, 4),
+            kelly_fraction,
+            round(final_pct, 4),
+            trade_count,
+            round(heat_scale, 4),
+            json.dumps(beta_dist.to_dict()),
+        ]
+
+        def _write():
+            try:
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store.get_thread_cursor()
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS kelly_audit (
+                        id INTEGER PRIMARY KEY,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        regime VARCHAR,
+                        beta_alpha DOUBLE,
+                        beta_beta DOUBLE,
+                        bayesian_win_rate DOUBLE,
+                        bayesian_uncertainty DOUBLE,
+                        raw_kelly DOUBLE,
+                        kelly_fraction DOUBLE,
+                        final_pct DOUBLE,
+                        trade_count INTEGER,
+                        heat_scale DOUBLE,
+                        beta_params_json VARCHAR
+                    )
+                """)
+                conn.execute(
+                    """INSERT INTO kelly_audit
+                       (id, regime, beta_alpha, beta_beta, bayesian_win_rate,
+                        bayesian_uncertainty, raw_kelly, kelly_fraction,
+                        final_pct, trade_count, heat_scale, beta_params_json)
+                       VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM kelly_audit),
+                               ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    params,
                 )
-            """)
-            conn.execute(
-                """INSERT INTO kelly_audit
-                   (id, regime, beta_alpha, beta_beta, bayesian_win_rate,
-                    bayesian_uncertainty, raw_kelly, kelly_fraction,
-                    final_pct, trade_count, heat_scale, beta_params_json)
-                   VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM kelly_audit),
-                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                [
-                    regime,
-                    round(beta_dist.alpha, 4),
-                    round(beta_dist.beta, 4),
-                    round(beta_dist.mean, 4),
-                    round(beta_dist.std, 4),
-                    round(raw_kelly, 4),
-                    kelly_fraction,
-                    round(final_pct, 4),
-                    trade_count,
-                    round(heat_scale, 4),
-                    json.dumps(beta_dist.to_dict()),
-                ],
-            )
-        except Exception as e:
-            logger.debug("Kelly audit trail failed: %s", e)
+            except Exception as e:
+                logger.debug("Kelly audit trail failed: %s", e)
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.run_in_executor(None, _write)
+        except RuntimeError:
+            # No event loop (e.g. tests or sync context) — run directly
+            _write()
 
     # ------------------------------------------------------------------
     def size_signal(
