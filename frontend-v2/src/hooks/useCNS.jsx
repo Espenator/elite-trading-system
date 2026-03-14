@@ -112,6 +112,11 @@ export function CNSProvider({ children }) {
         setWsReconnecting(false);
       }
       if (ev.type === 'reconnecting') setWsReconnecting(true);
+      // Error events mean the connection is broken — clear connected state
+      // so the status bar doesn't show "Connected" during errors
+      if (ev.type === 'error') {
+        setWsConnected(false);
+      }
     }));
 
     // Council verdicts

@@ -28,9 +28,9 @@ function _deriveWsFromBackend(backendUrl) {
   return u ? (secure ? `wss://${u}` : `ws://${u}`) : "";
 }
 
-// Hardcoded 24/7 defaults so app runs and reconnects without .env (backend 8000, WS same host).
-const _DEFAULT_BACKEND = "http://localhost:8000";
-const _DEFAULT_WS = "ws://localhost:8000";
+// Hardcoded 24/7 defaults so app runs and reconnects without .env (backend 8001, WS same host).
+const _DEFAULT_BACKEND = "http://localhost:8001";
+const _DEFAULT_WS = "ws://localhost:8001";
 
 const API_CONFIG = {
   // Env overrides; fallback to hardcoded backend so app runs automatically.
@@ -283,9 +283,14 @@ export function getApiUrl(endpoint) {
  * @param {string} [channel] - WS topic/channel name
  */
 export function getWsUrl(channel) {
-  const base = API_CONFIG.WS_URL || (typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
-    : "ws://localhost:8000");
+  // In dev mode, prefer connecting via the Vite proxy (same host) so /ws proxy rules apply.
+  // Only use the hardcoded WS_URL if an explicit env var was set or we're not in a browser.
+  const explicitWsUrl = import.meta.env.VITE_WS_URL;
+  const base = explicitWsUrl
+    ? API_CONFIG.WS_URL
+    : (typeof window !== "undefined"
+        ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
+        : API_CONFIG.WS_URL);
   const token = (typeof localStorage !== "undefined" && localStorage.getItem("auth_token")) ||
                 import.meta.env.VITE_API_AUTH_TOKEN || "";
   const wsBase = token ? `${base}/ws?token=${encodeURIComponent(token)}` : `${base}/ws`;

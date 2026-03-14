@@ -39,7 +39,7 @@ function getDevFrontendUrl() {
 function getResolvedBackendPort() {
   const ports = _readPortsJson();
   if (ports.backendPort) return ports.backendPort;
-  return deviceConfig.getBackendPort() || 8000;
+  return deviceConfig.getBackendPort() || 8001;
 }
 
 // Fix Electron cache permission error — set cache path before any window creation

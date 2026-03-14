@@ -1251,7 +1251,7 @@ export default function Backtesting() {
           }
         >
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <Slider
                 label="Param A"
                 min={0}
@@ -1278,7 +1278,7 @@ export default function Backtesting() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <Slider
                 label="B Min/Max"
                 min={10}
@@ -1296,7 +1296,7 @@ export default function Backtesting() {
                 onChange={(e) => setMaxPositions(Number(e.target.value) || 0)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <Slider
                 label="Position Size"
                 min={0}
@@ -1323,7 +1323,7 @@ export default function Backtesting() {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <div>
                 <label className="text-xs text-secondary font-medium mb-1 block truncate">
                   Slippage (bps)
@@ -1352,7 +1352,7 @@ export default function Backtesting() {
                 valueClassName="text-[10px] min-w-[2rem]"
               />
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <Slider
                 label="Take Profit %"
                 min={0}
@@ -1398,7 +1398,7 @@ export default function Backtesting() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <TextField
                 label="Warm-Up Period"
                 type="number"
@@ -1417,7 +1417,7 @@ export default function Backtesting() {
                 valueClassName="text-[10px] min-w-[2rem]"
               />
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <TextField
                 label="MC Iterations"
                 type="number"

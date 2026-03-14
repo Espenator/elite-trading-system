@@ -142,10 +142,10 @@ export default function StartupHealth() {
                   {isExpanded && (
                     <div className="border-t border-gray-800/50 px-3 pb-3 pt-1 space-y-1">
                       {(phase.checks || []).map((c, i) => (
-                        <div key={i} className="flex items-center gap-2 text-sm">
+                        <div key={i} className="flex items-start gap-2 text-sm">
                           <StatusBadge status={c.status} />
-                          <span className="text-slate-300">{c.check}</span>
-                          <span className="text-slate-500 truncate flex-1" title={c.detail}>
+                          <span className="text-slate-300 whitespace-nowrap">{c.check}</span>
+                          <span className="text-slate-500 flex-1 break-words min-w-0" title={c.detail}>
                             — {c.detail}
                           </span>
                         </div>

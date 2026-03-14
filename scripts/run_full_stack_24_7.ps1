@@ -6,7 +6,7 @@
 # Default (no args): CleanPorts + Supervisor + NoElectron = app runs and restarts automatically 24/7.
 
 param(
-    [int]$BackendPort = 8000,
+    [int]$BackendPort = 8001,
     [int]$FrontendPort = 5173,
     [int]$BackendPortMax = 8010,
     [int]$FrontendPortMax = 5183,
