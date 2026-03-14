@@ -105,7 +105,7 @@ $script:Running = $true
 Clear-Host
 Write-Host ""
 Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  EMBODIER TRADER — PC2 (ProfitTrader) 24/7 Auto-Launcher" -ForegroundColor Cyan
+Write-Host "  EMBODIER TRADER -- PC2 (ProfitTrader) 24/7 Auto-Launcher" -ForegroundColor Cyan
 Write-Host "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkCyan
 Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
@@ -113,11 +113,11 @@ Write-Host ""
 $hostname = [System.Net.Dns]::GetHostName()
 Write-Host "  Hostname: $hostname" -ForegroundColor Gray
 Write-Host "  Repo:     $RepoRoot" -ForegroundColor Gray
-Write-Host "  Role:     PC2 (secondary) — Backend:$BackendPort Frontend:$FrontendPort" -ForegroundColor Gray
+Write-Host "  Role:     PC2 (secondary) -- Backend:$BackendPort Frontend:$FrontendPort" -ForegroundColor Gray
 Write-Host ""
 
 if ($DryRun) {
-    Write-Host "  *** DRY RUN MODE — nothing will be started ***" -ForegroundColor Magenta
+    Write-Host "  *** DRY RUN MODE -- nothing will be started ***" -ForegroundColor Magenta
     Write-Host ""
 }
 
@@ -164,13 +164,13 @@ if ($npmPath) {
     $nodeVer = node --version 2>$null
     Write-Ok "Node $nodeVer found"
 } else {
-    Write-Fail "Node/npm NOT found — frontend won't start"
+    Write-Fail "Node/npm NOT found -- frontend won't start"
 }
 
 # Frontend node_modules
 $rollupCheck = Join-Path $FrontendDir "node_modules\@rollup\rollup-win32-x64-msvc"
 if (-not (Test-Path $rollupCheck)) {
-    Write-Warn "Frontend node_modules missing or broken — running npm install..."
+    Write-Warn "Frontend node_modules missing or broken -- running npm install..."
     if (-not $DryRun) {
         Set-Location $FrontendDir
         # Clean broken state
@@ -200,7 +200,7 @@ $ollamaPath = Get-Command ollama -ErrorAction SilentlyContinue
 if ($ollamaPath) {
     Write-Ok "Ollama found"
 } else {
-    Write-Warn "Ollama not found — brain_service will use remote fallback"
+    Write-Warn "Ollama not found -- brain_service will use remote fallback"
 }
 
 Write-Host ""
@@ -235,7 +235,7 @@ Write-Host "  Waiting for backend..." -ForegroundColor DarkGray -NoNewline
 if (Wait-ForPort $BackendPort 45) {
     Write-Ok "Backend READY on port $BackendPort"
 } else {
-    Write-Warn "Backend not responding yet — monitor loop will keep checking"
+    Write-Warn "Backend not responding yet -- monitor loop will keep checking"
 }
 Write-Host ""
 
@@ -255,7 +255,7 @@ Write-Host "  Waiting for Vite..." -ForegroundColor DarkGray -NoNewline
 if (Wait-ForPort $FrontendPort 30) {
     Write-Ok "Frontend READY on port $FrontendPort"
 } else {
-    Write-Warn "Frontend not responding yet — monitor loop will keep checking"
+    Write-Warn "Frontend not responding yet -- monitor loop will keep checking"
 }
 Write-Host ""
 
@@ -294,7 +294,7 @@ if (-not $NoBrowser) {
 
 Write-Host ""
 Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  ALL SERVICES RUNNING — 24/7 Health Monitor Active" -ForegroundColor Green
+Write-Host "  ALL SERVICES RUNNING -- 24/7 Health Monitor Active" -ForegroundColor Green
 Write-Host "  Backend:  http://localhost:$BackendPort" -ForegroundColor White
 Write-Host "  Frontend: http://localhost:$FrontendPort" -ForegroundColor White
 Write-Host "  Brain:    gRPC :$BrainPort" -ForegroundColor White
@@ -408,13 +408,13 @@ while ($script:Running) {
 
     # If port is down but process alive, something is wrong — kill and restart
     if ($backendAlive -and $backendPort -eq "DOWN" -and $iteration -gt 2) {
-        Write-Host "[$now] Backend process alive but port $BackendPort not responding — restarting" -ForegroundColor Yellow
+        Write-Host "[$now] Backend process alive but port $BackendPort not responding -- restarting" -ForegroundColor Yellow
         taskkill /PID $script:BackendProc.Id /F /T 2>$null | Out-Null
         Start-Sleep -Seconds 2
         Restart-Backend
     }
     if ($frontendAlive -and $frontendPort -eq "DOWN" -and $iteration -gt 2) {
-        Write-Host "[$now] Frontend process alive but port $FrontendPort not responding — restarting" -ForegroundColor Yellow
+        Write-Host "[$now] Frontend process alive but port $FrontendPort not responding -- restarting" -ForegroundColor Yellow
         taskkill /PID $script:FrontendProc.Id /F /T 2>$null | Out-Null
         Start-Sleep -Seconds 2
         Restart-Frontend

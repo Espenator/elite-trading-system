@@ -1,0 +1,81 @@
+PC1-INSTRUCTIONS: Event Loop Blocking Fix for ESPENMAIN Claude
+================================================================
+From: PC2 Claude (ProfitTrader)
+Date: 2026-03-13
+Priority: CRITICAL — backend HTTP server is unresponsive
+
+SITUATION
+---------
+PC2 backend starts successfully, reaches "ONLINE" state, heartbeats fire,
+but ALL HTTP requests time out permanently. The event loop is blocked
+70-100% of the time by background tasks doing synchronous work.
+
+Evidence:
+- Heartbeats (30s interval) fire at 100-127s intervals instead of 30s
+- curl to ANY endpoint (even /docs) times out after startup completes
+- The RegimePublisher fires every ~2min, each time preceded by a 60-100s gap
+
+WHAT PC2 CLAUDE ALREADY FIXED
+------------------------------
+1. backend/app/services/data_source_health_aggregator.py
+   - Brain health check: changed HTTP GET on gRPC port to TCP socket check
+   - Added `import os` for BRAIN_HOST/BRAIN_PORT env vars
+
+2. backend/app/main.py
+   - Added Windows ProactorEventLoop fix: monkey-patches
+     _ProactorBasePipeTransport._call_connection_lost to suppress
+     ConnectionResetError floods (430+ errors were killing the loop)
+
+3. backend/.env (PC2 only, not committed):
+   - Set ALPACA_API_KEY/SECRET to Key 2 values (was empty)
+   - Fixed ALPACA_BASE_URL from "paper" to "https://paper-api.alpaca.markets"
+   - Set PC2_HOST=localhost (brain is local on PC2)
+   - Disabled heavy services: LLM_ENABLED=false, TURBO_SCANNER=false,
+     DISABLE_ALPACA_DATA_STREAM=true, AUTO_BACKFILL=false
+
+4. start-pc2.ps1 — fixed em-dash parse errors (replaced with ASCII dashes)
+
+WHAT STILL NEEDS FIXING (for you on PC1)
+-----------------------------------------
+The event loop is still blocked by background services doing synchronous
+DuckDB or heavy I/O directly on the asyncio event loop. These services
+were NOT in the March 2026 asyncio.to_thread fix list:
+
+SUSPECTS (check each for sync DuckDB calls NOT wrapped in asyncio.to_thread):
+
+1. app/services/correlation_radar.py — _scan_loop does periodic DuckDB queries
+2. app/services/off_hours_monitor.py — monitors data freshness, likely DuckDB
+3. app/services/health_monitor.py — checks 12 components, may block
+4. app/services/session_scanner.py — 25s block observed during start()
+5. app/services/market_data_agent.py — Finviz + Alpaca ticks, httpx calls
+6. app/services/streaming_discovery.py — 5 detectors, may do sync work
+7. app/services/idea_triage.py — triage service, unknown if sync
+8. app/services/discovery_signal_bridge.py — bridge service
+9. app/council/regime_publisher.py — already has asyncio.to_thread on line 108
+   BUT the invalid topic 'regime.current' error suggests it runs every 60s
+   and something around it blocks for 60-100s
+10. app/services/position_manager.py — syncs positions from Alpaca
+
+HOW TO DIAGNOSE:
+- Search each file for `duckdb_store.` or `conn.execute(` calls that are
+  NOT wrapped in `await asyncio.to_thread(...)`
+- Search for `httpx` or `requests` calls in sync context
+- Any `def` function called from `async def` that does I/O is a blocker
+- The pattern: `result = duckdb_store.query(...)` in an async function
+  should be: `result = await asyncio.to_thread(duckdb_store.query, ...)`
+
+ALSO FIX:
+- "coroutine 'AlpacaService.get_account' was never awaited" — something
+  calls alpaca_service.get_account() without await. Search for this pattern.
+- Invalid MessageBus topic 'regime.current' — RegimePublisher publishes to
+  a topic that doesn't exist. Should probably be 'perception.regime.hmm'
+  or added to the valid topics list.
+
+TEST:
+After fixes, the backend should:
+1. Start and reach ONLINE within 30s
+2. Respond to `curl http://localhost:8001/api/v1/health` within 5s
+3. Heartbeats should fire at exactly 30s intervals (not 100s+)
+
+COMMIT:
+Please commit your fixes to `main` branch. PC2 will git pull.

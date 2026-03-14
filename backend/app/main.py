@@ -17,6 +17,22 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Windows ProactorEventLoop fix: suppress ConnectionResetError in
+# _call_connection_lost which floods the event loop and blocks all
+# HTTP responses. This is a known Python 3.11 + Windows issue.
+if sys.platform == "win32":
+    from asyncio.proactor_events import _ProactorBasePipeTransport
+
+    _orig_call_connection_lost = _ProactorBasePipeTransport._call_connection_lost
+
+    def _silent_connection_lost(self, exc):
+        try:
+            _orig_call_connection_lost(self, exc)
+        except (ConnectionResetError, OSError):
+            pass
+
+    _ProactorBasePipeTransport._call_connection_lost = _silent_connection_lost
+
 
 # Load .env into os.environ BEFORE any other imports
 from dotenv import load_dotenv

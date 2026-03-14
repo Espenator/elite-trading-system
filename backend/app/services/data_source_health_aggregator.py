@@ -13,6 +13,7 @@ Publishes alerts via SlackAlerter when sources go down or degrade.
 
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -160,24 +161,22 @@ class DataSourceHealthAggregator:
         except Exception as e:
             logger.debug("Off-hours monitor check failed: %s", e)
 
-        # 6. Brain Service (gRPC)
+        # 6. Brain Service (gRPC) — TCP check since gRPC doesn't serve HTTP
         try:
-            import httpx
-            async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get("http://localhost:50051/health")
-                if resp.status_code == 200:
-                    results["service:brain"] = {
-                        "name": "Brain Service (gRPC)",
-                        "category": "ai_service",
-                        "status": "healthy",
-                    }
-                else:
-                    results["service:brain"] = {
-                        "name": "Brain Service (gRPC)",
-                        "category": "ai_service",
-                        "status": "degraded",
-                        "details": f"HTTP {resp.status_code}",
-                    }
+            import socket
+            brain_host = os.getenv("BRAIN_HOST", "localhost")
+            brain_port = int(os.getenv("BRAIN_PORT", "50051"))
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(3)
+            sock.connect((brain_host, brain_port))
+            sock.close()
+            results["service:brain"] = {
+                "name": "Brain Service (gRPC)",
+                "category": "ai_service",
+                "status": "healthy",
+                "host": brain_host,
+                "port": brain_port,
+            }
         except Exception:
             results["service:brain"] = {
                 "name": "Brain Service (gRPC)",
