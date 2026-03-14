@@ -203,11 +203,13 @@ class OrderExecutor:
         return self._trade_stats
 
     async def start(self) -> None:
-        """Subscribe to council.verdict and begin processing."""
+        """Subscribe to council.verdict and signal.unified, then begin processing."""
         self._running = True
         self._start_time = time.time()
         # Primary: listen to council-approved verdicts
         await self.message_bus.subscribe("council.verdict", self._on_council_verdict)
+        # Secondary: listen to UnifiedProfitEngine high-confidence scores (issue #59)
+        await self.message_bus.subscribe("signal.unified", self._on_unified_signal)
         mode = "AUTO-EXECUTE" if self.auto_execute else "SHADOW (dry-run)"
         logger.info(
             "OrderExecutor started in %s mode (council-controlled) -- "
@@ -223,12 +225,62 @@ class OrderExecutor:
         """Unsubscribe and stop processing."""
         self._running = False
         await self.message_bus.unsubscribe("council.verdict", self._on_council_verdict)
+        await self.message_bus.unsubscribe("signal.unified", self._on_unified_signal)
         logger.info(
             "OrderExecutor stopped -- %d signals received, %d executed, %d rejected",
             self._signals_received,
             self._signals_executed,
             self._signals_rejected,
         )
+
+    async def _on_unified_signal(self, unified_data: Dict[str, Any]) -> None:
+        """Process a signal.unified event from UnifiedProfitEngine.
+
+        Converts high-confidence unified scores (>=75) into council.verdict
+        format and routes them through the normal execution pipeline.
+        This closes the gap where signal.unified had no subscriber (issue #59).
+        """
+        if not self._running:
+            return
+
+        score = unified_data.get("unified_score", 0)
+        direction = unified_data.get("direction", "neutral")
+        confidence = unified_data.get("confidence", 0)
+        symbol = unified_data.get("symbol", "")
+
+        # Only route high-confidence unified signals (>=75 score)
+        if score < 75 or direction == "neutral" or not symbol:
+            return
+
+        logger.info(
+            "UnifiedProfitEngine signal accepted: %s score=%.1f dir=%s conf=%.3f brains=%d",
+            symbol, score, direction, confidence, unified_data.get("brains_active", 0),
+        )
+
+        # Convert to council.verdict format for the existing execution pipeline
+        verdict = {
+            "symbol": symbol,
+            "final_direction": "long" if direction == "bullish" else "short",
+            "final_confidence": max(confidence, score / 100.0),
+            "execution_ready": True,
+            "vetoed": False,
+            "votes": [],
+            "council_reasoning": (
+                f"UnifiedProfitEngine bypass — score={score:.1f}, "
+                f"{unified_data.get('brains_active', 0)} brains active, "
+                f"weights={unified_data.get('brain_scores', {})}"
+            ),
+            "signal_data": {
+                "symbol": symbol,
+                "score": score,
+                "source": "unified_profit_engine",
+                "brain_scores": unified_data.get("brain_scores", {}),
+            },
+            "price": unified_data.get("price", 0),
+            "timestamp": unified_data.get("timestamp", time.time()),
+        }
+
+        await self._on_council_verdict(verdict)
 
     # -- Main Council Verdict Handler --
     async def _on_council_verdict(self, verdict_data: Dict[str, Any]) -> None:

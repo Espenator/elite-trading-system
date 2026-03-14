@@ -233,8 +233,36 @@ async def get_regime():
     """
     Return current market regime status.
     Response: {state: GREEN|YELLOW|RED, vix, hmm_confidence, hurst, macro_context}
+
+    Falls back to price-action regime from SPY OHLCV when bridge data
+    is unavailable (Issue #60).
     """
-    return await openclaw_bridge.get_regime()
+    result = await openclaw_bridge.get_regime()
+
+    # If bridge returns UNKNOWN, try price-action fallback from DuckDB SPY data
+    if result.get("state") in ("UNKNOWN", None):
+        try:
+            from app.council.regime.price_action_regime import (
+                get_price_action_regime,
+                _PA_TO_OPENCLAW,
+            )
+            pa = await get_price_action_regime()
+            pa_regime = pa.get("regime", "UNKNOWN")
+            if pa_regime != "UNKNOWN":
+                openclaw_color = _PA_TO_OPENCLAW.get(pa_regime, "YELLOW")
+                result["state"] = openclaw_color
+                result["price_action_regime"] = pa_regime
+                result["hmm_confidence"] = pa.get("confidence", 0.0)
+                result["price_action_details"] = pa.get("details", {})
+                result["regime_source"] = "price_action_fallback"
+                logger.info(
+                    "[OPENCLAW] Regime endpoint using price-action fallback: %s (%s)",
+                    pa_regime, openclaw_color,
+                )
+        except Exception as e:
+            logger.debug("[OPENCLAW] Price-action fallback failed in regime endpoint: %s", e)
+
+    return result
 
 
 @router.get("/top")

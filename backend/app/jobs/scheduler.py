@@ -182,6 +182,21 @@ def _run_morning_briefing():
         log.exception("Scheduled morning_briefing failed: %s", e)
 
 
+def _run_historical_signal_resolution():
+    """Hourly: resolve past turbo_scanner signals against current prices to feed the flywheel."""
+    import asyncio
+    from app.services.outcome_tracker import resolve_historical_signals
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(resolve_historical_signals())
+        else:
+            asyncio.run(resolve_historical_signals())
+        log.info("Scheduled historical_signal_resolution triggered")
+    except Exception as e:
+        log.exception("Scheduled historical_signal_resolution failed: %s", e)
+
+
 def start_scheduler() -> Optional[object]:
     """Start the APScheduler with flywheel jobs.
 
@@ -262,6 +277,15 @@ def start_scheduler() -> Optional[object]:
         CronTrigger(hour=9, minute=0, day_of_week="mon-fri", timezone="America/New_York"),
         id="morning_briefing",
         name="Morning Briefing (9 AM ET)",
+        replace_existing=True,
+    )
+
+    # Hourly weekdays — retroactive signal resolution to bootstrap flywheel
+    _scheduler.add_job(
+        _run_historical_signal_resolution,
+        CronTrigger(minute=30, day_of_week="mon-fri", timezone="UTC"),
+        id="historical_signal_resolution",
+        name="Historical Signal Resolution (hourly)",
         replace_existing=True,
     )
 
