@@ -2,7 +2,7 @@
 // CNS-aware layout: WebSocket + homeostasis + circuit breaker context for all pages.
 // BUG 1 FIX: Sidebar collapsed state is owned here and passed down as props.
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Component } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -13,6 +13,70 @@ import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import { useApi } from '../../hooks/useApi';
 import useKeyboardShortcuts from '../../hooks/useKeyboardShortcuts';
 import ws from '../../services/websocket';
+
+/**
+ * Full-page fallback when CNSProvider crashes — keeps app usable.
+ * Shows a friendly message with retry button instead of blank screen.
+ */
+function LayoutFallback() {
+  return (
+    <div className="flex min-h-screen bg-dark text-white items-center justify-center">
+      <div className="text-center max-w-lg p-8">
+        <h1 className="text-2xl font-bold text-red-400 mb-4">System Initializing...</h1>
+        <p className="text-gray-400 mb-4">
+          The trading system is starting up or the backend is offline.
+        </p>
+        <p className="text-gray-500 text-sm mb-6">
+          Start the backend: <code className="bg-gray-800 px-2 py-1 rounded">cd backend && python run_server.py</code>
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-white transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Error boundary specifically for the CNS system — renders LayoutFallback
+ * instead of killing the entire app when CNSProvider throws.
+ */
+class CNSErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[CNSErrorBoundary] CNS system crashed — showing fallback:', error, errorInfo);
+    try {
+      fetch('/api/v1/system/frontend-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          component: 'CNSProvider',
+          error: error.message,
+          stack: error.stack?.slice(0, 500),
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+    } catch {}
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <LayoutFallback />;
+    }
+    return this.props.children;
+  }
+}
 
 function LayoutInner() {
   useKeyboardShortcuts();
@@ -96,8 +160,10 @@ export default function Layout() {
   }, []);
 
   return (
-    <CNSProvider>
-      <LayoutInner />
-    </CNSProvider>
+    <CNSErrorBoundary>
+      <CNSProvider>
+        <LayoutInner />
+      </CNSProvider>
+    </CNSErrorBoundary>
   );
 }

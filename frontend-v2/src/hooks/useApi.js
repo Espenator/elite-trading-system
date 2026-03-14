@@ -129,134 +129,151 @@ export function useApi(endpoint, options = {}) {
   // Track whether the tab is visible — pause polling when hidden
   const visibleRef = useRef(!document.hidden);
 
-  const fetchData = useCallback(async (signal) => {
-    let url = getApiUrl(endpoint);
-    if (endpointOverride) {
-      const base = import.meta.env.VITE_API_URL ?? '';
-      url = `${base}/api/v1${endpointOverride}`;
-    }
-    if (!url) {
-      setError(new Error(`Unknown endpoint: ${endpoint}`));
-      setLoading(false);
-      return;
-    }
-
-    // Stale-while-revalidate: serve cached data immediately, revalidate in background
-    const swrCached = _apiCache.get(url);
-    if (swrCached) {
-      const age = Date.now() - swrCached.ts;
-      if (age < CACHE_STALE_MS) {
-        // Serve cached data immediately (eliminates loading spinners on revisit)
-        if (!signal?.aborted) {
-          setData(swrCached.data);
-          setLoading(false);
-          setIsStale(age > DEDUP_WINDOW_MS); // Mark stale if older than dedup window
-          setLastUpdated(swrCached.ts);
-        }
-        // If cache is very fresh (within dedup window), skip network entirely
-        if (age < DEDUP_WINDOW_MS) return;
-        // Otherwise, continue to revalidate in background (don't return)
-      }
-    }
-
-    // Deduplicate: if same URL was fetched within DEDUP_WINDOW_MS, reuse result
-    const cached = _fetchCache.get(url);
-    if (cached && Date.now() - cached.timestamp < DEDUP_WINDOW_MS) {
-      try {
-        const json = await cached.promise;
-        if (!signal?.aborted) {
-          setData(json);
-          setError(null);
-          setIsStale(false);
-          setLastUpdated(Date.now());
-        }
-        return;
-      } catch {
-        if (signal?.aborted) return;
-        // Cache entry failed — fall through to fresh fetch
-      } finally {
-        if (!signal?.aborted) setLoading(false);
-      }
-    }
-
-    // Deduplicate: if same URL is already in-flight, piggyback on it
-    if (_inflight.has(url)) {
-      try {
-        const json = await _inflight.get(url);
-        if (!signal?.aborted) {
-          setData(json);
-          setError(null);
-          setIsStale(false);
-          setLastUpdated(Date.now());
-        }
-        return;
-      } catch {
-        if (signal?.aborted) return;
-      } finally {
-        if (!signal?.aborted) setLoading(false);
-      }
-    }
-
-    const fetchPromise = _enqueueRequest(async () => {
-      const MAX_RETRIES = 3;
-      const effectiveTimeout = timeoutMs ?? _getTimeout(url);
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        const timeoutCtrl = new AbortController();
-        const timeoutId = setTimeout(() => timeoutCtrl.abort(), effectiveTimeout);
-        const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
-
-        try {
-          const res = await fetch(url, {
-            cache: "no-store",
-            headers: getAuthHeaders(),
-            signal: combinedCtrl.signal,
-          });
-          // Retry on 503 Service Unavailable with exponential backoff
-          if (res.status === 503 && attempt < MAX_RETRIES) {
-            clearTimeout(timeoutId);
-            await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
-            continue;
-          }
-          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-          const json = await res.json();
-          if (_apiCache.size >= CACHE_MAX_SIZE) {
-            const oldest = _apiCache.keys().next().value;
-            _apiCache.delete(oldest);
-          }
-          _apiCache.set(url, { data: json, ts: Date.now() });
-          return json;
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      }
-    });
-
-    _inflight.set(url, fetchPromise);
-    // Store in dedup cache so near-simultaneous requests share this result
-    _fetchCache.set(url, { promise: fetchPromise, timestamp: Date.now() });
+  // TDZ-proof fetchData pattern: useRef is assigned immediately (no temporal dead zone),
+  // and the stable useCallback wrapper delegates to the ref. This prevents crashes
+  // during Vite HMR hot reloads and React strict mode double-invocation.
+  const fetchDataRef = useRef(null);
+  fetchDataRef.current = async (signal) => {
     try {
-      setError(null);
-      const json = await fetchPromise;
-      if (!signal?.aborted) {
-        setData(json);
-        setIsStale(false);
-        setLastUpdated(Date.now());
+      let url = getApiUrl(endpoint);
+      if (endpointOverride) {
+        const base = import.meta.env.VITE_API_URL ?? '';
+        url = `${base}/api/v1${endpointOverride}`;
+      }
+      if (!url) {
+        setError(new Error(`Unknown endpoint: ${endpoint}`));
+        setLoading(false);
+        return;
+      }
+
+      // Stale-while-revalidate: serve cached data immediately, revalidate in background
+      const swrCached = _apiCache.get(url);
+      if (swrCached) {
+        const age = Date.now() - swrCached.ts;
+        if (age < CACHE_STALE_MS) {
+          // Serve cached data immediately (eliminates loading spinners on revisit)
+          if (!signal?.aborted) {
+            setData(swrCached.data);
+            setLoading(false);
+            setIsStale(age > DEDUP_WINDOW_MS); // Mark stale if older than dedup window
+            setLastUpdated(swrCached.ts);
+          }
+          // If cache is very fresh (within dedup window), skip network entirely
+          if (age < DEDUP_WINDOW_MS) return;
+          // Otherwise, continue to revalidate in background (don't return)
+        }
+      }
+
+      // Deduplicate: if same URL was fetched within DEDUP_WINDOW_MS, reuse result
+      const cached = _fetchCache.get(url);
+      if (cached && Date.now() - cached.timestamp < DEDUP_WINDOW_MS) {
+        try {
+          const json = await cached.promise;
+          if (!signal?.aborted) {
+            setData(json);
+            setError(null);
+            setIsStale(false);
+            setLastUpdated(Date.now());
+          }
+          return;
+        } catch {
+          if (signal?.aborted) return;
+          // Cache entry failed — fall through to fresh fetch
+        } finally {
+          if (!signal?.aborted) setLoading(false);
+        }
+      }
+
+      // Deduplicate: if same URL is already in-flight, piggyback on it
+      if (_inflight.has(url)) {
+        try {
+          const json = await _inflight.get(url);
+          if (!signal?.aborted) {
+            setData(json);
+            setError(null);
+            setIsStale(false);
+            setLastUpdated(Date.now());
+          }
+          return;
+        } catch {
+          if (signal?.aborted) return;
+        } finally {
+          if (!signal?.aborted) setLoading(false);
+        }
+      }
+
+      const fetchPromise = _enqueueRequest(async () => {
+        const MAX_RETRIES = 3;
+        const effectiveTimeout = timeoutMs ?? _getTimeout(url);
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          const timeoutCtrl = new AbortController();
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), effectiveTimeout);
+          const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
+
+          try {
+            const res = await fetch(url, {
+              cache: "no-store",
+              headers: getAuthHeaders(),
+              signal: combinedCtrl.signal,
+            });
+            // Retry on 503 Service Unavailable with exponential backoff
+            if (res.status === 503 && attempt < MAX_RETRIES) {
+              clearTimeout(timeoutId);
+              await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+              continue;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            const json = await res.json();
+            if (_apiCache.size >= CACHE_MAX_SIZE) {
+              const oldest = _apiCache.keys().next().value;
+              _apiCache.delete(oldest);
+            }
+            _apiCache.set(url, { data: json, ts: Date.now() });
+            return json;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        }
+      });
+
+      _inflight.set(url, fetchPromise);
+      // Store in dedup cache so near-simultaneous requests share this result
+      _fetchCache.set(url, { promise: fetchPromise, timestamp: Date.now() });
+      try {
+        setError(null);
+        const json = await fetchPromise;
+        if (!signal?.aborted) {
+          setData(json);
+          setIsStale(false);
+          setLastUpdated(Date.now());
+        }
+      } catch (err) {
+        if (signal?.aborted) return;
+        const staleCached = _apiCache.get(url);
+        if (staleCached && Date.now() - staleCached.ts < CACHE_STALE_MS) {
+          setData(staleCached.data);
+          setIsStale(true);
+          setLastUpdated(staleCached.ts);
+        } else {
+          setError(err);
+        }
+      } finally {
+        _inflight.delete(url);
+        if (!signal?.aborted) setLoading(false);
       }
     } catch (err) {
       if (signal?.aborted) return;
-      const staleCached = _apiCache.get(url);
-      if (staleCached && Date.now() - staleCached.ts < CACHE_STALE_MS) {
-        setData(staleCached.data);
-        setIsStale(true);
-        setLastUpdated(staleCached.ts);
-      } else {
-        setError(err);
-      }
-    } finally {
-      _inflight.delete(url);
-      if (!signal?.aborted) setLoading(false);
+      console.error('[useApi] Unhandled error:', err);
+      setError(err);
+      setLoading(false);
     }
-  }, [endpoint, endpointOverride]);
+  };
+
+  // Stable reference that never changes identity (prevents useEffect re-fires)
+  const fetchData = useCallback(
+    (...args) => fetchDataRef.current?.(...args),
+    [] // empty deps — always stable
+  );
 
   // Page visibility listener — pause/resume polling + immediate refetch on tab focus
   useEffect(() => {
