@@ -1,6 +1,23 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+// Environment validation
+if (import.meta.env.DEV) {
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  if (!backendUrl) {
+    console.warn(
+      '%c[Embodier] VITE_BACKEND_URL not set — using http://localhost:8001. Copy .env.example to .env to configure.',
+      'color: orange; font-weight: bold'
+    );
+  }
+  if (backendUrl && backendUrl.endsWith('/')) {
+    console.warn(
+      '%c[Embodier] VITE_BACKEND_URL has trailing slash — this may cause double-slash URLs. Remove it.',
+      'color: orange; font-weight: bold'
+    );
+  }
+}
+
 // Show loading indicator immediately — before any imports that could fail
 const root = document.getElementById('root');
 root.innerHTML = '<div style="color:#00D9FF;padding:2rem;font-family:monospace">Loading Embodier Trader...</div>';
