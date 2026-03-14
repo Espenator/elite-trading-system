@@ -4,12 +4,17 @@ These are fast (<50ms) safety checks that can halt trading instantly.
 If any check fires, the council is skipped entirely and a HOLD is returned.
 
 Thresholds are loaded from agent_config (settings service / directives).
+
+Issue #70: Added live SPY price monitoring via Alpaca snapshots and
+VIX approximation from SPY ATR. SPY drawdown detector trips if SPY
+drops >5% in the current session.
 """
 import asyncio
 import logging
 import os
+import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from app.council.blackboard import BlackboardState
 
@@ -23,6 +28,73 @@ _DEFAULTS = {
     "cb_max_positions": 10,
     "cb_max_single_position_pct": 0.20,  # 20%
 }
+
+# Issue #70: SPY/VIX monitoring cache (avoids hammering Alpaca on every signal)
+_spy_vix_cache: Dict[str, Any] = {
+    "spy_price": 0.0,
+    "spy_prev_close": 0.0,
+    "spy_change_pct": 0.0,
+    "vix_estimate": 0.0,
+    "timestamp": 0.0,
+}
+_SPY_VIX_CACHE_TTL = 30.0  # seconds
+
+
+async def _fetch_spy_vix_data() -> Dict[str, Any]:
+    """Fetch live SPY snapshot from Alpaca to compute price change and VIX estimate.
+
+    Uses Alpaca Market Data API (works 24/7). Caches for 30 seconds.
+    VIX is approximated from SPY daily range (ATR proxy) when no direct VIX feed.
+
+    Returns dict with spy_price, spy_prev_close, spy_change_pct, vix_estimate.
+    """
+    global _spy_vix_cache
+    now = time.time()
+    if now - _spy_vix_cache["timestamp"] < _SPY_VIX_CACHE_TTL and _spy_vix_cache["spy_price"] > 0:
+        return _spy_vix_cache
+
+    try:
+        from app.services.alpaca_service import alpaca_service
+        snapshots = await alpaca_service.get_snapshots(["SPY"])
+        if not snapshots or "SPY" not in snapshots:
+            return _spy_vix_cache
+
+        snap = snapshots["SPY"]
+        daily_bar = snap.get("dailyBar") or {}
+        prev_daily = snap.get("prevDailyBar") or {}
+        latest_trade = snap.get("latestTrade") or {}
+
+        spy_price = float(latest_trade.get("p", 0)) or float(daily_bar.get("c", 0))
+        spy_prev_close = float(prev_daily.get("c", 0))
+
+        if spy_price > 0 and spy_prev_close > 0:
+            spy_change_pct = (spy_price - spy_prev_close) / spy_prev_close
+        else:
+            spy_change_pct = 0.0
+
+        # VIX approximation: annualized ATR as % of price
+        # Daily range / price * sqrt(252) gives a rough implied vol estimate
+        high = float(daily_bar.get("h", 0))
+        low = float(daily_bar.get("l", 0))
+        if high > 0 and low > 0 and spy_price > 0:
+            daily_range_pct = (high - low) / spy_price
+            # Annualize: multiply by sqrt(252) * 100 for VIX-like scale
+            vix_estimate = daily_range_pct * 15.87 * 100  # sqrt(252) ~ 15.87
+        else:
+            vix_estimate = 0.0
+
+        _spy_vix_cache = {
+            "spy_price": spy_price,
+            "spy_prev_close": spy_prev_close,
+            "spy_change_pct": spy_change_pct,
+            "vix_estimate": vix_estimate,
+            "timestamp": now,
+        }
+        return _spy_vix_cache
+
+    except Exception as e:
+        logger.debug("SPY/VIX data fetch failed (non-fatal): %s", e)
+        return _spy_vix_cache
 
 
 def _get_thresholds() -> dict:
@@ -72,6 +144,7 @@ class CircuitBreaker:
         checks = [
             self.flash_crash_detector(blackboard),
             self.vix_spike_detector(blackboard),
+            self.spy_drawdown_detector(blackboard),  # Issue #70: live SPY monitoring
             self.daily_drawdown_limit(blackboard),
             self.position_limit_check(blackboard),
             self.market_hours_check(blackboard),
@@ -120,13 +193,53 @@ class CircuitBreaker:
         return None
 
     async def vix_spike_detector(self, blackboard: BlackboardState) -> Optional[str]:
-        """Detect VIX above panic threshold."""
+        """Detect VIX above panic threshold.
+
+        Issue #70: Now checks both blackboard features AND live Alpaca SPY data.
+        If no direct VIX feed is available, uses SPY ATR-based VIX estimate.
+        """
         thresholds = _get_thresholds()
         f = blackboard.raw_features.get("features", blackboard.raw_features)
         raw = blackboard.raw_features
+
+        # Check blackboard features first (may have real VIX from data feeds)
         vix = f.get("vix_close", 0) or f.get("vix", 0) or raw.get("vix", 0)
-        if vix > thresholds["cb_vix_spike_threshold"]:
+
+        # Issue #70: If no VIX from features, use live SPY ATR-based estimate
+        if not vix or vix == 0:
+            try:
+                spy_data = await _fetch_spy_vix_data()
+                vix = spy_data.get("vix_estimate", 0)
+            except Exception:
+                pass
+
+        if vix and vix > thresholds["cb_vix_spike_threshold"]:
             return f"VIX spike: {vix:.1f} exceeds {thresholds['cb_vix_spike_threshold']:.0f} threshold"
+        return None
+
+    async def spy_drawdown_detector(self, blackboard: BlackboardState) -> Optional[str]:
+        """Issue #70: Detect SPY drawdown exceeding flash crash threshold.
+
+        Trips the circuit breaker if SPY drops more than 5% from previous close
+        using live Alpaca snapshot data. This catches broad market selloffs
+        that individual stock features might miss.
+        """
+        thresholds = _get_thresholds()
+        threshold = thresholds["cb_flash_crash_threshold"]  # default 5%
+
+        try:
+            spy_data = await _fetch_spy_vix_data()
+            spy_change = spy_data.get("spy_change_pct", 0)
+
+            # Only trigger on drops (negative change exceeding threshold)
+            if spy_change < -threshold:
+                return (
+                    f"SPY drawdown detected: {spy_change:.1%} drop from previous close "
+                    f"exceeds {threshold:.0%} threshold"
+                )
+        except Exception:
+            pass  # Alpaca unavailable — don't block trading
+
         return None
 
     async def daily_drawdown_limit(self, blackboard: BlackboardState) -> Optional[str]:

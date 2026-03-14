@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import date
 from pathlib import Path
+from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from app.core.security import require_auth
@@ -16,6 +17,105 @@ from app.services.kelly_position_sizer import KellyPositionSizer
 _kelly_sizer = KellyPositionSizer(max_allocation=0.10)
 
 logger = logging.getLogger(__name__)
+
+# ── ATR multipliers by pattern type ──────────────────────────────────────────
+# RSI extreme patterns: tighter stops (mean reversion, quick snapback)
+# Momentum/breakout: wider stops (trend following, needs room to breathe)
+_PATTERN_ATR_MULTIPLIERS: Dict[str, Dict[str, float]] = {
+    "rsi_extreme":      {"stop": 1.5, "target": 2.5},
+    "rsi_oversold":     {"stop": 1.5, "target": 2.5},
+    "rsi_overbought":   {"stop": 1.5, "target": 2.5},
+    "mean_reversion":   {"stop": 1.5, "target": 2.5},
+    "momentum":         {"stop": 2.5, "target": 3.5},
+    "breakout":         {"stop": 2.5, "target": 3.5},
+    "volume_breakout":  {"stop": 2.5, "target": 3.5},
+    "trend_following":  {"stop": 2.5, "target": 3.5},
+    "breakout_consolidation": {"stop": 2.0, "target": 3.5},
+    "divergence":       {"stop": 1.5, "target": 2.5},
+    "gap_analysis":     {"stop": 1.5, "target": 2.0},
+    "multi_timeframe_confluence": {"stop": 2.0, "target": 3.0},
+}
+_DEFAULT_ATR_MULT = {"stop": 2.0, "target": 3.0}
+
+
+def _fetch_atr_for_symbol(symbol: str) -> Optional[float]:
+    """Fetch latest ATR-14 from DuckDB technical_indicators table.
+
+    This is a SYNCHRONOUS function — must be called via asyncio.to_thread()
+    from async contexts to avoid blocking the event loop.
+    """
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        cursor = duckdb_store.get_thread_cursor()
+        row = cursor.execute(
+            "SELECT atr_14 FROM technical_indicators "
+            "WHERE symbol = ? ORDER BY date DESC LIMIT 1",
+            [symbol.upper()],
+        ).fetchone()
+        if row and row[0] is not None and row[0] > 0:
+            return float(row[0])
+    except Exception as e:
+        logger.debug("ATR lookup failed for %s: %s", symbol, e)
+    return None
+
+
+def _fetch_atr_batch(symbols: list[str]) -> Dict[str, float]:
+    """Fetch latest ATR-14 for multiple symbols in a single query.
+
+    SYNCHRONOUS — call via asyncio.to_thread().
+    """
+    atr_map: Dict[str, float] = {}
+    if not symbols:
+        return atr_map
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        cursor = duckdb_store.get_thread_cursor()
+        placeholders = ", ".join(["?"] * len(symbols))
+        rows = cursor.execute(
+            f"SELECT symbol, atr_14 FROM ("
+            f"  SELECT symbol, atr_14, "
+            f"    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn "
+            f"  FROM technical_indicators "
+            f"  WHERE symbol IN ({placeholders})"
+            f") WHERE rn = 1",
+            [s.upper() for s in symbols],
+        ).fetchall()
+        for row in rows:
+            if row[1] is not None and row[1] > 0:
+                atr_map[row[0]] = float(row[1])
+    except Exception as e:
+        logger.debug("Batch ATR lookup failed: %s", e)
+    return atr_map
+
+
+def _compute_atr_levels(
+    entry: float,
+    atr: float,
+    direction: str,
+    pattern: str = "",
+) -> Dict[str, float]:
+    """Compute entry/target/stop using ATR and pattern-specific multipliers."""
+    pattern_lower = pattern.lower().strip()
+    mult = _DEFAULT_ATR_MULT
+    for key, m in _PATTERN_ATR_MULTIPLIERS.items():
+        if key in pattern_lower:
+            mult = m
+            break
+
+    if direction == "LONG":
+        stop = round(entry - atr * mult["stop"], 2)
+        target = round(entry + atr * mult["target"], 2)
+    else:
+        stop = round(entry + atr * mult["stop"], 2)
+        target = round(entry - atr * mult["target"], 2)
+
+    risk = abs(entry - stop)
+    reward = abs(target - entry)
+    r_mult = round(reward / risk, 1) if risk > 0 else 1.5
+
+    return {"target": target, "stop": stop, "r_multiple": r_mult}
+
+
 router = APIRouter()
 
 FEATURE_COLS = ["return_1d", "ma_10_dist", "ma_20_dist", "vol_20", "vol_rel"]
@@ -112,6 +212,10 @@ async def get_signals(as_of: date | None = None):
             if sym not in seen or ss.get("score", 0) > seen[sym].get("score", 0):
                 seen[sym] = ss
 
+        # Batch-fetch ATR for all symbols (single DuckDB query in thread)
+        all_syms = list(seen.keys())
+        atr_map = await asyncio.to_thread(_fetch_atr_batch, all_syms)
+
         for sym, ss in seen.items():
             raw_score = ss.get("score", 0)
             score_100 = round(raw_score * 100) if raw_score <= 1.0 else round(raw_score)
@@ -120,11 +224,28 @@ async def get_signals(as_of: date | None = None):
             )
             price = ss.get("data", {}).get("close", ss.get("data", {}).get("price", 0))
             entry = round(price, 2) if price else 0
-            target = round(entry * (1.03 if direction == "LONG" else 0.97), 2) if entry else 0
-            stop = round(entry * (0.98 if direction == "LONG" else 1.02), 2) if entry else 0
-            r_mult = round((abs(target - entry) / abs(entry - stop)), 1) if entry and stop and entry != stop else 1.5
+            pattern = ss.get("signal_type", "")
+
+            # ATR-based entry/target/stop (fall back to fixed % if no ATR)
+            atr_val = atr_map.get(sym)
+            if entry and atr_val:
+                levels = _compute_atr_levels(entry, atr_val, direction, pattern)
+                target = levels["target"]
+                stop = levels["stop"]
+                r_mult = levels["r_multiple"]
+                # Compute actual avg_win / avg_loss from the ATR levels
+                avg_win_pct = abs(target - entry) / entry if entry else 0.035
+                avg_loss_pct = abs(entry - stop) / entry if entry else 0.015
+            else:
+                # Fallback: fixed percentage when no ATR data available
+                target = round(entry * (1.03 if direction == "LONG" else 0.97), 2) if entry else 0
+                stop = round(entry * (0.98 if direction == "LONG" else 1.02), 2) if entry else 0
+                r_mult = round((abs(target - entry) / abs(entry - stop)), 1) if entry and stop and entry != stop else 1.5
+                avg_win_pct = 0.035
+                avg_loss_pct = 0.015
+
             kelly = _kelly_sizer.calculate(
-                win_rate=max(0.5, score_100 / 100), avg_win_pct=0.035, avg_loss_pct=0.015,
+                win_rate=max(0.5, score_100 / 100), avg_win_pct=avg_win_pct, avg_loss_pct=avg_loss_pct,
             )
             dashboard_signals.append({
                 "symbol": sym,

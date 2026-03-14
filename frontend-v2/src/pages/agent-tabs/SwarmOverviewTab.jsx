@@ -14,7 +14,8 @@ import Card from "../../components/ui/Card";
 import { useApi, useEloLeaderboard, useHitlBuffer } from "../../hooks/useApi";
 import ws from "../../services/websocket";
 import { toast } from "react-toastify";
-import { getApiUrl, getAuthHeaders } from "../../config/api";
+import { getApiUrl, getAuthHeaders, extractApiError } from "../../config/api";
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
 
 const HEALTH_COLORS = {
   healthy: "bg-emerald-500 shadow-emerald-500/50",
@@ -295,15 +296,16 @@ function AgentHealthMatrix({ agents }) {
       <div className="grid grid-cols-3 gap-4 mb-3">
         {["Scanner", "Intelligence", "Execution"].map(g => (
           <div key={g}>
-            <div className="text-[9px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-2 border-b border-[#00D9FF]/10 pb-1">{g}</div>
-            <div className="flex flex-wrap gap-1">
+            <div className="text-[10px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-2 border-b border-[#00D9FF]/10 pb-1">{g}</div>
+            <div className="flex flex-col gap-1.5">
               {AGENT_CATEGORIES.filter(c => c.group === g).map(cat => {
                 const h = resolveHealth(cat.name);
-                const dotClass = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const dotColor = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const statusLabel = h === "healthy" ? "Healthy" : h === "degraded" ? "Degraded" : h === "error" ? "Error" : "Stopped";
                 return (
-                  <div key={cat.name} className="flex items-center gap-1 cursor-pointer">
-                    <div className={`w-3 h-3 rounded-full ${dotClass} shadow-[0_0_4px_currentColor]`} />
-                    <span className="text-[8px] text-gray-500">{cat.name}</span>
+                  <div key={cat.name} className="flex items-center gap-1.5 cursor-pointer group" title={`${cat.name}: ${statusLabel}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full ${dotColor} shadow-[0_0_4px_currentColor] shrink-0`} />
+                    <span className="text-[10px] text-gray-400 group-hover:text-gray-200 truncate">{cat.name}</span>
                   </div>
                 );
               })}
@@ -315,14 +317,17 @@ function AgentHealthMatrix({ agents }) {
       <div className="grid grid-cols-4 gap-2 mb-3">
         {["Streaming", "Sentiment", "MLLearning", "Conference"].map(g => (
           <div key={g}>
-            <div className="text-[9px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-1 border-b border-[#00D9FF]/10 pb-0.5">{g}</div>
-            <div className="flex flex-wrap gap-1">
+            <div className="text-[10px] text-[#00D9FF]/60 font-bold uppercase tracking-wider mb-1 border-b border-[#00D9FF]/10 pb-0.5">{g}</div>
+            <div className="flex flex-col gap-1.5">
               {AGENT_CATEGORIES.filter(c => c.group === g).map(cat => {
                 const h = resolveHealth(cat.name);
-                const dotClass = h === "healthy" ? "bg-emerald-400" : h === "degraded" ? "bg-amber-400" : h === "error" ? "bg-red-500" : "bg-gray-600";
+                const statusLabel = h === "healthy" ? "Healthy" : h === "degraded" ? "Degraded" : h === "error" ? "Error" : "Stopped";
+                const bg = h === "healthy" ? "#34d399" : h === "degraded" ? "#fbbf24" : h === "error" ? "#ef4444" : "#4b5563";
                 return (
-                  <div key={cat.name} className="w-2.5 h-2.5 rounded-full cursor-pointer" title={cat.name}
-                    style={{ background: dotClass.includes("emerald") ? "#34d399" : dotClass.includes("amber") ? "#fbbf24" : dotClass.includes("red") ? "#ef4444" : "#4b5563" }} />
+                  <div key={cat.name} className="flex items-center gap-1.5 cursor-pointer group" title={`${cat.name}: ${statusLabel}`}>
+                    <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ background: bg }} />
+                    <span className="text-[10px] text-gray-400 group-hover:text-gray-200 truncate">{cat.name}</span>
+                  </div>
                 );
               })}
             </div>
@@ -350,8 +355,8 @@ async function quickActionApi(path, method = "POST", body = undefined) {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
-    const detail = await res.json().catch(() => ({}));
-    throw new Error(detail?.detail || detail?.message || `HTTP ${res.status}`);
+    const errMsg = await extractApiError(res);
+    throw new Error(errMsg);
   }
   return res.json();
 }
@@ -379,8 +384,8 @@ async function batchAgentAction(action) {
       if (failed > 0 && ok === 0) throw new Error(`All ${failed} agents failed`);
       return { ok: true, results: results.map((r, i) => ({ agent_id: i + 1, status: r.status === "fulfilled" ? "success" : "failed" })) };
     }
-    const detail = await res.json().catch(() => ({}));
-    throw new Error(detail?.detail || `HTTP ${res.status}`);
+    const errMsg = await extractApiError(res);
+    throw new Error(errMsg);
   } catch (e) {
     if (e.message?.includes("agents failed")) throw e;
     throw new Error(e?.message || "network error");
@@ -398,8 +403,8 @@ async function emergencyStopApi() {
     });
     clearTimeout(timeout);
     if (!res.ok) {
-      const detail = await res.json().catch(() => ({}));
-      throw new Error(detail?.detail || `HTTP ${res.status}`);
+      const errMsg = await extractApiError(res);
+      throw new Error(errMsg);
     }
     return res.json();
   } catch (e) {
@@ -410,30 +415,30 @@ async function emergencyStopApi() {
 }
 
 async function runConferenceApi() {
-  // Try POST to trigger conference, fall back to GET data display
-  const res = await fetch(getApiUrl("agents") + "/conference", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ action: "start" }),
-  });
-  if (res.ok) return res.json();
-  // POST may return 405 (Method Not Allowed) — that's expected if no POST handler
-  if (res.status === 405) {
-    // Fall back to GET to show current conference data
-    const getRes = await fetch(getApiUrl("conference"), { headers: getAuthHeaders() });
-    if (getRes.ok) {
-      const data = await getRes.json();
-      const hasData = data?.last_conference || data?.current || data?.total_conferences > 0;
-      if (hasData) return { ...data, _info: "Showing latest conference result (no POST trigger available)" };
-      throw new Error("No conference data available — council has not run yet");
-    }
+  // Try council/evaluate endpoint first (correct POST endpoint for triggering evaluation)
+  try {
+    const res = await fetch(getApiUrl("councilEvaluate"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({}),
+    });
+    if (res.ok) return res.json();
+  } catch {}
+
+  // Fall back to GET conference data (agents/conference is GET-only)
+  const getRes = await fetch(getApiUrl("conference"), { headers: getAuthHeaders() });
+  if (getRes.ok) {
+    const data = await getRes.json();
+    const hasData = data?.last_conference || data?.current || data?.total_conferences > 0;
+    if (hasData) return { ...data, _info: "Showing latest conference result (trigger endpoint not available)" };
+    throw new Error("No conference data yet — council hasn't run. Signals must pass threshold (80) first.");
   }
-  const detail = await res.json().catch(() => ({}));
-  throw new Error(detail?.detail || `HTTP ${res.status}`);
+  throw new Error("Conference endpoint unavailable");
 }
 
 function QuickActions({ onRefetch }) {
   const [loading, setLoading] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null); // { label, title, description, confirmText, variant, fn }
   const run = async (label, fn) => {
     setLoading(label);
     toast.info(`${label}...`);
@@ -453,14 +458,40 @@ function QuickActions({ onRefetch }) {
     }
   };
   const actions = [
-    { label: "Restart All",    color: "bg-[#3b82f6] text-white border-[#3b82f6]", fn: () => batchAgentAction("restart") },
-    { label: "Stop All",       color: "bg-[#ef4444] text-white border-[#ef4444]", fn: () => batchAgentAction("stop") },
-    { label: "Spawn Team",     color: "bg-[#10b981] text-white border-[#10b981]", fn: () => batchAgentAction("start") },
-    { label: "Run Conference",  color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", fn: runConferenceApi },
-    { label: "Emergency Kill",  color: "bg-[#ef4444] text-white border-[#ef4444]", fn: () => {
-      if (!window.confirm("⚠️ Emergency Kill: Cancel all orders and close all positions?")) throw new Error("Cancelled by user");
-      return emergencyStopApi();
+    { label: "Restart All",    loadingLabel: "Restarting...", color: "bg-[#3b82f6] text-white border-[#3b82f6]",
+      dangerous: true,
+      confirmTitle: "Restart All Agents",
+      confirmDesc: "Restart ALL agents? Running processes will be interrupted.",
+      confirmText: "Restart All",
+      confirmVariant: "warning",
+      fn: () => batchAgentAction("restart"),
+    },
+    { label: "Stop All",       loadingLabel: "Stopping...", color: "bg-[#ef4444] text-white border-[#ef4444]",
+      dangerous: true,
+      confirmTitle: "Stop All Agents",
+      confirmDesc: "Stop ALL agents? This will halt all autonomous trading.",
+      confirmText: "Stop All",
+      confirmVariant: "danger",
+      fn: () => batchAgentAction("stop"),
+    },
+    { label: "Spawn Team",     loadingLabel: "Spawning...", color: "bg-[#10b981] text-white border-[#10b981]", fn: async () => {
+      const res = await fetch(getApiUrl("agents/swarm/spawn"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
+      return res.json();
     }},
+    { label: "Run Conference",  loadingLabel: "Running...", color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", fn: runConferenceApi },
+    { label: "Emergency Kill",  loadingLabel: "Killing...", color: "bg-[#ef4444] text-white border-[#ef4444]",
+      dangerous: true,
+      confirmTitle: "Emergency Kill",
+      confirmDesc: "This will immediately cancel all orders and close all positions. Are you sure?",
+      confirmText: "Emergency Kill",
+      confirmVariant: "danger",
+      fn: () => emergencyStopApi(),
+    },
   ];
   return (
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
@@ -470,13 +501,32 @@ function QuickActions({ onRefetch }) {
           <button
             key={a.label}
             disabled={loading != null}
-            onClick={() => run(a.label, a.fn)}
+            onClick={() => {
+              if (a.dangerous) {
+                setConfirmAction(a);
+              } else {
+                run(a.label, a.fn);
+              }
+            }}
             className={`px-2.5 py-1 text-[10px] font-bold rounded border ${a.color} hover:opacity-90 transition-opacity disabled:opacity-50`}
           >
-            {loading === a.label ? "…" : a.label}
+            {loading === a.label ? (a.loadingLabel || a.label + "...") : a.label}
           </button>
         ))}
       </div>
+      <ConfirmDialog
+        open={confirmAction != null}
+        onConfirm={() => {
+          const action = confirmAction;
+          setConfirmAction(null);
+          if (action) run(action.label, action.fn);
+        }}
+        onCancel={() => setConfirmAction(null)}
+        title={confirmAction?.confirmTitle ?? "Are you sure?"}
+        description={confirmAction?.confirmDesc ?? ""}
+        confirmText={confirmAction?.confirmText ?? "Confirm"}
+        variant={confirmAction?.confirmVariant ?? "danger"}
+      />
     </div>
   );
 }
@@ -952,9 +1002,9 @@ function DriftMonitorPanel({ driftData = [] }) {
       <div className="space-y-1">
         {displayData.map((m, i) => (
           <div key={i} className="flex items-center justify-between text-[10px] font-mono">
-            <span className="text-[#94a3b8]">{m.name}</span>
+            <span className="text-[#94a3b8] shrink-0">{m.name}:</span>
             {m.val != null ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-2">
                 <span className={m.status === "high" ? "text-[#ef4444]" : m.status === "mid" ? "text-[#f59e0b]" : "text-[#10b981]"}>{typeof m.val === "number" ? m.val.toFixed(2) : m.val}</span>
                 <div className="w-20 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, m.val * 400)}%`, backgroundColor: barColor(m) }} />

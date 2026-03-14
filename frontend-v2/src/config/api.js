@@ -28,9 +28,9 @@ function _deriveWsFromBackend(backendUrl) {
   return u ? (secure ? `wss://${u}` : `ws://${u}`) : "";
 }
 
-// Hardcoded 24/7 defaults so app runs and reconnects without .env (backend 8000, WS same host).
-const _DEFAULT_BACKEND = "http://localhost:8000";
-const _DEFAULT_WS = "ws://localhost:8000";
+// Hardcoded 24/7 defaults so app runs and reconnects without .env (backend 8001, WS same host).
+const _DEFAULT_BACKEND = "http://localhost:8001";
+const _DEFAULT_WS = "ws://localhost:8001";
 
 const API_CONFIG = {
   // Env overrides; fallback to hardcoded backend so app runs automatically.
@@ -254,6 +254,9 @@ const API_CONFIG = {
   },
 };
 
+/** Root-level endpoints (no /api/v1 prefix) — lightweight liveness probes. */
+const ROOT_ENDPOINTS = { healthz: "/healthz" };
+
 /**
  * Resolve an endpoint key to a full URL.
  * @param {string} endpoint - Key from API_CONFIG.endpoints
@@ -261,6 +264,9 @@ const API_CONFIG = {
  */
 export function getApiUrl(endpoint) {
   const ep = typeof endpoint === "string" ? endpoint.trim() : "";
+  if (ROOT_ENDPOINTS[ep]) {
+    return `${API_CONFIG.BASE_URL}${ROOT_ENDPOINTS[ep]}`;
+  }
   if (ep.startsWith("/api/v1")) {
     return `${API_CONFIG.BASE_URL}${ep}`;
   }
@@ -283,9 +289,10 @@ export function getApiUrl(endpoint) {
  * @param {string} [channel] - WS topic/channel name
  */
 export function getWsUrl(channel) {
-  const base = API_CONFIG.WS_URL || (typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
-    : "ws://localhost:8000");
+  // FIX #52: Always use the configured WS_URL (defaults to ws://localhost:8001).
+  // Previously fell back to window.location.host which resolved to Vite dev server
+  // (ws://localhost:5173) — the Vite WS proxy is unreliable for long-lived connections.
+  const base = API_CONFIG.WS_URL;
   const token = (typeof localStorage !== "undefined" && localStorage.getItem("auth_token")) ||
                 import.meta.env.VITE_API_AUTH_TOKEN || "";
   const wsBase = token ? `${base}/ws?token=${encodeURIComponent(token)}` : `${base}/ws`;
@@ -306,6 +313,22 @@ export function getAuthHeaders() {
     import.meta.env.VITE_API_AUTH_TOKEN ||
     null;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Extract a user-friendly error message from a fetch response.
+ * Detects API_AUTH_TOKEN-not-configured (403) and shows a specific message.
+ */
+export async function extractApiError(res) {
+  const body = await res.json().catch(() => ({}));
+  const detail = body?.detail || body?.message || "";
+  if (res.status === 403 && typeof detail === "string" && detail.includes("API_AUTH_TOKEN")) {
+    return "API auth token not configured. Set API_AUTH_TOKEN in backend .env and VITE_API_AUTH_TOKEN in frontend .env, then restart both servers.";
+  }
+  if (res.status === 401) {
+    return "Authentication failed — check your API_AUTH_TOKEN matches between frontend and backend.";
+  }
+  return detail || `HTTP ${res.status}`;
 }
 
 /**

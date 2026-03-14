@@ -756,6 +756,15 @@ class DuckDBStorage:
             )
         """)
 
+        # Regime persistence — last known regime across restarts and market closures (24/7)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS regime_state (
+                regime VARCHAR NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                source VARCHAR DEFAULT 'bayesian_regime'
+            )
+        """)
+
         # C4: Council decision audit trail
         conn.execute("""
             CREATE TABLE IF NOT EXISTS council_decisions (
@@ -1201,6 +1210,28 @@ class DuckDBStorage:
                 INSERT INTO circuit_breaker_events (id, halt_reason, symbol, features_snapshot, timestamp)
                 VALUES (?, ?, ?, ?, ?)
             """, [uid, halt_reason, symbol or None, snapshot_str, ts])
+
+    def persist_regime(self, regime: str, source: str = "bayesian_regime") -> None:
+        """Persist last known regime for 24/7 persistence across restarts and market closures."""
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).isoformat()
+        with self._write_lock:
+            conn = self._get_conn()
+            conn.execute("DELETE FROM regime_state")
+            conn.execute(
+                "INSERT INTO regime_state (regime, updated_at, source) VALUES (?, ?, ?)",
+                [regime, ts, source],
+            )
+
+    def get_last_regime(self) -> Optional[tuple]:
+        """Return (regime, updated_at, source) or None if no persisted regime."""
+        try:
+            row = self._get_conn().execute(
+                "SELECT regime, updated_at, source FROM regime_state ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+            return (row[0], row[1], row[2]) if row and row[0] else None
+        except Exception:
+            return None
 
     def health_check(self) -> Dict:
         """Return storage health metrics."""

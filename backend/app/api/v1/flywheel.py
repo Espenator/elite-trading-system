@@ -81,11 +81,28 @@ async def get_flywheel():
     data = _get_flywheel_data()
     acc30 = data.get("accuracy30d", 0.0)
     acc90 = data.get("accuracy90d", 0.0)
+
+    # Pull live resolved count from outcome_resolver as fallback
+    resolved = data.get("resolvedSignals", 0)
+    try:
+        from app.modules.ml_engine.outcome_resolver import get_flywheel_metrics
+        metrics = get_flywheel_metrics()
+        live_count = metrics.get("resolved_count", 0)
+        if live_count > resolved:
+            resolved = live_count
+            # Also pull live accuracy if flywheel_data hasn't been synced yet
+            if metrics.get("accuracy_30d") is not None and acc30 == 0.0:
+                acc30 = float(metrics["accuracy_30d"])
+            if metrics.get("accuracy_90d") is not None and acc90 == 0.0:
+                acc90 = float(metrics["accuracy_90d"])
+    except Exception:
+        pass
+
     return {
         "accuracy30d": acc30,
         "accuracy90d": acc90,
         "accuracy": round(acc30 * 100, 1),
-        "resolvedSignals": data.get("resolvedSignals", 0),
+        "resolvedSignals": resolved,
         "pendingResolution": data.get("pendingResolution", 0),
         "history": data.get("history", [])[-90:],
     }
@@ -168,6 +185,23 @@ async def get_flywheel_performance():
 async def get_flywheel_signals_staged():
     """Staged signals for flywheel. Stub."""
     return {"flywheel": {"signals": [], "staged": 0}}
+
+
+@router.post("/resolve-signals", dependencies=[Depends(require_auth)])
+async def resolve_historical_signals_endpoint():
+    """Manually trigger retroactive resolution of turbo_scanner signals.
+
+    Checks past signals' predicted directions against current prices and
+    records outcomes to the flywheel, bootstrapping the feedback loop
+    without requiring actual trades.
+    """
+    try:
+        from app.services.outcome_tracker import resolve_historical_signals
+        result = await resolve_historical_signals()
+        return {"status": "completed", **result}
+    except Exception as e:
+        logger.error("resolve_historical_signals failed: %s", e)
+        return {"status": "error", "error": str(e)}
 
 
 @router.get("/models")

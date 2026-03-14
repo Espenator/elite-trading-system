@@ -617,12 +617,12 @@ export default function RiskIntelligence() {
           ════════════════════════════════════════════════════════════════════════ */}
       <div className="p-3 space-y-3">
       {/* TOP SECTION ROW: Risk Configuration | Parameter Sweeps | Realtime Risk Detail */}
-      <div className="grid grid-cols-12 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
 
         {/* --- Risk Configuration (left, 4 cols) --- */}
         <Card title="Risk Configuration"
               subtitle={`Strategy: ${strategy}`}
-              className="col-span-4"
+              className="col-span-1 md:col-span-4"
               action={<Badge variant="success" size="sm">ACTIVE</Badge>}>
           <div className="space-y-3">
             {/* Risk Model Selector */}
@@ -713,7 +713,7 @@ export default function RiskIntelligence() {
         </Card>
 
         {/* --- Parameter Sweeps (center, 5 cols) --- */}
-        <Card title="Parameter Sweeps" className="col-span-5"
+        <Card title="Parameter Sweeps" className="col-span-1 md:col-span-5"
               action={<span className="text-[10px] text-gray-500 font-mono">{timeframe}</span>}>
           <ParameterSweepsPanel
             onRun={handleRunSweepClick}
@@ -746,7 +746,7 @@ export default function RiskIntelligence() {
         </Card>
 
         {/* --- RealTime Risk Vitals (right, 3 cols) --- */}
-        <Card title="RealTime Risk Vitals" className="col-span-3"
+        <Card title="RealTime Risk Vitals" className="col-span-1 md:col-span-3"
               action={<Badge variant={systemStatus === 'SAFE' ? 'success' : 'warning'} size="sm">{systemStatus ?? '—'}</Badge>}>
           <div className="space-y-2.5">
             {gaugesLoading ? (
@@ -804,10 +804,10 @@ export default function RiskIntelligence() {
       {/* ════════════════════════════════════════════════════════════════════════
           MAIN GRID ROW: Stop-Loss | Correlation | Vol Regime | AI Monitors | Position Sizing
           ════════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-12 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3">
 
         {/* --- Stop-Loss Command (2 cols) --- */}
-        <Card title="Stop-Loss Command" className="col-span-2"
+        <Card title="Stop-Loss Command" className="col-span-1 md:col-span-2"
               action={
                 safetyChecks.length > 0 ? (
                   <span className="text-[10px] font-mono" style={{ color: safetyChecks.every(c => c.status === 'PASS') ? C.green : C.amber }}>
@@ -876,7 +876,7 @@ export default function RiskIntelligence() {
         </Card>
 
         {/* --- Correlation Matrix (API only; cell click → drill-down) --- */}
-        <Card title="Correlation Matrix" className="col-span-3"
+        <Card title="Correlation Matrix" className="col-span-1 md:col-span-3"
               action={<Grid3X3 className="w-4 h-4 text-[#00D9FF]" />}>
           <CorrelationHeatmap
             data={correlationData}
@@ -900,7 +900,7 @@ export default function RiskIntelligence() {
         </Card>
 
         {/* --- Volatility Regime Monitor (API only) --- */}
-        <Card title="Volatility Regime Monitor" className="col-span-2"
+        <Card title="Volatility Regime Monitor" className="col-span-1 md:col-span-2"
               action={<Gauge className="w-4 h-4 text-[#00D9FF]" />}>
           <div className="space-y-2.5">
             {volRegimeItems.length === 0 && !riskData && <Skeleton className="w-full h-16" />}
@@ -939,7 +939,7 @@ export default function RiskIntelligence() {
         </Card>
 
         {/* --- AI Agent Risk Monitors (API only) --- */}
-        <Card title="AI Agent Risk Monitors" className="col-span-3"
+        <Card title="AI Agent Risk Monitors" className="col-span-1 md:col-span-3"
               action={<Brain className="w-4 h-4 text-[#00D9FF]" />}>
           <div className="space-y-2">
             {agentMonitors.length === 0 && !monte && !kelly && <Skeleton className="w-full h-20" />}
@@ -970,7 +970,7 @@ export default function RiskIntelligence() {
         </Card>
 
         {/* --- Position Sizing (API only) --- */}
-        <Card title="Position Sizing" className="col-span-2"
+        <Card title="Position Sizing" className="col-span-1 md:col-span-2"
               action={<DollarSign className="w-4 h-4 text-[#00D9FF]" />}>
           <PositionSizer kelly={kelly} portfolioValue={portfolioValue} loading={kellyLoading} />
         </Card>

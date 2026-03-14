@@ -154,14 +154,14 @@ export default function Header() {
 
   return (
     <header
-      className="sticky top-0 z-10 h-16 flex items-center justify-between gap-4 px-6"
+      className="sticky top-0 z-10 h-16 flex items-center justify-between gap-4 px-3 md:px-6 overflow-x-auto no-scrollbar"
       style={{
         background:   "#111827",
         borderBottom: "1px solid rgba(42,52,68,0.5)",
       }}
     >
       {/* ── Left: Search ────────────────────────────────────────────────── */}
-      <div className="flex items-center flex-1 min-w-0 max-w-xs">
+      <div className="hidden sm:flex items-center flex-1 min-w-0 max-w-xs">
         <div
           className="relative w-full rounded-[8px] transition-all duration-200"
           style={{
@@ -204,7 +204,7 @@ export default function Header() {
       </div>
 
       {/* ── Center: CNS Status ──────────────────────────────────────────── */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         {/* WS Connection — LIVE | RECONNECTING | DOWN (24/7 auto-reconnect) */}
         <StatusPill
           bg={wsConnected ? "rgba(16,185,129,0.10)" : wsReconnecting ? "rgba(245,158,11,0.10)" : "rgba(239,68,68,0.10)"}

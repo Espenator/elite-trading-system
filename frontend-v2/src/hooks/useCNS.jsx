@@ -34,8 +34,9 @@ export function CNSProvider({ children }) {
   const [circuitBreakerArmed, setCircuitBreakerArmed] = useState(true);
   const [circuitBreakerFired, setCircuitBreakerFired] = useState(null);
   const [latestVerdict, setLatestVerdict] = useState(null);
-  const [wsConnected, setWsConnected] = useState(false);
-  const [wsReconnecting, setWsReconnecting] = useState(false);
+  // Initialize from actual WS state so indicator is correct on mount
+  const [wsConnected, setWsConnected] = useState(() => ws.getState() === 'connected');
+  const [wsReconnecting, setWsReconnecting] = useState(() => ws.getState() === 'reconnecting');
 
   // Notification queue — components subscribe to this
   const [notifications, setNotifications] = useState([]);
@@ -112,6 +113,11 @@ export function CNSProvider({ children }) {
         setWsReconnecting(false);
       }
       if (ev.type === 'reconnecting') setWsReconnecting(true);
+      // Error events mean the connection is broken — clear connected state
+      // so the status bar doesn't show "Connected" during errors
+      if (ev.type === 'error') {
+        setWsConnected(false);
+      }
     }));
 
     // Council verdicts

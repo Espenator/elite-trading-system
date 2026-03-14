@@ -7,12 +7,13 @@ import { useApi } from '../hooks/useApi';
 import { getApiUrl, getAuthHeaders } from '../config/api';
 import { Copy, Download, ExternalLink, Tv, RefreshCw } from 'lucide-react';
 
-const REGIME_EMOJI = { bull: '🟢', sideways: '🟡', bear: '🔴', crisis: '⚫' };
+const REGIME_EMOJI = { bull: '🟢', sideways: '🟡', bear: '🔴', crisis: '⚫', unknown: '⚪' };
 const REGIME_COLOR = {
   bull: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   sideways: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   bear: 'bg-red-500/20 text-red-400 border-red-500/30',
   crisis: 'bg-gray-800 text-gray-300 border-gray-600',
+  unknown: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
 function formatLevelsForCopy(idea) {

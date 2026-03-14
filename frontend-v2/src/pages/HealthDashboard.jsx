@@ -26,7 +26,7 @@ function StatRow({ label, value, status }) {
       <span className="text-gray-400">{label}</span>
       <span className="font-mono">
         {status && <Dot status={status} />}
-        {value ?? "\u2014"}
+        {value ?? "—"}
       </span>
     </div>
   );
@@ -80,7 +80,7 @@ export default function HealthDashboard() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">System Health</h1>
         <span className="text-xs text-gray-500">
-          Updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "\u2014"}
+          Updated {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "—"}
         </span>
       </div>
 
@@ -95,12 +95,12 @@ export default function HealthDashboard() {
         <Dot status={council_mode === "FULL" ? "healthy" : "degraded"} />
         Council Mode: {council_mode}
         {council_mode === "DEGRADED" &&
-          " \u2014 PC2 unreachable, hypothesis using CPU fallback (conf=0.1)"}
+          " — PC2 unreachable, hypothesis using CPU fallback (conf=0.1)"}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* PC1 Panel */}
-        <Panel title="PC1 \u2014 ESPENMAIN">
+        <Panel title="PC1 — ESPENMAIN">
           <StatRow label="API Server" value="healthy" status="healthy" />
           <StatRow
             label="Council Runner"
@@ -129,7 +129,7 @@ export default function HealthDashboard() {
                 value={
                   lastDecision.confidence != null
                     ? `${(lastDecision.confidence * 100).toFixed(1)}%`
-                    : "\u2014"
+                    : "—"
                 }
               />
               <StatRow
@@ -137,7 +137,7 @@ export default function HealthDashboard() {
                 value={
                   lastDecision.created_at
                     ? new Date(lastDecision.created_at).toLocaleTimeString()
-                    : "\u2014"
+                    : "—"
                 }
               />
             </>
@@ -145,7 +145,7 @@ export default function HealthDashboard() {
         </Panel>
 
         {/* PC2 Panel */}
-        <Panel title="PC2 \u2014 ProfitTrader" unreachable={!pc2Reachable}>
+        <Panel title="PC2 — ProfitTrader" unreachable={!pc2Reachable}>
           {pc2Reachable && (
             <>
               <StatRow
@@ -168,7 +168,7 @@ export default function HealthDashboard() {
                 value={
                   pc2Data.vram_used_gb
                     ? `${pc2Data.vram_used_gb.toFixed(1)} / 17.2 GB`
-                    : "\u2014"
+                    : "—"
                 }
               />
               {(pc2Data.loaded_models ?? []).length > 0 && (

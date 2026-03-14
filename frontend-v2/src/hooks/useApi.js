@@ -13,6 +13,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 
 const DEFAULT_TIMEOUT_MS = 15000;
+// healthz uses extended timeout — backend event loop can be busy (scouts, streams) causing 15–25s latency
+const HEALTHZ_TIMEOUT_MS = 25000;
 
 // Simple in-memory cache (stale-while-revalidate)
 const _apiCache = new Map();
@@ -45,8 +47,12 @@ function _releaseSlot() {
   _runNext();
 }
 
-// Per-URL in-flight deduplication
+// Per-URL in-flight deduplication + short-lived result cache (2s window)
+// _inflight: URL -> Promise (for concurrent in-flight requests)
+// _fetchCache: URL -> { promise, timestamp } (for near-simultaneous requests within DEDUP_WINDOW_MS)
 const _inflight = new Map();
+const _fetchCache = new Map();
+const DEDUP_WINDOW_MS = 2000;
 
 /**
  * Combine two AbortSignals without requiring AbortSignal.any (ES2023+).
@@ -65,13 +71,14 @@ function _combineSignals(sig1, sig2) {
 
 /**
  * @param {string} endpoint - Key from api.js endpoints (e.g. 'agents', 'dataSources')
- * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string }} options
+ * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string, timeoutMs?: number }} options
  */
 export function useApi(endpoint, options = {}) {
   const {
     pollIntervalMs = 0,
     enabled = true,
     endpoint: endpointOverride,
+    timeoutMs = null,
   } = options;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(enabled);
@@ -103,6 +110,26 @@ export function useApi(endpoint, options = {}) {
       return;
     }
 
+    // Deduplicate: if same URL was fetched within DEDUP_WINDOW_MS, reuse result
+    const cached = _fetchCache.get(url);
+    if (cached && Date.now() - cached.timestamp < DEDUP_WINDOW_MS) {
+      try {
+        const json = await cached.promise;
+        if (!signal?.aborted) {
+          setData(json);
+          setError(null);
+          setIsStale(false);
+          setLastUpdated(Date.now());
+        }
+        return;
+      } catch {
+        if (signal?.aborted) return;
+        // Cache entry failed — fall through to fresh fetch
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    }
+
     // Deduplicate: if same URL is already in-flight, piggyback on it
     if (_inflight.has(url)) {
       try {
@@ -125,9 +152,10 @@ export function useApi(endpoint, options = {}) {
       await _acquireSlot();
       try {
         const MAX_RETRIES = 3;
+        const effectiveTimeout = timeoutMs ?? (endpoint === "healthz" ? HEALTHZ_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
           const timeoutCtrl = new AbortController();
-          const timeoutId = setTimeout(() => timeoutCtrl.abort(), DEFAULT_TIMEOUT_MS);
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), effectiveTimeout);
           const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
 
           try {
@@ -160,6 +188,8 @@ export function useApi(endpoint, options = {}) {
     })();
 
     _inflight.set(url, fetchPromise);
+    // Store in dedup cache so near-simultaneous requests share this result
+    _fetchCache.set(url, { promise: fetchPromise, timestamp: Date.now() });
     try {
       setError(null);
       const json = await fetchPromise;
@@ -170,11 +200,11 @@ export function useApi(endpoint, options = {}) {
       }
     } catch (err) {
       if (signal?.aborted) return;
-      const cached = _apiCache.get(url);
-      if (cached && Date.now() - cached.ts < CACHE_STALE_MS) {
-        setData(cached.data);
+      const staleCached = _apiCache.get(url);
+      if (staleCached && Date.now() - staleCached.ts < CACHE_STALE_MS) {
+        setData(staleCached.data);
         setIsStale(true);
-        setLastUpdated(cached.ts);
+        setLastUpdated(staleCached.ts);
       } else {
         setError(err);
       }

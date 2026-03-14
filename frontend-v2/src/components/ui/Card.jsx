@@ -74,12 +74,12 @@ export default function Card({
       {/* Card Header */}
       {(title || subtitle || action) && (
         <div
-          className="px-4 py-3 flex items-center justify-between gap-3"
+          className="px-4 py-3 flex items-center justify-between gap-2 flex-wrap"
           style={{ borderBottom: '1px solid rgba(42,52,68,0.5)' }}
         >
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {title && (
-              <h3 className="text-sm font-semibold text-white leading-tight">
+              <h3 className="text-sm font-semibold text-white leading-tight truncate" title={typeof title === 'string' ? title : undefined}>
                 {title}
               </h3>
             )}

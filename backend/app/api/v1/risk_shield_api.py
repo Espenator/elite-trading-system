@@ -2,12 +2,16 @@
 risk_shield_api.py — RiskShield Emergency Controls API
 Wires the RiskShield UI to OpenClaw risk_governor.py (474 lines)
 Maps 9 safety checks to UI checklist, portfolio heatmap, emergency controls
+
+Issue #71: equity is now fetched live from Alpaca account API with 30s TTL cache
+instead of relying on the risk_governor's stale default of $100,000.
 """
 from fastapi import APIRouter, HTTPException, Depends
 from app.core.security import require_auth
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import logging
+import time
 
 from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
@@ -21,6 +25,44 @@ try:
 except ImportError as e:
     logger.warning("RiskGovernor module not found: %s. RiskShield endpoints will return 503.", e)
     risk_gov = None
+
+# Issue #71: Cached live equity from Alpaca (30s TTL)
+_equity_cache: Dict[str, Any] = {"equity": 0.0, "last_equity": 0.0, "timestamp": 0.0}
+_EQUITY_CACHE_TTL = 30.0  # seconds
+
+
+async def _get_live_equity() -> float:
+    """Fetch live equity from Alpaca account API with 30s cache.
+
+    Returns the current account equity, falling back to risk_governor's
+    value if Alpaca is unreachable.
+    """
+    global _equity_cache
+    now = time.time()
+    if now - _equity_cache["timestamp"] < _EQUITY_CACHE_TTL and _equity_cache["equity"] > 0:
+        return _equity_cache["equity"]
+
+    try:
+        account = await alpaca_service.get_account()
+        if account:
+            equity = float(account.get("equity", 0))
+            last_equity = float(account.get("last_equity", 0))
+            if equity > 0:
+                _equity_cache = {"equity": equity, "last_equity": last_equity, "timestamp": now}
+                # Also update risk_governor's equity so all checks use live value
+                try:
+                    if risk_gov:
+                        risk_gov.equity = equity
+                except Exception:
+                    pass
+                return equity
+    except Exception as e:
+        logger.debug("Live equity fetch failed: %s", e)
+
+    # Fallback to governor's cached equity
+    if risk_gov:
+        return risk_gov.equity
+    return 100_000.0
 
 router = APIRouter(tags=["RiskShield"])
 
@@ -76,10 +118,13 @@ async def get_risk_shield_status() -> Dict[str, Any]:
             "earnings_blackout": risk_gov._check_stop_enforcement(dummy)[0],
         }
 
+        # Issue #71: Use live Alpaca equity instead of risk_governor's potentially stale default
+        live_equity = await _get_live_equity()
+
         # Calculate Risk Score (0-100 Gauge)
         failed_count = sum(1 for passed in checks.values() if not passed)
         exposure_pct = status.get("exposure_pct", 0.0)
-        equity = status.get("equity", 0.0) or 1.0
+        equity = live_equity if live_equity > 0 else (status.get("equity", 0.0) or 1.0)
 
         # Base penalty for failed checks + exposure penalty
         risk_score = int((failed_count * 8) + (exposure_pct * 0.4))
@@ -103,7 +148,7 @@ async def get_risk_shield_status() -> Dict[str, Any]:
         return {
             "checks": checks,
             "risk_score": risk_score,
-            "equity": status.get("equity", 0.0),
+            "equity": equity,  # Issue #71: live Alpaca equity
             "daily_pnl_pct": status.get("daily_pnl_pct", 0.0),
             "heatmap": heatmap_data,
             "entries_frozen": is_entries_frozen(),

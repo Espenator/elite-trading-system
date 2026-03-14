@@ -19,6 +19,7 @@ The POST start/stop/tick endpoints are rarely called manually.
 
 import logging
 import os
+import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -30,6 +31,26 @@ from app.services.database import db_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _instrument_tick(agent_id: int):
+    """Record agent tick timing and errors in the homeostasis monitor."""
+    class _TickInstrument:
+        def __init__(self):
+            self._start = 0.0
+        def __enter__(self):
+            self._start = time.perf_counter()
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            elapsed_ms = (time.perf_counter() - self._start) * 1000
+            try:
+                from app.council.homeostasis import get_homeostasis
+                h = get_homeostasis()
+                h.record_agent_tick(str(agent_id), elapsed_ms, error=exc_type is not None)
+            except Exception:
+                pass
+            return False  # Don't suppress exceptions
+    return _TickInstrument()
 
 
 def _get_process_metrics():
@@ -113,10 +134,10 @@ _AGENTS_TEMPLATE = [
         "lastActionTimestamp": None,
         "lastAction": "Awaiting first tick",
         "currentTask": "Idle — waiting for first scan cycle",
-        "description": "Scans Finviz Elite, Alpaca, Unusual Whales; pulls FRED economic data, SEC EDGAR filings. Runs every 60s during market hours.",
+        "description": "Scans Finviz Elite, Alpaca, Unusual Whales; pulls FRED economic data, SEC EDGAR filings. Runs every 60s 24/7 — heartbeat stays alive when market closed.",
         "config": {
             "runIntervalSec": 60,
-            "marketHoursOnly": True,
+            "marketHoursOnly": False,
             "sources": ["finviz", "alpaca", "unusual_whales", "fred", "sec_edgar"],
         },
     },
@@ -258,16 +279,28 @@ def _agent_by_id(agent_id: int):
 
 
 async def _run_market_data_tick():
-    """Run one Market Data Agent tick (Finviz, Alpaca, FRED/EDGAR/UW) and append logs."""
+    """Run one Market Data Agent tick (Finviz, Alpaca, FRED/EDGAR/UW) and append logs.
+
+    24/7: Always updates last_tick_at (heartbeat) so dashboard never shows "unresponsive"
+    when agent is running but idle (e.g. market closed).
+    """
     from app.services.market_data_agent import run_tick, AGENT_NAME
 
-    entries = await run_tick()
-    for msg, level in entries:
-        _append_log(AGENT_NAME, msg, level)
-    _set_last_tick_at(1)
-    _set_current_task(
-        1, entries[0][0][:200] if entries else "Scanning Finviz Elite + Alpaca bars"
-    )
+    try:
+        with _instrument_tick(1):
+            entries = await run_tick()
+        for msg, level in entries:
+            _append_log(AGENT_NAME, msg, level)
+        _set_current_task(
+            1, entries[0][0][:200] if entries else "Scanning Finviz Elite + Alpaca bars"
+        )
+    except Exception as e:
+        logger.warning("Market Data Agent tick error (heartbeat still sent): %s", e)
+        _append_log(AGENT_NAME, f"Tick error: {str(e)[:80]}", "warning")
+        _set_current_task(1, "Waiting for market open — using last close data")
+    finally:
+        # Always update heartbeat so dashboard never shows "unresponsive" when agent is running
+        _set_last_tick_at(1)
 
 
 async def run_market_data_tick_if_running():
@@ -286,7 +319,8 @@ async def _run_signal_generation_tick():
 
     agent_name = _agent_by_id(2)["name"]
     try:
-        entries = await run_tick()
+        with _instrument_tick(2):
+            entries = await run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
         _set_last_tick_at(2)
@@ -305,7 +339,8 @@ async def _run_ml_learning_tick():
 
     agent_name = _agent_by_id(3)["name"]
     try:
-        entries = await ml_run_tick()
+        with _instrument_tick(3):
+            entries = await ml_run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
         _set_last_tick_at(3)
@@ -324,7 +359,8 @@ async def _run_sentiment_tick():
 
     agent_name = _agent_by_id(4)["name"]
     try:
-        entries = sentiment_run_tick()
+        with _instrument_tick(4):
+            entries = sentiment_run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
         _set_last_tick_at(4)
@@ -344,7 +380,8 @@ async def _run_youtube_knowledge_tick():
 
     agent_name = _agent_by_id(5)["name"]
     try:
-        entries = youtube_run_tick()
+        with _instrument_tick(5):
+            entries = youtube_run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
         _set_last_tick_at(5)
@@ -694,21 +731,30 @@ async def get_swarm_topology():
     edges = []
     leaderboard = []
 
+    # Get real ELO ratings if available
+    elo_ratings = {}
+    try:
+        from app.council.elo_service import get_elo_service
+        elo_ratings = get_elo_service().get_all_ratings()
+    except Exception:
+        pass
+
     for agent in agents:
         status = _effective_status(agent["id"])
+        agent_elo = round(elo_ratings.get(str(agent["id"]), agent.get("elo", 1500)))
         node = {
             "id": agent["id"],
             "name": agent["name"],
             "type": agent.get("type", "general"),
             "status": status,
-            "elo": agent.get("elo", 1500),
+            "elo": agent_elo,
             "win_pct": agent.get("win_pct", 50),
         }
         topology_nodes.append(node)
         leaderboard.append({
             "rank": 0,
             "agent": agent["name"],
-            "elo": agent.get("elo", 1500),
+            "elo": agent_elo,
             "win_pct": agent.get("win_pct", 50),
         })
 
@@ -1064,17 +1110,24 @@ async def get_agent_attribution():
             "signal_count": 0,
             "win_rate": agent.get("win_pct", 50),
         })
-    # Try to get council agent attribution
+    # Try to get council agent attribution with real ELO ratings
     try:
         from app.council.weight_learner import get_weight_learner
         learner = get_weight_learner()
         weights = learner.get_weights()
+        # Get real ELO ratings
+        elo_ratings = {}
+        try:
+            from app.council.elo_service import get_elo_service
+            elo_ratings = get_elo_service().get_all_ratings()
+        except Exception:
+            pass
         for name, weight in weights.items():
             attribution.append({
                 "agent_id": name,
                 "name": name.replace("_", " ").title(),
                 "status": "running",
-                "elo": int(1500 * weight),
+                "elo": round(elo_ratings.get(name, 1500 * weight)),
                 "weight": weight,
                 "pnl_contribution": 0,
                 "accuracy_pct": 0,
@@ -1086,38 +1139,89 @@ async def get_agent_attribution():
 
 @router.get("/elo-leaderboard")
 async def get_elo_leaderboard():
-    """ELO leaderboard with history — sources weights from Bayesian WeightLearner."""
+    """ELO leaderboard with real outcome-based ELO ratings.
+
+    Sources ratings from EloService (updated on every resolved trade outcome).
+    Falls back to Bayesian weight-derived proxy if EloService has no data.
+    """
     leaderboard = []
-    # Pull real council agent weights as ELO proxy
+
+    # Primary source: real ELO ratings from EloService
+    try:
+        from app.council.elo_service import get_elo_service
+        elo = get_elo_service()
+        elo_leaderboard = elo.get_leaderboard()
+        if elo_leaderboard:
+            leaderboard = elo_leaderboard
+    except Exception:
+        pass
+
+    # If EloService has no data yet, fall back to weight-derived proxy
+    if not leaderboard:
+        try:
+            from app.council.weight_learner import get_weight_learner
+            learner = get_weight_learner()
+            weights = learner.get_weights()
+            for name, weight in weights.items():
+                leaderboard.append({
+                    "rank": 0,
+                    "agent_id": name,
+                    "name": name.replace("_", " ").title(),
+                    "elo": int(1500 * weight),
+                    "weight": round(weight, 3),
+                    "win_rate": 0,
+                    "games": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "streak": 0,
+                })
+        except Exception:
+            pass
+
+    # Merge in weight data from WeightLearner for enrichment
     try:
         from app.council.weight_learner import get_weight_learner
         learner = get_weight_learner()
         weights = learner.get_weights()
+        agent_ids_in_board = {e["agent_id"] for e in leaderboard}
+        for entry in leaderboard:
+            aid = entry["agent_id"]
+            if aid in weights:
+                entry["weight"] = round(weights[aid], 3)
+        # Add any agents in WeightLearner not yet in leaderboard
         for name, weight in weights.items():
-            leaderboard.append({
-                "rank": 0,
-                "agent_id": name,
-                "name": name.replace("_", " ").title(),
-                "elo": int(1500 * weight),
-                "weight": round(weight, 3),
-                "win_rate": 0,
-                "games": 0,
-                "streak": 0,
-            })
+            if name not in agent_ids_in_board:
+                leaderboard.append({
+                    "rank": 0,
+                    "agent_id": name,
+                    "name": name.replace("_", " ").title(),
+                    "elo": 1500,
+                    "weight": round(weight, 3),
+                    "win_rate": 0,
+                    "games": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "streak": 0,
+                })
     except Exception:
         pass
-    # Also include the 5 tick agents
+
+    # Also include the 5 tick agents if not already present
     agents = _get_all_agents()
+    agent_ids_in_board = {e["agent_id"] for e in leaderboard}
     for agent in agents:
-        leaderboard.append({
-            "rank": 0,
-            "agent_id": agent["id"],
-            "name": agent["name"],
-            "elo": 1500,
-            "win_rate": 0,
-            "games": 0,
-            "streak": 0,
-        })
+        if agent["id"] not in agent_ids_in_board:
+            leaderboard.append({
+                "rank": 0,
+                "agent_id": agent["id"],
+                "name": agent["name"],
+                "elo": 1500,
+                "win_rate": 0,
+                "games": 0,
+                "wins": 0,
+                "losses": 0,
+                "streak": 0,
+            })
     leaderboard.sort(key=lambda x: x["elo"], reverse=True)
     for i, entry in enumerate(leaderboard):
         entry["rank"] = i + 1

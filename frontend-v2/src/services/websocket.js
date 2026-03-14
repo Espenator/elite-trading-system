@@ -98,14 +98,28 @@ class AppWebSocket {
       };
 
       this.ws.onerror = (evt) => {
-        console.warn("[WS] connection error", evt);
+        // Browser WS error events are opaque — log the URL and state for debugging
+        console.warn("[WS] connection error", { url: this.ws?.url, readyState: this.ws?.readyState });
+        // Mark as disconnected so UI reflects the error immediately
+        // (onclose will also fire after onerror, but this ensures no stale "connected" state)
+        if (this.state === "connected") {
+          this.state = "disconnected";
+        }
         if (this.handlers.has("*"))
           this.handlers.get("*").forEach((fn) => fn({ type: "error", error: evt }));
       };
     } catch (err) {
+      console.warn("[WS] failed to create WebSocket", err.message || err);
       if (this.handlers.has("*"))
         this.handlers.get("*").forEach((fn) => fn({ type: "error", error: err }));
-      this.reconnectTimer = setTimeout(() => this.connect(), RECONNECT_DELAY_MS);
+      // Use exponential backoff for constructor failures too
+      const baseDelay = Math.min(
+        RECONNECT_DELAY_MS * Math.pow(1.5, this._reconnectAttempts),
+        MAX_RECONNECT_DELAY
+      );
+      const delay = baseDelay + Math.random() * 1000;
+      this._reconnectAttempts++;
+      this.reconnectTimer = setTimeout(() => this.connect(), delay);
     }
   }
 
@@ -179,6 +193,14 @@ class AppWebSocket {
 
   isConnected() {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Return the current connection state string.
+   * Possible values: "disconnected" | "connecting" | "connected" | "reconnecting"
+   */
+  getState() {
+    return this.state;
   }
 
   // --- Kelly channel subscriptions ---

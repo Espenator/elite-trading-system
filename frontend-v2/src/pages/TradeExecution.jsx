@@ -311,7 +311,7 @@ export default function TradeExecution() {
       )}
 
       {/* ═══════ QUICK EXECUTION BAR ═══════ */}
-      <div className="h-10 bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)] flex items-center px-4 gap-2 shrink-0">
+      <div className="h-10 bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)] flex items-center px-4 gap-2 shrink-0 overflow-x-auto">
         <span className="font-mono text-[9px] text-gray-500 uppercase tracking-[1px] mr-2">Quick Execution</span>
         {/* Market Buy */}
         <button
@@ -353,12 +353,13 @@ export default function TradeExecution() {
            Bottom-right (col 4) = System Status Log
       */}
       <div
-        className="flex-1 grid overflow-hidden min-h-0"
+        className="flex-1 grid overflow-auto min-h-0"
         style={{
-          gridTemplateColumns: '240px 1fr 240px 300px',
+          gridTemplateColumns: 'minmax(200px, 240px) minmax(300px, 1fr) minmax(200px, 240px) minmax(240px, 300px)',
           gridTemplateRows: '1fr 200px',
           gap: '1px',
           background: 'rgba(42,52,68,0.5)',
+          minWidth: '900px',
         }}
       >
 
@@ -535,7 +536,9 @@ export default function TradeExecution() {
                 </tr>
               </thead>
               <tbody>
-                {displayBookBids.map((r, i) => (
+                {displayBookBids.length === 0 ? (
+                  <tr><td colSpan={3} className="px-1.5 py-3 font-mono text-[8px] text-gray-600 text-center">No bid data</td></tr>
+                ) : displayBookBids.map((r, i) => (
                   <tr key={`b-${i}`} className="hover:bg-[rgba(0,212,232,0.03)]">
                     <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#00e676] border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.price ?? r.bid ?? 0).toFixed(2)}</td>
                     <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.size ?? r.qty ?? 0}</td>
@@ -554,7 +557,9 @@ export default function TradeExecution() {
                 </tr>
               </thead>
               <tbody>
-                {displayBookAsks.map((r, i) => (
+                {displayBookAsks.length === 0 ? (
+                  <tr><td colSpan={3} className="px-1.5 py-3 font-mono text-[8px] text-gray-600 text-center">No ask data</td></tr>
+                ) : displayBookAsks.map((r, i) => (
                   <tr key={`a-${i}`} className="hover:bg-[rgba(0,212,232,0.03)]">
                     <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#ff3860] border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.price ?? r.ask ?? 0).toFixed(2)}</td>
                     <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.size ?? r.qty ?? 0}</td>
@@ -633,6 +638,9 @@ export default function TradeExecution() {
                 </tr>
               </thead>
               <tbody>
+                {displayPositions.length === 0 ? (
+                  <tr><td colSpan={7} className="px-2 py-4 font-mono text-[9px] text-gray-500 text-center">No open positions</td></tr>
+                ) : null}
                 {displayPositions.map((pos, i) => {
                   const side = pos.side || (pos.quantity > 0 ? 'Long' : 'Short');
                   const pnl = pos.pnl ?? pos.unrealizedPl ?? pos.pnl_impact ?? 0;

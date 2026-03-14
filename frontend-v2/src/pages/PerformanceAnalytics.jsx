@@ -70,7 +70,7 @@ const Panel = ({ title, icon: Icon, className, children, action }) => (
     <div className="px-3 py-2 border-b border-gray-800/50 flex items-center justify-between gap-2 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         {Icon && <Icon size={14} className="text-cyan-400 shrink-0" />}
-        <span className="text-xs font-semibold text-white truncate">{title}</span>
+        <span className="text-xs font-semibold text-white truncate" title={title}>{title}</span>
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -104,17 +104,17 @@ const MiniSparkline = ({ data = [], positive = true, height = 20, width = 48 }) 
 };
 
 const KpiPill = ({ label, value, sub, change, positive, icon: Icon, sparkData }) => (
-  <div className="flex flex-col items-center gap-0.5 px-2 py-1.5 min-w-[72px]">
-    <div className="flex items-center gap-1 w-full justify-center">
+  <div className="flex flex-col items-center gap-0.5 px-2 py-1.5 min-w-[90px]">
+    <div className="flex items-center gap-1 w-full justify-center min-w-0">
       {Icon && <Icon size={10} className="text-gray-500 shrink-0" />}
-      <span className="text-[10px] text-gray-500 uppercase tracking-wider truncate">{label}</span>
+      <span className="text-[10px] text-gray-500 uppercase tracking-wider truncate" title={label}>{label}</span>
     </div>
     <span className={clsx(
       'text-sm font-bold whitespace-nowrap',
       positive === true && 'text-emerald-400',
       positive === false && 'text-red-400',
       positive === undefined && 'text-white'
-    )}>
+    )} title={String(value)}>
       {value}
     </span>
     <div className="flex items-center gap-1 w-full justify-center">

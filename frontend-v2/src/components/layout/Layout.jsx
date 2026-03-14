@@ -8,6 +8,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import NotificationCenter from './NotificationCenter';
 import StatusFooter from './StatusFooter';
+import KeyboardShortcuts from '../ui/KeyboardShortcuts';
 import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import { useApi } from '../../hooks/useApi';
 import ws from '../../services/websocket';
@@ -15,17 +16,15 @@ import ws from '../../services/websocket';
 function LayoutInner() {
   const { wsConnected, wsReconnecting, mode } = useCNS();
 
-  // Poll system status + market indices for the footer bar
-  const { data: systemData } = useApi("system", { pollIntervalMs: 15000 });
+  // Lightweight health probe for footer — /healthz (25s timeout; backend can be slow when event loop busy)
+  const { data: healthzData } = useApi("healthz", { pollIntervalMs: 20000 });
+  const { data: systemData } = useApi("system", { pollIntervalMs: 30000 });
   const { data: indicesData } = useApi("marketIndices", { pollIntervalMs: 30000 });
 
-  // Track API health — if system endpoint responds, API is up
-  const [apiHealthy, setApiHealthy] = useState(false);
-  useEffect(() => {
-    setApiHealthy(!!systemData);
-  }, [systemData]);
+  // API health from lightweight liveness probe — reliable even when event loop is busy
+  const apiHealthy = healthzData?.status === "alive";
 
-  // Derive footer props from live data
+  // Derive footer props from live data (system for agentCount/regime; regime may fallback to CNS mode)
   const agentCount = systemData?.activeAgents ?? systemData?.active_agents ?? 0;
   const regime = systemData?.regime ?? mode ?? "GREEN";
 
@@ -59,7 +58,7 @@ function LayoutInner() {
       <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleSidebar} />
 
       {/* Main content area */}
-      <div className={`flex-1 flex flex-col overflow-hidden bg-dark min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+      <div className={`flex-1 flex flex-col overflow-hidden bg-dark min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'ml-0 md:ml-16' : 'ml-0 md:ml-64'}`}>
         {/* Header bar with CNS status */}
         <Header wsConnected={wsConnected} />
 
@@ -79,6 +78,8 @@ function LayoutInner() {
 
       {/* Global notification overlay */}
       <NotificationCenter />
+      {/* Keyboard shortcuts help (press ?) */}
+      <KeyboardShortcuts />
     </div>
   );
 }

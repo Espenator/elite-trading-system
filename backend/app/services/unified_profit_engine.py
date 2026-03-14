@@ -208,6 +208,7 @@ class UnifiedProfitEngine:
             "brains_active": total_brains,
             "brain_scores": {k: round(v[0], 1) for k, v in brain_scores.items()},
             "weights": {k: round(v, 3) for k, v in self._weights.items()},
+            "price": context.get("close", context.get("price", 0)),
             "timestamp": time.time(),
         }
 

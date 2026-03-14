@@ -14,7 +14,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = 30.0
+_TIMEOUT = 10.0  # Reduced from 30s — prevents event loop starvation on startup
 _CACHE_TTL_SHORT = 5      # seconds — positions / account (live but prevents hammering)
 _CACHE_TTL_MEDIUM = 60    # seconds — portfolio history, activities
 
@@ -197,8 +197,8 @@ class AlpacaService:
             self._http_client = httpx.AsyncClient(
                 timeout=_TIMEOUT,
                 limits=httpx.Limits(
-                    max_connections=50,
-                    max_keepalive_connections=20,
+                    max_connections=20,
+                    max_keepalive_connections=10,
                     keepalive_expiry=30,
                 ),
                 headers=self._get_headers(),
@@ -269,11 +269,12 @@ class AlpacaService:
                     return None
                 return None  # Non-retriable HTTP error — callers handle None gracefully
             except httpx.TimeoutException:
-                if attempt < _retries:
-                    logger.warning("Alpaca timeout on %s %s — retrying (attempt %d/%d)", method, path, attempt + 1, _retries)
-                    await asyncio.sleep(2 ** attempt)
+                # Only retry timeout once (not full _retries) to prevent event loop starvation
+                if attempt < min(1, _retries):
+                    logger.warning("Alpaca timeout on %s %s — retrying (attempt %d)", method, path, attempt + 1)
+                    await asyncio.sleep(1)
                     continue
-                logger.error("Alpaca timeout on %s %s — retries exhausted", method, path)
+                logger.error("Alpaca timeout on %s %s — giving up", method, path)
                 return None
             except httpx.RequestError as exc:
                 if attempt < _retries:

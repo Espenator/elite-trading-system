@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useApi } from "../hooks/useApi";
+import { getAuthHeaders } from "../config/api";
 import { toast } from "react-toastify";
 import {
   User, Key, Activity, Bell, Cpu, Database,
@@ -26,10 +27,10 @@ function StatusDot({ ok, testing }) {
 
 function SectionCard({ title, children, className = "", star = false }) {
   return (
-    <div className={`bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-2 shadow-sm ${className}`}>
-      <div className="flex items-center gap-1.5 mb-1.5 pb-1 border-b border-gray-800/50">
+    <div className={`bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-2 shadow-sm min-w-0 ${className}`}>
+      <div className="flex items-center gap-1.5 mb-1.5 pb-1 border-b border-gray-800/50 min-w-0">
         {star && <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">{title}</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono truncate" title={title}>{title}</span>
       </div>
       <div className="space-y-0.5">{children}</div>
     </div>
@@ -321,8 +322,16 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* Auth Token Status */}
+      {!getAuthHeaders().Authorization && (
+        <div className="rounded-lg p-3 mb-2 bg-amber-900/30 border border-amber-500/40 text-amber-300 text-sm flex items-center gap-2">
+          <span className="font-bold">⚠ Setup Required:</span>
+          <span>API_AUTH_TOKEN not configured. Set it in backend/.env and VITE_API_AUTH_TOKEN in frontend-v2/.env to enable trading actions.</span>
+        </div>
+      )}
+
       {/* ROW 1: Identity & Locale, Trading Mode, Position Rules, Risk Limits, Circuit Breakers */}
-      <div className="grid grid-cols-5 gap-2 mb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 mb-2">
 
         {/* 1. IDENTITY & LOCALE */}
         <SectionCard title="Identity & Locale">
@@ -409,7 +418,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ROW 2: Brokerage Connections, Data Feed API Keys, Data Source Priority, Global Local LLM, Inference Models */}
-      <div className="grid grid-cols-5 gap-2 mb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 mb-2">
 
         {/* 6. BROKERAGE CONNECTIONS */}
         <SectionCard title="Brokerage Connections">
@@ -584,7 +593,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ROW 3: ML Models, Learning Log, OpenClaw Agents, Agent Thresholds, Signal Thresholds */}
-      <div className="grid grid-cols-5 gap-2 mb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 mb-2">
 
         {/* 11. ML MODELS */}
         <SectionCard title="ML Models">
@@ -670,7 +679,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ROW 4: Trade Management, Order Execution, Notifications, Security & Auth, Backup & System */}
-      <div className="grid grid-cols-5 gap-2 mb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 mb-2">
 
         {/* 16. TRADE MANAGEMENT */}
         <SectionCard title="Trade Management">
@@ -770,7 +779,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ROW 5: Appearance, Market Data, Performance, Audit Log, Strategy */}
-      <div className="grid grid-cols-5 gap-2 mb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 mb-2">
 
         {/* 21. APPEARANCE */}
         <SectionCard title="Appearance">

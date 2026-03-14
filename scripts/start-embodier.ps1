@@ -5,7 +5,7 @@
 # ============================================================
 
 param(
-    [int]$BackendPort  = 8000,
+    [int]$BackendPort  = 8001,
     [int]$FrontendPort = 5173,
     [switch]$NoElectron,
     [switch]$SkipFrontend

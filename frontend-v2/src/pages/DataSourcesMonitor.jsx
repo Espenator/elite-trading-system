@@ -211,9 +211,11 @@ const SUPPLY_CHAIN_SOURCES = [
 // ---------- Helpers ----------
 
 function genSparkline(min, max) {
-  return Array.from({ length: 20 }, () => ({
-    v: 0,
-  }));
+  let v = (min + max) / 2;
+  return Array.from({ length: 20 }, () => {
+    v = Math.max(min, Math.min(max, v + (Math.random() - 0.5) * 0.2));
+    return { v };
+  });
 }
 
 function StatusBadge({ status }) {
@@ -335,7 +337,7 @@ function SourceCard({ source, isSelected, onClick, onLivePing }) {
             <StatusBadge status={source.status} />
             <span className="text-[10px] text-gray-500 font-mono flex items-center">
               {source.latency}
-              <LatencySparkline />
+              <LatencySparkline points={source.sparkData?.map(d => d.v) || []} />
             </span>
             {source.uptime != null && (
               <span className="text-[10px] text-gray-500 font-mono">

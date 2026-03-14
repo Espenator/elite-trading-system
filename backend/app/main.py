@@ -821,7 +821,16 @@ async def _start_event_driven_pipeline():
     knowledge_ingest.set_message_bus(_message_bus)
     log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
 
-    # 18. OffHoursMonitor (gap detection, data freshness, session-aware quality)
+    # 18. SessionManager (session-aware state machine for 24/7)
+    try:
+        from app.services.session_manager import get_session_manager
+        _session_mgr = get_session_manager(message_bus=_message_bus)
+        await _session_mgr.start()
+        log.info("\u2705 SessionManager started (session=%s)", _session_mgr.get_current_session())
+    except Exception as e:
+        log.warning("SessionManager failed to start: %s", e)
+
+    # 18b. OffHoursMonitor (gap detection, data freshness, session-aware quality)
     try:
         from app.services.off_hours_monitor import get_off_hours_monitor
         _off_hours = get_off_hours_monitor(message_bus=_message_bus)
@@ -1018,6 +1027,39 @@ async def _start_event_driven_pipeline():
                  {k: f"{v:.2f}" for k, v in _unified._weights.items()})
     else:
         log.info("\u26A0\uFE0F UnifiedProfitEngine skipped (LLM_ENABLED=false)")
+
+    # 22b. Direct bypass: when LLM/council is off, turbo_scanner signals scoring >=85
+    # can reach the executor directly for shadow/paper execution (issue #59).
+    # This ensures the system can still paper-trade without the full council.
+    if not _llm_enabled or not council_gate_enabled:
+        async def _turbo_direct_bypass(signal_data):
+            """Route high-scoring signals directly to OrderExecutor when council is offline."""
+            from app.core.score_semantics import coerce_signal_score_0_100, score_to_final_confidence_0_1
+            raw_score = signal_data.get("score", 0)
+            score_100 = coerce_signal_score_0_100(raw_score, context="turbo_direct_bypass")
+            source = signal_data.get("source", "")
+            # Only bypass for turbo_scanner signals with score >= 85
+            if source != "turbo_scanner" or score_100 < 85.0:
+                return
+            import time as _t
+            log.info(
+                "Direct bypass: turbo_scanner signal %s score=%.0f -> council.verdict",
+                signal_data.get("symbol", "?"), score_100,
+            )
+            await _message_bus.publish("council.verdict", {
+                "symbol": signal_data.get("symbol", ""),
+                "final_direction": signal_data.get("label", "long"),
+                "final_confidence": score_to_final_confidence_0_1(score_100, context="turbo_direct_bypass"),
+                "execution_ready": True,
+                "vetoed": False,
+                "votes": [],
+                "council_reasoning": f"Direct turbo_scanner bypass (score={score_100:.0f}, council offline)",
+                "signal_data": signal_data,
+                "price": signal_data.get("close", signal_data.get("price", 0)),
+                "timestamp": _t.time(),
+            })
+        await _message_bus.subscribe("signal.generated", _turbo_direct_bypass)
+        log.info("\u2705 Turbo direct bypass registered (score>=85 -> OrderExecutor when council offline)")
 
     # 23. PositionManager — automated exits (trailing stops, time exits, partial profits)
     # BUG FIX 3: Always start — uses Alpaca API for position management, no LLM dependency.
@@ -1530,6 +1572,25 @@ async def lifespan(app: FastAPI):
         )
 
     log.info("[STARTUP] Phase 3: Event-driven pipeline done (%.1fs)", _elapsed())
+    # 3a-issue76. Cancel stale unfilled orders older than 24h (Issue #76)
+    try:
+        from app.services.stale_order_cleanup import cancel_stale_orders
+
+        async def _cleanup_stale_orders():
+            await asyncio.sleep(10)  # Let Alpaca service initialize first
+            try:
+                result = await cancel_stale_orders()
+                if result.get("cancelled"):
+                    log.info(
+                        "Issue #76: Cancelled %d stale orders on startup",
+                        len(result["cancelled"]),
+                    )
+            except Exception as e:
+                log.debug("Stale order cleanup failed: %s", e)
+
+        asyncio.create_task(_cleanup_stale_orders())
+    except Exception as e:
+        log.debug("Stale order cleanup module not available: %s", e)
 
     # 3b. Flywheel scheduler (optional)
     try:
@@ -1761,6 +1822,39 @@ async def lifespan(app: FastAPI):
         log.warning("HealthMonitor failed to start: %s", e)
 
     log.info("[STARTUP] Phase 6: All subscribers + watchdog wired (%.1fs)", _elapsed())
+    # ── Issue #77: Agent Auto-Start Sequence ──
+    # If ALL 5 core agents are paused (from a previous "Kill All"), auto-restart them.
+    # Controlled by AGENT_AUTO_RESTART env var (default: true).
+    _agent_auto_restart = os.getenv("AGENT_AUTO_RESTART", "true").lower() in ("1", "true", "yes")
+    if _agent_auto_restart:
+        try:
+            from app.api.v1.agents import _get_agent_status, _set_agent_status, _append_log, _AGENTS_TEMPLATE
+            statuses = _get_agent_status()
+            core_ids = [str(a["id"]) for a in _AGENTS_TEMPLATE]  # ["1", "2", "3", "4", "5"]
+            core_statuses = [statuses.get(aid, "running") for aid in core_ids]
+
+            all_paused = all(s == "paused" for s in core_statuses)
+            if all_paused and core_statuses:
+                restarted = []
+                for agent in _AGENTS_TEMPLATE:
+                    _set_agent_status(agent["id"], "running")
+                    _append_log(agent["name"], "Auto-restarted on boot (was paused by Kill All)", "success")
+                    restarted.append(agent["name"])
+                log.info(
+                    "Agent auto-start: restarted %d core agents that were paused by Kill All: %s",
+                    len(restarted), ", ".join(restarted),
+                )
+            elif any(s == "paused" for s in core_statuses):
+                log.info(
+                    "Agent auto-start: some agents paused but not all — respecting individual states (%s)",
+                    dict(zip(core_ids, core_statuses)),
+                )
+            else:
+                log.info("Agent auto-start: agents already running — no action needed")
+        except Exception as e:
+            log.warning("Agent auto-start check failed (non-fatal): %s", e)
+    else:
+        log.info("Agent auto-start disabled (AGENT_AUTO_RESTART=false)")
 
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)

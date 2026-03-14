@@ -305,10 +305,13 @@ export default function useTradeExecution() {
     setError(null);
     try {
       await tradeExecutionService.closePosition(symbol, side);
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Position closed: ${symbol} ${side}`, type: 'success' }, ...prev]);
+      const msg = `Position closed: ${symbol} ${side}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
     } catch (err) {
       setError(err.message);
+      toast.error(`Close position failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -318,13 +321,17 @@ export default function useTradeExecution() {
     setLoading(true);
     setError(null);
     setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Adjusting position: ${symbol} ${side}`, type: 'info' }, ...prev]);
+    toast.info(`Adjusting position: ${symbol} ${side}`);
     try {
       await tradeExecutionService.adjustPosition(symbol, side, { action: 'scale' });
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Position adjusted: ${symbol} ${side}`, type: 'success' }, ...prev]);
+      const msg = `Position adjusted: ${symbol} ${side}`;
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: msg, type: 'success' }, ...prev]);
+      toast.success(msg);
       await fetchAll();
     } catch (err) {
       setError(err.message);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Adjust failed: ${err.message}`, type: 'error' }, ...prev]);
+      toast.error(`Adjust position failed: ${err.message}`);
     } finally {
       setLoading(false);
     }

@@ -533,6 +533,53 @@ class OutcomeTracker:
         except Exception as e:
             logger.debug("Council feedback error: %s", e)
 
+        # Wire ELO rating updates — agents that voted correctly "win" against those that voted wrong
+        try:
+            from app.council.elo_service import get_elo_service
+            from app.council.feedback_loop import _get_store as _get_feedback_store
+            elo = get_elo_service()
+            # Look up the council decision votes for this trade
+            fb_store = _get_feedback_store()
+            elo_votes = []
+            elo_final_direction = ""
+            for d in reversed(fb_store.get("decisions", [])):
+                match_by_trade = (pos.order_id and d.get("trade_id") == pos.order_id)
+                match_by_symbol = (d.get("symbol", "").upper() == pos.symbol.upper())
+                if match_by_trade or match_by_symbol:
+                    elo_votes = [
+                        {
+                            "agent_name": v.get("agent", v.get("agent_name", "")),
+                            "direction": v.get("direction", "hold"),
+                            "confidence": v.get("confidence", 0.5),
+                        }
+                        for v in d.get("votes", [])
+                    ]
+                    elo_final_direction = d.get("final_direction", "hold")
+                    break
+            if not elo_votes:
+                # Fallback: try DuckDB for the decision
+                from app.council.feedback_loop import _get_decision_from_duckdb
+                duckdb_decision = _get_decision_from_duckdb(pos.order_id, pos.symbol)
+                if duckdb_decision:
+                    elo_votes = [
+                        {
+                            "agent_name": v.get("agent", v.get("agent_name", "")),
+                            "direction": v.get("direction", "hold"),
+                            "confidence": v.get("confidence", 0.5),
+                        }
+                        for v in duckdb_decision.get("votes", [])
+                    ]
+                    elo_final_direction = duckdb_decision.get("final_direction", "hold")
+            if elo_votes and elo_final_direction:
+                elo.update_from_outcome(
+                    votes=elo_votes,
+                    outcome=outcome,
+                    final_direction=elo_final_direction,
+                    symbol=pos.symbol,
+                )
+        except Exception as e:
+            logger.debug("ELO rating update error: %s", e)
+
         # Wire SelfAwareness Bayesian tracking (Audit Bug #8)
         try:
             from app.council.self_awareness import get_self_awareness
@@ -600,6 +647,13 @@ class OutcomeTracker:
             )
         except Exception as e:
             logger.debug("ML outcome resolver error: %s", e)
+
+        # Sync flywheel_data store so dashboard resolvedSignals updates in real-time
+        # (not just at the daily 18:00 UTC job)
+        try:
+            _sync_flywheel_data_from_resolver()
+        except Exception as e:
+            logger.debug("Flywheel data sync error: %s", e)
 
         # Publish event
         if self._bus:
@@ -748,6 +802,225 @@ class OutcomeTracker:
 
     def get_closed_positions(self, limit: int = 50) -> List[Dict[str, Any]]:
         return [p.to_dict() for p in self._closed[-limit:]]
+
+
+def _sync_flywheel_data_from_resolver() -> None:
+    """Sync outcome_resolver metrics into flywheel_data so the dashboard
+    resolvedSignals counter updates immediately (not just at the daily job)."""
+    from app.modules.ml_engine.outcome_resolver import get_flywheel_metrics
+    from app.services.database import db_service as _db
+
+    metrics = get_flywheel_metrics()
+    stored = _db.get_config("flywheel_data") or {}
+    acc_30 = metrics.get("accuracy_30d")
+    acc_90 = metrics.get("accuracy_90d")
+    stored["resolvedSignals"] = metrics.get("resolved_count", 0)
+    if acc_30 is not None:
+        stored["accuracy30d"] = float(acc_30)
+    if acc_90 is not None:
+        stored["accuracy90d"] = float(acc_90)
+    _db.set_config("flywheel_data", stored)
+
+
+async def resolve_historical_signals() -> Dict[str, Any]:
+    """Check past turbo_scanner signals against current prices to see if the
+    predicted direction was correct.  This bootstraps the flywheel without
+    needing actual trades.
+
+    Returns:
+        Summary dict with resolved/skipped/error counts.
+    """
+    from app.modules.ml_engine.outcome_resolver import record_outcome as ml_record, _get_store
+
+    result = {"resolved": 0, "skipped": 0, "errors": 0}
+
+    # 1. Gather recent signals from turbo_scanner history
+    try:
+        from app.services.turbo_scanner import get_turbo_scanner
+        scanner = get_turbo_scanner()
+        signals = scanner.get_signals(limit=200)  # last 200 signals
+    except Exception as e:
+        logger.warning("resolve_historical_signals: cannot get scanner signals: %s", e)
+        return {**result, "error": str(e)}
+
+    if not signals:
+        logger.info("resolve_historical_signals: no signals to resolve")
+        return result
+
+    # 2. Build set of already-resolved (symbol, signal_date) to avoid duplicates
+    try:
+        store = _get_store()
+        existing = {
+            (r.get("symbol", ""), r.get("signal_date", ""))
+            for r in (store.get("resolved") or [])
+        }
+    except Exception:
+        existing = set()
+
+    # 3. Filter signals that have a price and direction, and are old enough (>1h)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    candidates = []
+    for sig in signals:
+        direction = sig.get("direction", "unknown")
+        if direction == "unknown":
+            result["skipped"] += 1
+            continue
+        detected_at = sig.get("detected_at", "")
+        if not detected_at:
+            result["skipped"] += 1
+            continue
+        # Must be at least 1 hour old to give the prediction time to play out
+        try:
+            sig_dt = datetime.fromisoformat(detected_at.replace("Z", "+00:00"))
+            age_hours = (datetime.now(timezone.utc) - sig_dt).total_seconds() / 3600
+            if age_hours < 1:
+                result["skipped"] += 1
+                continue
+        except Exception:
+            result["skipped"] += 1
+            continue
+
+        sig_date = sig_dt.strftime("%Y-%m-%d")
+        symbol = sig.get("symbol", "").upper()
+        if (symbol, sig_date) in existing:
+            result["skipped"] += 1
+            continue
+
+        entry_price = 0.0
+        data = sig.get("data", {})
+        if isinstance(data, dict):
+            entry_price = float(data.get("close", 0) or data.get("price", 0) or 0)
+        if entry_price <= 0:
+            result["skipped"] += 1
+            continue
+
+        candidates.append({
+            "symbol": symbol,
+            "direction": direction,
+            "entry_price": entry_price,
+            "signal_date": sig_date,
+            "score": sig.get("score", 0.5),
+        })
+
+    if not candidates:
+        logger.info("resolve_historical_signals: no eligible candidates")
+        return result
+
+    # 4. Fetch current prices (DuckDB + Alpaca fallback) via asyncio.to_thread for DuckDB
+    symbols_needed = list({c["symbol"] for c in candidates})
+
+    def _fetch_prices_sync(syms):
+        prices = {}
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store.get_thread_cursor()
+            for sym in syms:
+                try:
+                    row = conn.execute(
+                        "SELECT close FROM daily_ohlcv WHERE symbol = ? ORDER BY date DESC LIMIT 1",
+                        [sym],
+                    ).fetchone()
+                    if row:
+                        prices[sym] = float(row[0])
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return prices
+
+    current_prices = await asyncio.to_thread(_fetch_prices_sync, symbols_needed)
+
+    # Alpaca fallback for missing symbols
+    missing = [s for s in symbols_needed if s not in current_prices]
+    if missing:
+        try:
+            from app.services.alpaca_service import alpaca_service
+            for sym in missing:
+                try:
+                    quote = await alpaca_service.get_latest_quote(sym)
+                    if quote:
+                        ask = float(quote.get("ap", 0))
+                        bid = float(quote.get("bp", 0))
+                        if ask and bid:
+                            current_prices[sym] = (ask + bid) / 2
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # 5. Resolve each candidate
+    for cand in candidates:
+        symbol = cand["symbol"]
+        current_price = current_prices.get(symbol)
+        if not current_price or current_price <= 0:
+            result["skipped"] += 1
+            continue
+
+        entry_price = cand["entry_price"]
+        direction = cand["direction"]
+
+        # Determine if signal direction was correct
+        if direction == "bullish":
+            outcome = 1 if current_price > entry_price else 0
+            prediction = 1
+        elif direction == "bearish":
+            outcome = 1 if current_price < entry_price else 0
+            prediction = 0
+        else:
+            result["skipped"] += 1
+            continue
+
+        try:
+            ml_record(
+                symbol=symbol,
+                signal_date=cand["signal_date"],
+                outcome=outcome,
+                prediction=prediction,
+            )
+            result["resolved"] += 1
+
+            # Also update ELO ratings for historical signal resolutions
+            try:
+                from app.council.elo_service import get_elo_service
+                from app.council.feedback_loop import _get_decision_from_duckdb
+                elo = get_elo_service()
+                hist_decision = _get_decision_from_duckdb(None, symbol)
+                if hist_decision and hist_decision.get("votes"):
+                    elo_outcome = "win" if outcome == 1 else "loss"
+                    elo_dir = hist_decision.get("final_direction", "hold")
+                    elo_votes = [
+                        {
+                            "agent_name": v.get("agent", v.get("agent_name", "")),
+                            "direction": v.get("direction", "hold"),
+                            "confidence": v.get("confidence", 0.5),
+                        }
+                        for v in hist_decision.get("votes", [])
+                    ]
+                    elo.update_from_outcome(
+                        votes=elo_votes,
+                        outcome=elo_outcome,
+                        final_direction=elo_dir,
+                        symbol=symbol,
+                    )
+            except Exception as elo_err:
+                logger.debug("ELO update for historical signal %s failed: %s", symbol, elo_err)
+
+        except Exception as e:
+            logger.debug("resolve_historical_signals record error for %s: %s", symbol, e)
+            result["errors"] += 1
+
+    # 6. Sync flywheel_data store
+    if result["resolved"] > 0:
+        try:
+            _sync_flywheel_data_from_resolver()
+        except Exception:
+            pass
+
+    logger.info(
+        "resolve_historical_signals: resolved=%d skipped=%d errors=%d",
+        result["resolved"], result["skipped"], result["errors"],
+    )
+    return result
 
 
 # Module-level singleton
