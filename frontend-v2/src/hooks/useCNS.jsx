@@ -34,8 +34,9 @@ export function CNSProvider({ children }) {
   const [circuitBreakerArmed, setCircuitBreakerArmed] = useState(true);
   const [circuitBreakerFired, setCircuitBreakerFired] = useState(null);
   const [latestVerdict, setLatestVerdict] = useState(null);
-  const [wsConnected, setWsConnected] = useState(false);
-  const [wsReconnecting, setWsReconnecting] = useState(false);
+  // Initialize from actual WS state so indicator is correct on mount
+  const [wsConnected, setWsConnected] = useState(() => ws.getState() === 'connected');
+  const [wsReconnecting, setWsReconnecting] = useState(() => ws.getState() === 'reconnecting');
 
   // Notification queue — components subscribe to this
   const [notifications, setNotifications] = useState([]);

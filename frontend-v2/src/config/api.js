@@ -283,14 +283,10 @@ export function getApiUrl(endpoint) {
  * @param {string} [channel] - WS topic/channel name
  */
 export function getWsUrl(channel) {
-  // In dev mode, prefer connecting via the Vite proxy (same host) so /ws proxy rules apply.
-  // Only use the hardcoded WS_URL if an explicit env var was set or we're not in a browser.
-  const explicitWsUrl = import.meta.env.VITE_WS_URL;
-  const base = explicitWsUrl
-    ? API_CONFIG.WS_URL
-    : (typeof window !== "undefined"
-        ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
-        : API_CONFIG.WS_URL);
+  // FIX #52: Always use the configured WS_URL (defaults to ws://localhost:8001).
+  // Previously fell back to window.location.host which resolved to Vite dev server
+  // (ws://localhost:5173) — the Vite WS proxy is unreliable for long-lived connections.
+  const base = API_CONFIG.WS_URL;
   const token = (typeof localStorage !== "undefined" && localStorage.getItem("auth_token")) ||
                 import.meta.env.VITE_API_AUTH_TOKEN || "";
   const wsBase = token ? `${base}/ws?token=${encodeURIComponent(token)}` : `${base}/ws`;
@@ -311,6 +307,22 @@ export function getAuthHeaders() {
     import.meta.env.VITE_API_AUTH_TOKEN ||
     null;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Extract a user-friendly error message from a fetch response.
+ * Detects API_AUTH_TOKEN-not-configured (403) and shows a specific message.
+ */
+export async function extractApiError(res) {
+  const body = await res.json().catch(() => ({}));
+  const detail = body?.detail || body?.message || "";
+  if (res.status === 403 && typeof detail === "string" && detail.includes("API_AUTH_TOKEN")) {
+    return "API auth token not configured. Set API_AUTH_TOKEN in backend .env and VITE_API_AUTH_TOKEN in frontend .env, then restart both servers.";
+  }
+  if (res.status === 401) {
+    return "Authentication failed — check your API_AUTH_TOKEN matches between frontend and backend.";
+  }
+  return detail || `HTTP ${res.status}`;
 }
 
 /**

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useApi } from "../hooks/useApi";
+import { getAuthHeaders } from "../config/api";
 import { toast } from "react-toastify";
 import {
   User, Key, Activity, Bell, Cpu, Database,
@@ -320,6 +321,14 @@ export default function SettingsPage() {
           {saving ? "Saving..." : "SAVE ALL"}
         </button>
       </div>
+
+      {/* Auth Token Status */}
+      {!getAuthHeaders().Authorization && (
+        <div className="rounded-lg p-3 mb-2 bg-amber-900/30 border border-amber-500/40 text-amber-300 text-sm flex items-center gap-2">
+          <span className="font-bold">⚠ Setup Required:</span>
+          <span>API_AUTH_TOKEN not configured. Set it in backend/.env and VITE_API_AUTH_TOKEN in frontend-v2/.env to enable trading actions.</span>
+        </div>
+      )}
 
       {/* ROW 1: Identity & Locale, Trading Mode, Position Rules, Risk Limits, Circuit Breakers */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 mb-2">

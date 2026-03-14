@@ -10,6 +10,7 @@ import {
 import { useApi } from "../hooks/useApi";
 import { toast } from "react-toastify";
 import { getApiUrl, getAuthHeaders } from "../config/api";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
 
 // Tab components (split for manageable file sizes)
 import SwarmOverviewTab from "./agent-tabs/SwarmOverviewTab";
@@ -49,6 +50,7 @@ export default function AgentCommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
   const [killSwitchActive, setKillSwitchActive] = useState(false);
+  const [showKillConfirm, setShowKillConfirm] = useState(false);
 
   // Data hooks (real API — no mock data)
   const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 15000 });
@@ -59,7 +61,11 @@ export default function AgentCommandCenter() {
   const { data: driftRaw } = useApi("drift", { pollIntervalMs: 30000 });
   const { data: blackboardRaw } = useApi("cnsBlackboard", { pollIntervalMs: 15000 });
   const { data: cnsAgentsHealthRaw } = useApi("cnsAgentsHealth", { pollIntervalMs: 15000 });
-  const agents = useMemo(() => (Array.isArray(agentsRaw) ? agentsRaw : []), [agentsRaw]);
+  const agents = useMemo(() => {
+    if (Array.isArray(agentsRaw)) return agentsRaw;
+    if (agentsRaw?.agents && Array.isArray(agentsRaw.agents)) return agentsRaw.agents;
+    return [];
+  }, [agentsRaw]);
   const teams = useMemo(() => (Array.isArray(teamsRaw) ? teamsRaw : teamsRaw?.teams ?? []), [teamsRaw]);
   const alerts = useMemo(() => (Array.isArray(alertsRaw) ? alertsRaw : alertsRaw?.alerts ?? []), [alertsRaw]);
   const conferenceData = useMemo(() => conferenceRaw?.current ?? conferenceRaw?.conference ?? conferenceRaw ?? null, [conferenceRaw]);
@@ -142,35 +148,7 @@ export default function AgentCommandCenter() {
         <div className="flex items-center gap-4">
           <button
             className="px-4 py-1.5 text-[11px] font-bold bg-[#7f1d1d] text-[#f87171] border border-[#ef4444]/50 rounded-full hover:bg-[#991b1b] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
-            onClick={async () => {
-              if (!window.confirm("⚠️ KILL SWITCH: This will halt ALL trading, cancel ALL open orders, and shut down ALL agents. Are you sure?")) return;
-              toast.warning("KILL SWITCH activated — executing emergency shutdown...");
-              try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 15000);
-                const res = await fetch(getApiUrl("risk-shield/emergency-action"), {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-                  body: JSON.stringify({ action: "kill_switch" }),
-                  signal: controller.signal,
-                });
-                clearTimeout(timeout);
-                if (res.ok) {
-                  const data = await res.json().catch(() => ({}));
-                  setKillSwitchActive(true);
-                  toast.error(`KILL SWITCH EXECUTED — orders cancelled: ${data.orders_cancelled ?? "yes"}, positions closed: ${data.positions_closed ?? "yes"}`);
-                } else {
-                  const err = await res.json().catch(() => ({}));
-                  toast.error(`KILL SWITCH FAILED: ${err?.detail || err?.message || `HTTP ${res.status}`} — manual intervention required`);
-                }
-              } catch (e) {
-                if (e.name === "AbortError") {
-                  toast.error("KILL SWITCH TIMED OUT — check system manually!");
-                } else {
-                  toast.error("KILL SWITCH FAILED: " + (e?.message || "network error") + " — manual intervention required");
-                }
-              }
-            }}
+            onClick={() => setShowKillConfirm(true)}
           >
             <Power className="w-3 h-3" />
             KILL SWITCH
@@ -248,6 +226,45 @@ export default function AgentCommandCenter() {
           Embodier.ai v2.0
         </div>
       </div>
+
+      {/* Kill Switch Confirmation Dialog */}
+      <ConfirmDialog
+        open={showKillConfirm}
+        onConfirm={async () => {
+          setShowKillConfirm(false);
+          toast.warning("KILL SWITCH activated — executing emergency shutdown...");
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+            const res = await fetch(getApiUrl("risk-shield/emergency-action"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+              body: JSON.stringify({ action: "kill_switch" }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            if (res.ok) {
+              const data = await res.json().catch(() => ({}));
+              setKillSwitchActive(true);
+              toast.error(`KILL SWITCH EXECUTED — orders cancelled: ${data.orders_cancelled ?? "yes"}, positions closed: ${data.positions_closed ?? "yes"}`);
+            } else {
+              const err = await res.json().catch(() => ({}));
+              toast.error(`KILL SWITCH FAILED: ${err?.detail || err?.message || `HTTP ${res.status}`} — manual intervention required`);
+            }
+          } catch (e) {
+            if (e.name === "AbortError") {
+              toast.error("KILL SWITCH TIMED OUT — check system manually!");
+            } else {
+              toast.error("KILL SWITCH FAILED: " + (e?.message || "network error") + " — manual intervention required");
+            }
+          }
+        }}
+        onCancel={() => setShowKillConfirm(false)}
+        title="KILL SWITCH"
+        description="This will halt ALL trading, cancel ALL open orders, and shut down ALL agents. This action cannot be undone. Are you sure?"
+        confirmText="Activate Kill Switch"
+        variant="danger"
+      />
 
       {/* KILL SWITCH overlay */}
       {killSwitchActive && (

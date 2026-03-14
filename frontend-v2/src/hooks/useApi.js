@@ -45,8 +45,12 @@ function _releaseSlot() {
   _runNext();
 }
 
-// Per-URL in-flight deduplication
+// Per-URL in-flight deduplication + short-lived result cache (2s window)
+// _inflight: URL -> Promise (for concurrent in-flight requests)
+// _fetchCache: URL -> { promise, timestamp } (for near-simultaneous requests within DEDUP_WINDOW_MS)
 const _inflight = new Map();
+const _fetchCache = new Map();
+const DEDUP_WINDOW_MS = 2000;
 
 /**
  * Combine two AbortSignals without requiring AbortSignal.any (ES2023+).
@@ -101,6 +105,26 @@ export function useApi(endpoint, options = {}) {
       setError(new Error(`Unknown endpoint: ${endpoint}`));
       setLoading(false);
       return;
+    }
+
+    // Deduplicate: if same URL was fetched within DEDUP_WINDOW_MS, reuse result
+    const cached = _fetchCache.get(url);
+    if (cached && Date.now() - cached.timestamp < DEDUP_WINDOW_MS) {
+      try {
+        const json = await cached.promise;
+        if (!signal?.aborted) {
+          setData(json);
+          setError(null);
+          setIsStale(false);
+          setLastUpdated(Date.now());
+        }
+        return;
+      } catch {
+        if (signal?.aborted) return;
+        // Cache entry failed — fall through to fresh fetch
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
     }
 
     // Deduplicate: if same URL is already in-flight, piggyback on it
@@ -160,6 +184,8 @@ export function useApi(endpoint, options = {}) {
     })();
 
     _inflight.set(url, fetchPromise);
+    // Store in dedup cache so near-simultaneous requests share this result
+    _fetchCache.set(url, { promise: fetchPromise, timestamp: Date.now() });
     try {
       setError(null);
       const json = await fetchPromise;
@@ -170,11 +196,11 @@ export function useApi(endpoint, options = {}) {
       }
     } catch (err) {
       if (signal?.aborted) return;
-      const cached = _apiCache.get(url);
-      if (cached && Date.now() - cached.ts < CACHE_STALE_MS) {
-        setData(cached.data);
+      const staleCached = _apiCache.get(url);
+      if (staleCached && Date.now() - staleCached.ts < CACHE_STALE_MS) {
+        setData(staleCached.data);
         setIsStale(true);
-        setLastUpdated(cached.ts);
+        setLastUpdated(staleCached.ts);
       } else {
         setError(err);
       }

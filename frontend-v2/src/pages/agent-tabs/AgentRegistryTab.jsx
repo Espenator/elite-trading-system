@@ -7,7 +7,7 @@ import {
   CheckCircle, XCircle, AlertTriangle, ChevronDown, Settings,
 } from "lucide-react";
 import { toast } from "react-toastify";
-import { getApiUrl, getAuthHeaders } from "../../config/api";
+import { getApiUrl, getAuthHeaders, extractApiError } from "../../config/api";
 import { postAgentOverrideStatus, postAgentOverrideWeight } from "../../hooks/useApi";
 
 // ── Agent lifecycle API helpers ──────────────────────────────
@@ -16,21 +16,21 @@ const agentApi = {
     const res = await fetch(getApiUrl("agents") + `/${agentId}/start`, {
       method: "POST", headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
     return res.json();
   },
   async stop(agentId) {
     const res = await fetch(getApiUrl("agents") + `/${agentId}/stop`, {
       method: "POST", headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
     return res.json();
   },
   async restart(agentId) {
     const res = await fetch(getApiUrl("agents") + `/${agentId}/restart`, {
       method: "POST", headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
     return res.json();
   },
   async updateConfig(agentId, config) {
@@ -39,28 +39,28 @@ const agentApi = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(config),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
     return res.json();
   },
   async batchStart() {
     const res = await fetch(getApiUrl("agents") + "/batch/start", {
       method: "POST", headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
     return res.json();
   },
   async batchStop() {
     const res = await fetch(getApiUrl("agents") + "/batch/stop", {
       method: "POST", headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
     return res.json();
   },
   async batchRestart() {
     const res = await fetch(getApiUrl("agents") + "/batch/restart", {
       method: "POST", headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) { const errMsg = await extractApiError(res); throw new Error(errMsg); }
     return res.json();
   },
 };
