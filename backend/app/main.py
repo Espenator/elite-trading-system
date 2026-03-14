@@ -1339,7 +1339,7 @@ async def lifespan(app: FastAPI):
     # -1. Process lock — prevent duplicate backend instances (solves port/DuckDB conflicts)
     from app.core.config import settings
     from app.core.process_lock import acquire_lock, release_lock
-    acquire_lock(port=settings.effective_port)
+    await asyncio.to_thread(acquire_lock, port=settings.effective_port)
 
     # 0. Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
     _pool_size = getattr(settings, "ASYNCIO_THREAD_POOL_WORKERS", 64)
@@ -1360,15 +1360,15 @@ async def lifespan(app: FastAPI):
     # 1. Data schema
     try:
         from app.data.storage import init_schema
-        init_schema()
+        await asyncio.to_thread(init_schema)
         log.info("SQLite schema initialized")
     except Exception as e:
         log.warning("SQLite schema init skipped: %s", e)
 
     try:
         from app.data.duckdb_storage import duckdb_store
-        duckdb_store.init_schema()
-        health = duckdb_store.health_check()
+        await asyncio.to_thread(duckdb_store.init_schema)
+        health = await asyncio.to_thread(duckdb_store.health_check)
         log.info(
             "DuckDB ready: %d tables, %d rows",
             health.get("total_tables", 0),
