@@ -527,6 +527,21 @@ class OrderExecutor:
             )
             return
 
+        # -- Gate 4b: PDT day trade limit (Issue #76) --
+        try:
+            from app.services.pdt_tracker import get_pdt_tracker
+            pdt = get_pdt_tracker()
+            if not await pdt.can_open_day_trade():
+                pdt_status = await pdt.get_pdt_status()
+                self._reject(
+                    symbol, score,
+                    f"PDT day trade limit reached ({pdt_status['day_trades_used']}/{pdt_status['day_trades_max']})",
+                    ExecutionDenyReason.PDT_BLOCKED,
+                )
+                return
+        except Exception as e:
+            logger.debug("PDT check failed (non-fatal, allowing trade): %s", e)
+
         # -- Gate 5: Drawdown check --
         if not drawdown_ok:
             self._reject(
@@ -566,7 +581,7 @@ class OrderExecutor:
 
         # -- Gate 6b: Homeostasis position scaling (Phase C, C6) --
         # Multiply Kelly qty by homeostasis mode multiplier:
-        # AGGRESSIVE=1.5x, NORMAL=1.0x, DEFENSIVE=0.5x, HALTED=0x
+        # AGGRESSIVE=1.5x, NORMAL=1.0x, CAUTIOUS=0.75x, DEFENSIVE=0.5x, PROTECTIVE=0.25x, HALTED=0x
         try:
             from app.council.homeostasis import get_homeostasis
             homeo = get_homeostasis()
@@ -1541,6 +1556,20 @@ class OrderExecutor:
             }
             for o in list(self._orders)[-20:]
         ]
+        # Issue #76: Include PDT day trade count for frontend display
+        pdt_info = {"day_trades_used": 0, "day_trades_max": 3, "can_day_trade": True}
+        try:
+            from app.services.pdt_tracker import get_pdt_tracker
+            pdt = get_pdt_tracker()
+            # Use cached value (sync-safe) — don't await in sync get_status
+            pdt_info = {
+                "day_trades_used": pdt._cache.get("count", 0),
+                "day_trades_max": pdt._max_day_trades,
+                "can_day_trade": pdt._cache.get("count", 0) < pdt._max_day_trades,
+            }
+        except Exception:
+            pass
+
         return {
             "running": self._running,
             "mode": "auto_execute" if self.auto_execute else "shadow",
@@ -1557,6 +1586,7 @@ class OrderExecutor:
             "max_portfolio_heat": self.max_portfolio_heat,
             "use_bracket_orders": self.use_bracket_orders,
             "recent_orders": recent_orders,
+            "pdt": pdt_info,  # Issue #76: PDT day trade tracking
         }
 
     def get_order_history(self) -> List[Dict]:

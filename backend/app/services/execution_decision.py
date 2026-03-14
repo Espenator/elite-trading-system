@@ -32,6 +32,7 @@ class ExecutionDenyReason(str, Enum):
     CIRCUIT_BREAKER = "circuit_breaker"
     STALE_VERDICT = "stale_verdict"  # decision TTL 30s exceeded
     HOMEOSTASIS_HALTED = "homeostasis_halted"  # autonomic HALTED mode blocks orders
+    PDT_BLOCKED = "pdt_blocked"  # Issue #76: PDT day trade limit reached (3/3)
 
 
 @dataclass

@@ -30,6 +30,10 @@ _PATTERN_ATR_MULTIPLIERS: Dict[str, Dict[str, float]] = {
     "breakout":         {"stop": 2.5, "target": 3.5},
     "volume_breakout":  {"stop": 2.5, "target": 3.5},
     "trend_following":  {"stop": 2.5, "target": 3.5},
+    "breakout_consolidation": {"stop": 2.0, "target": 3.5},
+    "divergence":       {"stop": 1.5, "target": 2.5},
+    "gap_analysis":     {"stop": 1.5, "target": 2.0},
+    "multi_timeframe_confluence": {"stop": 2.0, "target": 3.0},
 }
 _DEFAULT_ATR_MULT = {"stop": 2.0, "target": 3.0}
 

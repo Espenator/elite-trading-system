@@ -81,6 +81,10 @@ SIGNAL_TYPES = {
     "rsi_extreme": {"priority": 4, "weight": 0.10},
     "macd_cross": {"priority": 4, "weight": 0.10},
     "earnings_drift": {"priority": 3, "weight": 0.15},
+    "breakout_consolidation": {"priority": 2, "weight": 0.20},
+    "divergence": {"priority": 3, "weight": 0.20},
+    "gap_analysis": {"priority": 3, "weight": 0.15},
+    "multi_timeframe_confluence": {"priority": 2, "weight": 0.25},
 }
 
 
@@ -258,6 +262,10 @@ class TurboScanner:
             self._scan_options_flow_anomalies_sync,
             self._scan_mean_reversion_setups_sync,
             self._scan_gap_reversals_sync,
+            self._scan_breakout_consolidation_sync,
+            self._scan_divergence_sync,
+            self._scan_gap_analysis_sync,
+            self._scan_multi_timeframe_confluence_sync,
         ]
         signals = []
         for method in scan_methods:
@@ -822,6 +830,349 @@ class TurboScanner:
             return signals
         except Exception as e:
             logger.debug("Gap reversal scan: %s", e)
+            return []
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Advanced Pattern Detectors
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _scan_breakout_consolidation_sync(self) -> List[ScanSignal]:
+        """Bollinger Band squeeze -> expansion breakouts.
+
+        Detects when BB width is at a 20-day low (squeeze), then price breaks
+        above upper BB or below lower BB with volume > 1.5x average.
+        """
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store.get_thread_cursor()
+            df = conn.execute("""
+                WITH bb_data AS (
+                    SELECT t.symbol, t.date, t.bb_upper, t.bb_lower, t.bb_middle,
+                           (t.bb_upper - t.bb_lower) / NULLIF(t.bb_middle, 0) AS bb_width,
+                           MIN((t.bb_upper - t.bb_lower) / NULLIF(t.bb_middle, 0))
+                             OVER (PARTITION BY t.symbol ORDER BY t.date
+                                   ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS min_bb_width_20,
+                           o.close, o.volume,
+                           AVG(o.volume) OVER (PARTITION BY o.symbol ORDER BY o.date
+                                               ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS avg_vol_20
+                    FROM technical_indicators t
+                    JOIN daily_ohlcv o ON t.symbol = o.symbol AND t.date = o.date
+                    WHERE t.date >= CURRENT_DATE - INTERVAL '30 days'
+                      AND t.bb_upper IS NOT NULL
+                      AND t.bb_lower IS NOT NULL
+                      AND t.bb_middle IS NOT NULL
+                      AND t.bb_middle > 0
+                )
+                SELECT * FROM bb_data
+                WHERE date >= CURRENT_DATE - INTERVAL '2 days'
+                  AND bb_width <= min_bb_width_20 * 1.05
+                  AND volume > avg_vol_20 * 1.5
+                  AND (close > bb_upper OR close < bb_lower)
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
+                ORDER BY volume / NULLIF(avg_vol_20, 0) DESC
+                LIMIT 40
+            """).fetchdf()
+
+            signals = []
+            for _, row in df.iterrows():
+                close = row.get("close", 0) or 0
+                bb_upper = row.get("bb_upper", 0) or 0
+                bb_lower = row.get("bb_lower", 0) or 0
+                bb_width = row.get("bb_width", 0) or 0
+                volume = row.get("volume", 0) or 0
+                avg_vol = row.get("avg_vol_20", 0) or 0
+                vol_ratio = volume / avg_vol if avg_vol > 0 else 1
+
+                if close > bb_upper:
+                    direction = "bullish"
+                    reasoning = f"BB squeeze breakout UP: width={bb_width:.4f} (20d low), close>{bb_upper:.2f}, vol {vol_ratio:.1f}x"
+                else:
+                    direction = "bearish"
+                    reasoning = f"BB squeeze breakdown: width={bb_width:.4f} (20d low), close<{bb_lower:.2f}, vol {vol_ratio:.1f}x"
+
+                score = min(1.0, 0.35 + min(0.3, (vol_ratio - 1.5) / 5) + min(0.2, (1.0 / (bb_width + 0.001)) * 0.01))
+                signals.append(ScanSignal(
+                    symbol=row["symbol"],
+                    signal_type="breakout_consolidation",
+                    direction=direction,
+                    score=score,
+                    reasoning=reasoning,
+                    data={"bb_width": round(bb_width, 4), "vol_ratio": round(vol_ratio, 1),
+                           "close": round(close, 2)},
+                ))
+            return signals
+        except Exception as e:
+            logger.debug("Breakout consolidation scan: %s", e)
+            return []
+
+    def _scan_divergence_sync(self) -> List[ScanSignal]:
+        """RSI/Price divergence detector.
+
+        Bearish: price makes new 20-day high but RSI is lower than at previous high.
+        Bullish: price makes new 20-day low but RSI is higher than at previous low.
+        """
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store.get_thread_cursor()
+            df = conn.execute("""
+                WITH price_rsi AS (
+                    SELECT t.symbol, t.date, o.close, o.high, o.low, t.rsi_14,
+                           MAX(o.high) OVER (PARTITION BY t.symbol ORDER BY t.date
+                                             ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS high_20d,
+                           MIN(o.low) OVER (PARTITION BY t.symbol ORDER BY t.date
+                                            ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS low_20d
+                    FROM technical_indicators t
+                    JOIN daily_ohlcv o ON t.symbol = o.symbol AND t.date = o.date
+                    WHERE t.date >= CURRENT_DATE - INTERVAL '30 days'
+                      AND t.rsi_14 IS NOT NULL
+                ),
+                with_prev_rsi AS (
+                    SELECT *,
+                           -- RSI at the time of the previous 20d high/low (approximate via max/min RSI in window)
+                           MAX(CASE WHEN high = high_20d THEN rsi_14 END)
+                             OVER (PARTITION BY symbol ORDER BY date
+                                   ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS rsi_at_prev_high,
+                           MIN(CASE WHEN low = low_20d THEN rsi_14 END)
+                             OVER (PARTITION BY symbol ORDER BY date
+                                   ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS rsi_at_prev_low
+                    FROM price_rsi
+                )
+                SELECT symbol, date, close, high, low, rsi_14,
+                       high_20d, low_20d, rsi_at_prev_high, rsi_at_prev_low
+                FROM with_prev_rsi
+                WHERE date >= CURRENT_DATE - INTERVAL '2 days'
+                  AND (
+                      (high > high_20d AND rsi_14 < rsi_at_prev_high - 5)
+                      OR
+                      (low < low_20d AND rsi_14 > rsi_at_prev_low + 5)
+                  )
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
+                LIMIT 40
+            """).fetchdf()
+
+            signals = []
+            for _, row in df.iterrows():
+                high = row.get("high", 0) or 0
+                low = row.get("low", 0) or 0
+                high_20d = row.get("high_20d", 0) or 0
+                low_20d = row.get("low_20d", float("inf")) or float("inf")
+                rsi = row.get("rsi_14", 50) or 50
+                rsi_prev_high = row.get("rsi_at_prev_high", 50) or 50
+                rsi_prev_low = row.get("rsi_at_prev_low", 50) or 50
+
+                if high > high_20d and rsi < rsi_prev_high - 5:
+                    direction = "bearish"
+                    rsi_gap = rsi_prev_high - rsi
+                    reasoning = f"Bearish divergence: new 20d high but RSI {rsi:.0f} < prev {rsi_prev_high:.0f} (gap={rsi_gap:.0f})"
+                    score = min(1.0, 0.35 + min(0.35, rsi_gap / 30) + (0.1 if rsi > 65 else 0))
+                elif low < low_20d and rsi > rsi_prev_low + 5:
+                    direction = "bullish"
+                    rsi_gap = rsi - rsi_prev_low
+                    reasoning = f"Bullish divergence: new 20d low but RSI {rsi:.0f} > prev {rsi_prev_low:.0f} (gap={rsi_gap:.0f})"
+                    score = min(1.0, 0.35 + min(0.35, rsi_gap / 30) + (0.1 if rsi < 35 else 0))
+                else:
+                    continue
+
+                signals.append(ScanSignal(
+                    symbol=row["symbol"],
+                    signal_type="divergence",
+                    direction=direction,
+                    score=score,
+                    reasoning=reasoning,
+                    data={"rsi": round(rsi, 1), "rsi_gap": round(rsi_gap, 1),
+                           "close": round(row.get("close", 0) or 0, 2)},
+                ))
+            return signals
+        except Exception as e:
+            logger.debug("Divergence scan: %s", e)
+            return []
+
+    def _scan_gap_analysis_sync(self) -> List[ScanSignal]:
+        """Opening gap detector with volume confirmation.
+
+        Gap up: today open > yesterday high by >2% with volume > 1.5x avg.
+        Gap down: today open < yesterday low by >2% with volume > 1.5x avg.
+        Gap fills are fade opportunities; continuation gaps are momentum plays.
+        """
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store.get_thread_cursor()
+            df = conn.execute("""
+                WITH gap_data AS (
+                    SELECT symbol, date, open, high, low, close, volume,
+                           LAG(high) OVER w AS prev_high,
+                           LAG(low) OVER w AS prev_low,
+                           LAG(close) OVER w AS prev_close,
+                           AVG(volume) OVER (PARTITION BY symbol ORDER BY date
+                                             ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS avg_vol_20
+                    FROM daily_ohlcv
+                    WHERE date >= CURRENT_DATE - INTERVAL '25 days'
+                    WINDOW w AS (PARTITION BY symbol ORDER BY date)
+                )
+                SELECT *,
+                       (open - prev_high) / NULLIF(prev_high, 0) AS gap_up_pct,
+                       (prev_low - open) / NULLIF(prev_low, 0) AS gap_down_pct,
+                       close / NULLIF(open, 0) - 1 AS intraday_ret
+                FROM gap_data
+                WHERE date >= CURRENT_DATE - INTERVAL '2 days'
+                  AND prev_high IS NOT NULL
+                  AND volume > avg_vol_20 * 1.5
+                  AND (
+                      (open > prev_high * 1.02)
+                      OR
+                      (open < prev_low * 0.98)
+                  )
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
+                ORDER BY GREATEST(
+                    (open - prev_high) / NULLIF(prev_high, 0),
+                    (prev_low - open) / NULLIF(prev_low, 0)
+                ) DESC
+                LIMIT 30
+            """).fetchdf()
+
+            signals = []
+            for _, row in df.iterrows():
+                gap_up = row.get("gap_up_pct", 0) or 0
+                gap_down = row.get("gap_down_pct", 0) or 0
+                intraday = row.get("intraday_ret", 0) or 0
+                volume = row.get("volume", 0) or 0
+                avg_vol = row.get("avg_vol_20", 0) or 0
+                vol_ratio = volume / avg_vol if avg_vol > 0 else 1
+
+                if gap_up > 0.02:
+                    # Gap up detected
+                    if intraday < -0.005:
+                        # Gap fill / fade — price reversing into the gap
+                        direction = "bearish"
+                        reasoning = f"Gap-up fade: +{gap_up:.1%} gap, filling {intraday:.1%}, vol {vol_ratio:.1f}x"
+                        score = min(1.0, 0.3 + min(0.3, gap_up * 5) + min(0.2, abs(intraday) * 10))
+                    else:
+                        # Continuation gap — momentum long
+                        direction = "bullish"
+                        reasoning = f"Gap-up continuation: +{gap_up:.1%} gap, holding +{intraday:.1%}, vol {vol_ratio:.1f}x"
+                        score = min(1.0, 0.35 + min(0.3, gap_up * 5) + min(0.2, intraday * 10))
+                elif gap_down > 0.02:
+                    # Gap down detected
+                    if intraday > 0.005:
+                        # Gap fill / fade — price recovering
+                        direction = "bullish"
+                        reasoning = f"Gap-down fade: -{gap_down:.1%} gap, recovering +{intraday:.1%}, vol {vol_ratio:.1f}x"
+                        score = min(1.0, 0.3 + min(0.3, gap_down * 5) + min(0.2, intraday * 10))
+                    else:
+                        # Continuation gap — momentum short
+                        direction = "bearish"
+                        reasoning = f"Gap-down continuation: -{gap_down:.1%} gap, extending {intraday:.1%}, vol {vol_ratio:.1f}x"
+                        score = min(1.0, 0.35 + min(0.3, gap_down * 5) + min(0.2, abs(intraday) * 10))
+                else:
+                    continue
+
+                signals.append(ScanSignal(
+                    symbol=row["symbol"],
+                    signal_type="gap_analysis",
+                    direction=direction,
+                    score=score,
+                    reasoning=reasoning,
+                    data={"gap_up_pct": round(gap_up, 4), "gap_down_pct": round(gap_down, 4),
+                           "intraday_ret": round(intraday, 4), "vol_ratio": round(vol_ratio, 1),
+                           "close": round(row.get("close", 0) or 0, 2)},
+                ))
+            return signals
+        except Exception as e:
+            logger.debug("Gap analysis scan: %s", e)
+            return []
+
+    def _scan_multi_timeframe_confluence_sync(self) -> List[ScanSignal]:
+        """Multi-timeframe confluence detector.
+
+        Combines daily trend (price vs SMA_50) with intraday RSI extremes.
+        Confluence of timeframes = higher conviction signal with boosted score.
+        """
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store.get_thread_cursor()
+            df = conn.execute("""
+                SELECT t.symbol, t.date, t.rsi_14, t.sma_50, t.sma_200, t.adx_14,
+                       t.macd, t.macd_signal,
+                       o.close, o.volume,
+                       AVG(o.volume) OVER (PARTITION BY o.symbol ORDER BY o.date
+                                           ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS avg_vol_20
+                FROM technical_indicators t
+                JOIN daily_ohlcv o ON t.symbol = o.symbol AND t.date = o.date
+                WHERE t.date >= CURRENT_DATE - INTERVAL '2 days'
+                  AND t.rsi_14 IS NOT NULL
+                  AND t.sma_50 IS NOT NULL
+                  AND (t.rsi_14 < 30 OR t.rsi_14 > 70)
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY t.symbol ORDER BY t.date DESC) = 1
+            """).fetchdf()
+
+            signals = []
+            for _, row in df.iterrows():
+                close = row.get("close", 0) or 0
+                sma_50 = row.get("sma_50", 0) or 0
+                sma_200 = row.get("sma_200", 0) or 0
+                rsi = row.get("rsi_14", 50) or 50
+                adx = row.get("adx_14", 0) or 0
+                macd = row.get("macd", 0) or 0
+                macd_sig = row.get("macd_signal", 0) or 0
+                volume = row.get("volume", 0) or 0
+                avg_vol = row.get("avg_vol_20", 0) or 0
+
+                daily_bullish = close > sma_50 > 0
+                daily_bearish = close < sma_50 > 0
+                above_200 = close > sma_200 > 0 if sma_200 else False
+                macd_bullish = macd > macd_sig if (macd and macd_sig) else False
+                vol_confirm = volume > avg_vol * 1.2 if avg_vol > 0 else False
+
+                confluence_count = 0
+
+                # Bullish confluence: daily uptrend + RSI oversold (pullback buy)
+                if daily_bullish and rsi < 30:
+                    direction = "bullish"
+                    confluence_count = 2  # trend + RSI
+                    if above_200:
+                        confluence_count += 1
+                    if macd_bullish:
+                        confluence_count += 1
+                    if vol_confirm:
+                        confluence_count += 1
+                    reasoning = (f"Bullish confluence ({confluence_count} factors): "
+                                 f"uptrend (>{sma_50:.0f}), RSI oversold {rsi:.0f}"
+                                 + (", >SMA200" if above_200 else "")
+                                 + (", MACD bullish" if macd_bullish else "")
+                                 + (", vol confirm" if vol_confirm else ""))
+                # Bearish confluence: daily downtrend + RSI overbought (rally short)
+                elif daily_bearish and rsi > 70:
+                    direction = "bearish"
+                    confluence_count = 2
+                    if not above_200:
+                        confluence_count += 1
+                    if not macd_bullish:
+                        confluence_count += 1
+                    if vol_confirm:
+                        confluence_count += 1
+                    reasoning = (f"Bearish confluence ({confluence_count} factors): "
+                                 f"downtrend (<{sma_50:.0f}), RSI overbought {rsi:.0f}"
+                                 + (", <SMA200" if not above_200 else "")
+                                 + (", MACD bearish" if not macd_bullish else "")
+                                 + (", vol confirm" if vol_confirm else ""))
+                else:
+                    continue
+
+                # Score scales with number of confluent factors
+                score = min(1.0, 0.25 + confluence_count * 0.12 + min(0.15, adx / 100))
+                signals.append(ScanSignal(
+                    symbol=row["symbol"],
+                    signal_type="multi_timeframe_confluence",
+                    direction=direction,
+                    score=score,
+                    reasoning=reasoning,
+                    data={"rsi": round(rsi, 1), "sma_50": round(sma_50, 2),
+                           "adx": round(adx, 1), "confluence_count": confluence_count,
+                           "close": round(close, 2)},
+                ))
+            return signals
+        except Exception as e:
+            logger.debug("Multi-timeframe confluence scan: %s", e)
             return []
 
     # ──────────────────────────────────────────────────────────────────────

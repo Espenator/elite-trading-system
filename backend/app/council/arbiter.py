@@ -452,6 +452,21 @@ def arbitrate(
     except Exception:
         pass  # Calibration unavailable
 
+    # ELO-based weight blending: agents with higher ELO get proportionally more influence
+    try:
+        from app.council.elo_service import get_elo_service
+        elo = get_elo_service()
+        elo_weights = elo.get_elo_weights()
+        if elo_weights:
+            # Blend ELO factor at 20% strength (conservative, additive to existing weights)
+            ELO_BLEND = 0.2
+            for v in votes:
+                if v.agent_name in elo_weights:
+                    elo_factor = elo_weights[v.agent_name]
+                    v.weight *= (1.0 - ELO_BLEND) + ELO_BLEND * elo_factor
+    except Exception:
+        pass  # ELO unavailable — no impact on voting
+
     # Collect vetoes
     veto_reasons = []
     for v in votes:

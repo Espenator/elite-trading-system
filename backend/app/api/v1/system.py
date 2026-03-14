@@ -183,6 +183,32 @@ async def event_bus_status():
         return {"running": False, "topics": [], "redis": {"connected": False}}
 
 
+@router.get("/pdt-status")
+async def pdt_status():
+    """Issue #76: Return PDT (Pattern Day Trader) status.
+
+    Shows day trades used in rolling 5-day window, remaining allowance,
+    and whether new day trades are allowed. Used by frontend to display
+    "Day Trades: X/3" in the system status card.
+    """
+    try:
+        from app.services.pdt_tracker import get_pdt_tracker
+        tracker = get_pdt_tracker()
+        return await tracker.get_pdt_status()
+    except Exception as e:
+        log.warning("PDT status failed: %s", e)
+        return {
+            "day_trades_used": 0,
+            "day_trades_max": 3,
+            "day_trades_remaining": 3,
+            "can_day_trade": True,
+            "pdt_exempt": False,
+            "rolling_window_days": 5,
+            "recent_day_trades": [],
+            "error": str(e),
+        }
+
+
 @router.get("/gpu")
 async def gpu_status():
     """

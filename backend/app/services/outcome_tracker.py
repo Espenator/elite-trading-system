@@ -533,6 +533,53 @@ class OutcomeTracker:
         except Exception as e:
             logger.debug("Council feedback error: %s", e)
 
+        # Wire ELO rating updates — agents that voted correctly "win" against those that voted wrong
+        try:
+            from app.council.elo_service import get_elo_service
+            from app.council.feedback_loop import _get_store as _get_feedback_store
+            elo = get_elo_service()
+            # Look up the council decision votes for this trade
+            fb_store = _get_feedback_store()
+            elo_votes = []
+            elo_final_direction = ""
+            for d in reversed(fb_store.get("decisions", [])):
+                match_by_trade = (pos.order_id and d.get("trade_id") == pos.order_id)
+                match_by_symbol = (d.get("symbol", "").upper() == pos.symbol.upper())
+                if match_by_trade or match_by_symbol:
+                    elo_votes = [
+                        {
+                            "agent_name": v.get("agent", v.get("agent_name", "")),
+                            "direction": v.get("direction", "hold"),
+                            "confidence": v.get("confidence", 0.5),
+                        }
+                        for v in d.get("votes", [])
+                    ]
+                    elo_final_direction = d.get("final_direction", "hold")
+                    break
+            if not elo_votes:
+                # Fallback: try DuckDB for the decision
+                from app.council.feedback_loop import _get_decision_from_duckdb
+                duckdb_decision = _get_decision_from_duckdb(pos.order_id, pos.symbol)
+                if duckdb_decision:
+                    elo_votes = [
+                        {
+                            "agent_name": v.get("agent", v.get("agent_name", "")),
+                            "direction": v.get("direction", "hold"),
+                            "confidence": v.get("confidence", 0.5),
+                        }
+                        for v in duckdb_decision.get("votes", [])
+                    ]
+                    elo_final_direction = duckdb_decision.get("final_direction", "hold")
+            if elo_votes and elo_final_direction:
+                elo.update_from_outcome(
+                    votes=elo_votes,
+                    outcome=outcome,
+                    final_direction=elo_final_direction,
+                    symbol=pos.symbol,
+                )
+        except Exception as e:
+            logger.debug("ELO rating update error: %s", e)
+
         # Wire SelfAwareness Bayesian tracking (Audit Bug #8)
         try:
             from app.council.self_awareness import get_self_awareness
@@ -931,6 +978,33 @@ async def resolve_historical_signals() -> Dict[str, Any]:
                 prediction=prediction,
             )
             result["resolved"] += 1
+
+            # Also update ELO ratings for historical signal resolutions
+            try:
+                from app.council.elo_service import get_elo_service
+                from app.council.feedback_loop import _get_decision_from_duckdb
+                elo = get_elo_service()
+                hist_decision = _get_decision_from_duckdb(None, symbol)
+                if hist_decision and hist_decision.get("votes"):
+                    elo_outcome = "win" if outcome == 1 else "loss"
+                    elo_dir = hist_decision.get("final_direction", "hold")
+                    elo_votes = [
+                        {
+                            "agent_name": v.get("agent", v.get("agent_name", "")),
+                            "direction": v.get("direction", "hold"),
+                            "confidence": v.get("confidence", 0.5),
+                        }
+                        for v in hist_decision.get("votes", [])
+                    ]
+                    elo.update_from_outcome(
+                        votes=elo_votes,
+                        outcome=elo_outcome,
+                        final_direction=elo_dir,
+                        symbol=symbol,
+                    )
+            except Exception as elo_err:
+                logger.debug("ELO update for historical signal %s failed: %s", symbol, elo_err)
+
         except Exception as e:
             logger.debug("resolve_historical_signals record error for %s: %s", symbol, e)
             result["errors"] += 1
