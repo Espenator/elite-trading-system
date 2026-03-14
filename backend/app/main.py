@@ -327,6 +327,11 @@ async def _start_event_driven_pipeline():
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
 
+    import time as _pipe_time
+    _pt0 = _pipe_time.monotonic()
+    def _pipe_elapsed():
+        return _pipe_time.monotonic() - _pt0
+
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")
     log.info("=" * 60)
@@ -391,6 +396,8 @@ async def _start_event_driven_pipeline():
         )
         log.info("\u2705 NodeDiscovery subscribed to cluster.telemetry")
 
+    log.info("[PIPELINE] MessageBus + Redis + GPU init done (%.1fs)", _pipe_elapsed())
+
     # 2. EventDrivenSignalEngine (subscribes to market_data.bar)
     # BUG FIX 3: Always start — this does DuckDB queries + technical analysis, NOT LLM calls.
     # Without it, no signals are generated from incoming market data.
@@ -433,6 +440,8 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 ScoutRegistry started (%d scouts)", _scout_registry.scout_count)
     else:
         log.info("\u26A0\uFE0F ScoutRegistry skipped (SCOUTS_ENABLED=false)")
+
+    log.info("[PIPELINE] SignalEngine + Discovery + Triage + Scouts done (%.1fs)", _pipe_elapsed())
 
     # 3. CouncilGate (subscribes to signal.generated, invokes council)
     # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
@@ -513,6 +522,8 @@ async def _start_event_driven_pipeline():
         "\u2705 OrderExecutor started (%s mode, council-controlled)",
         "AUTO" if auto_execute else "SHADOW",
     )
+
+    log.info("[PIPELINE] CouncilGate + OrderExecutor done (%.1fs)", _pipe_elapsed())
 
     # 5. WebSocket bridges (forward events to frontend)
     async def _bridge_signal_to_ws(signal_data):
@@ -729,6 +740,8 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("market_data.bar", _bridge_market_data_to_ws)
     log.info("\u2705 MarketData->WebSocket bridge active")
 
+    log.info("[PIPELINE] WebSocket + Slack bridges done (%.1fs)", _pipe_elapsed())
+
     # 6. AlpacaStreamManager (replaces single AlpacaStreamService)
     global _stream_manager
     if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in ("1", "true", "yes"):
@@ -825,6 +838,8 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 DataSourceHealthAggregator started")
     except Exception as e:
         log.warning("DataSourceHealthAggregator failed to start: %s", e)
+
+    log.info("[PIPELINE] AlpacaStream + lightweight services done (%.1fs)", _pipe_elapsed())
 
     # -- DEFERRED HEAVY SERVICES -----------------------------------------------
     # These services are LLM-heavy, do bulk HTTP fetches, or process thousands
@@ -1353,16 +1368,25 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
+    import time as _startup_time
+    _t0 = _startup_time.monotonic()
+    def _elapsed():
+        return _startup_time.monotonic() - _t0
+
+    log.info("[STARTUP] ===== Embodier Trader lifespan starting =====")
+
     # -1. Process lock — prevent duplicate backend instances (solves port/DuckDB conflicts)
     from app.core.config import settings
     from app.core.process_lock import acquire_lock, release_lock
     await asyncio.to_thread(acquire_lock, port=settings.effective_port)
+    log.info("[STARTUP] Phase -1: Process lock acquired (%.1fs)", _elapsed())
 
     # 0. Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
     _pool_size = getattr(settings, "ASYNCIO_THREAD_POOL_WORKERS", 64)
     loop = asyncio.get_running_loop()
     loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=_pool_size))
     log.info("Thread pool set to %d workers for async DuckDB operations", _pool_size)
+    log.info("[STARTUP] Phase 0: Thread pool configured (%.1fs)", _elapsed())
 
     # 0b. Infrastructure health checks (PC2 + Redis)
     _infra_status = {}
@@ -1373,6 +1397,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("Infrastructure health checks failed: %s", e)
         app.state.infra_status = {"dual_pc_operational": False}
+
+    log.info("[STARTUP] Phase 0b: Infrastructure checks done (%.1fs)", _elapsed())
 
     # 1. Data schema
     try:
@@ -1463,6 +1489,8 @@ async def lifespan(app: FastAPI):
         else:
             log.warning("DuckDB init skipped: %s", e)
 
+    log.info("[STARTUP] Phase 1: DuckDB + SQLite init done (%.1fs)", _elapsed())
+
     # 1b. Ingestion framework (incremental adapters)
     try:
         from app.data.checkpoint_store import CheckpointStore
@@ -1484,11 +1512,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("Ingestion framework init failed: %s", e)
 
+    log.info("[STARTUP] Phase 1b: Ingestion framework done (%.1fs)", _elapsed())
+
     # 2. ML Flywheel singletons
     try:
         _init_ml_singletons()
     except Exception as e:
         log.warning("ML singletons init failed: %s", e)
+    log.info("[STARTUP] Phase 2: ML singletons done (%.1fs)", _elapsed())
 
     # 3. Event-driven pipeline (council-controlled)
     try:
@@ -1497,6 +1528,8 @@ async def lifespan(app: FastAPI):
         log.exception(
             "Event-driven pipeline failed to start -- falling back to polling only"
         )
+
+    log.info("[STARTUP] Phase 3: Event-driven pipeline done (%.1fs)", _elapsed())
 
     # 3b. Flywheel scheduler (optional)
     try:
@@ -1553,6 +1586,8 @@ async def lifespan(app: FastAPI):
                 log.info("DuckDB data OK: %d OHLCV rows, %d indicator rows — skipping backfill", _ohlcv_rows, _indicator_rows)
         except Exception:
             pass
+
+    log.info("[STARTUP] Phase 3c: Backfill check done (%.1fs)", _elapsed())
 
     # 4-6. Background tasks (legacy + monitoring)
     # BUG FIX 2: tick_task must ALWAYS run — it does Alpaca data ingestion into DuckDB,
@@ -1724,6 +1759,8 @@ async def lifespan(app: FastAPI):
         log.info("✅ HealthMonitor started (auto-debug + self-healing)")
     except Exception as e:
         log.warning("HealthMonitor failed to start: %s", e)
+
+    log.info("[STARTUP] Phase 6: All subscribers + watchdog wired (%.1fs)", _elapsed())
 
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
