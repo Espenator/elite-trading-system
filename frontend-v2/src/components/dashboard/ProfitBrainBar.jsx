@@ -2,6 +2,10 @@
  * ProfitBrainBar — compact status bar showing the profit brain's vital signs.
  * Fetches from /api/v1/cns/profit-brain every 10s via standard useApi hook.
  * Shows: win rate, total PnL, brain weights, feedback loop status, active systems count.
+ *
+ * Export: `export default React.memo(ProfitBrainBar)` — single default export
+ * required by Vite React Fast Refresh. Non-component exports must go in
+ * separate .js files.
  */
 import React from 'react';
 import { useProfitBrain } from "../../hooks/useApi";

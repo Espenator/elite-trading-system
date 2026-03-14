@@ -13,19 +13,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import ws from '../services/websocket';
 import { useHomeostasis, useCircuitBreakerStatus, useCnsLastVerdict } from './useApi';
+import { CNS_EVENTS } from './cnsEvents';
+
+// Re-export so existing `import { CNS_EVENTS } from './useCNS'` still works.
+export { CNS_EVENTS } from './cnsEvents';
 
 const CNSContext = createContext(null);
-
-// Event types for the notification system
-export const CNS_EVENTS = {
-  COUNCIL_VERDICT: 'council_verdict',
-  MODE_CHANGE: 'mode_change',
-  CIRCUIT_BREAKER_FIRE: 'circuit_breaker_fire',
-  AGENT_HIBERNATED: 'agent_hibernated',
-  AGENT_PROBATION: 'agent_probation',
-  TRADE_EXECUTED: 'trade_executed',
-  RISK_ALERT: 'risk_alert',
-};
 
 export function CNSProvider({ children }) {
   // Core state

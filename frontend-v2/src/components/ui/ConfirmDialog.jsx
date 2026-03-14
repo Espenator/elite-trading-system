@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 /**
  * Reusable confirmation modal for dangerous/destructive actions.
@@ -11,6 +11,7 @@ import { useEffect, useRef, useCallback } from "react";
  *   description – body text explaining the consequences
  *   confirmText – label for the confirm button (default "Confirm")
  *   variant     – "danger" (red confirm) or "warning" (amber confirm), default "danger"
+ *   requireType – if set, user must type this exact string to enable the confirm button
  */
 export default function ConfirmDialog({
   open,
@@ -20,9 +21,16 @@ export default function ConfirmDialog({
   description = "",
   confirmText = "Confirm",
   variant = "danger",
+  requireType = "",
 }) {
+  const [typedConfirm, setTypedConfirm] = useState("");
   const cancelRef = useRef(null);
   const dialogRef = useRef(null);
+
+  // Reset typed confirmation when dialog opens/closes
+  useEffect(() => {
+    if (open) setTypedConfirm("");
+  }, [open]);
 
   // Auto-focus Cancel button when dialog opens (safety: default action is cancel)
   useEffect(() => {
@@ -114,6 +122,24 @@ export default function ConfirmDialog({
           </div>
         )}
 
+        {/* Typed confirmation */}
+        {requireType && (
+          <div className="px-5 pb-4">
+            <label className="text-sm text-[#94a3b8]">
+              Type "<span className="text-white font-bold">{requireType}</span>" to confirm:
+            </label>
+            <input
+              type="text"
+              value={typedConfirm}
+              onChange={(e) => setTypedConfirm(e.target.value)}
+              className="mt-1 w-full px-3 py-2 bg-[#0B0E14] border border-[#374151] rounded text-white text-sm font-mono focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50"
+              placeholder={requireType}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#1e293b] bg-[#0B0E14]/50 rounded-b-lg">
           <button
@@ -125,7 +151,8 @@ export default function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-bold rounded-md transition-colors focus:outline-none focus:ring-2 ${confirmColors}`}
+            disabled={!!requireType && typedConfirm !== requireType}
+            className={`px-4 py-2 text-sm font-bold rounded-md transition-colors focus:outline-none focus:ring-2 ${confirmColors} ${requireType && typedConfirm !== requireType ? "opacity-40 cursor-not-allowed" : ""}`}
           >
             {confirmText}
           </button>

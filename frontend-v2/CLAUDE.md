@@ -43,6 +43,7 @@ src/
 │   └── api.js                       # Endpoint registry + getApiUrl + getWsUrl + auth headers
 ├── hooks/
 │   ├── useApi.js                    # Universal data-fetch (polling, cache, abort, concurrency)
+│   ├── cnsEvents.js                 # CNS_EVENTS constant (split for Vite Fast Refresh)
 │   ├── useCNS.jsx                   # CNSProvider context + useCNS hook (WS + homeostasis)
 │   ├── useKeyboardShortcuts.js      # Ctrl+1-9 nav, ? help, Ctrl+K palette
 │   ├── useSentiment.js              # Sentiment-specific data aggregation
@@ -103,6 +104,22 @@ BrowserRouter
                           ├── NotificationCenter (overlay)
                           └── KeyboardShortcuts (help overlay)
 ```
+
+## Critical Invariants (NEVER violate)
+
+1. **EXPORTS**: Every `.jsx` file MUST have exactly ONE default export that is a React component. Non-component exports (constants, types, utils) MUST go in separate `.js` files. Required for Vite Fast Refresh.
+
+2. **BACKEND DOWN**: Every component MUST render gracefully when the backend API returns errors or times out. Use loading/error states from useApi. NEVER assume API data exists — always null-check: `data?.field ?? fallback`.
+
+3. **TRADE SAFETY**: Any function that calls `POST /orders/*`, `/metrics/auto-execute`, `/metrics/emergency-flatten`, or `/orders/flatten-all` MUST require user confirmation via ConfirmDialog before executing.
+
+4. **HOOK RULES**: useApi uses the `fetchDataRef` pattern (NOT direct useCallback). Never create a useCallback that references a function defined later in the same scope.
+
+5. **FILE SIZE**: No single `.jsx` file should exceed 800 lines. Extract sub-components into `src/components/{page}/`.
+
+6. **ERROR BOUNDARIES**: CNSProvider is wrapped in CNSErrorBoundary. Each route is wrapped in PageBoundary. Never remove these.
+
+7. **React.memo**: All dashboard widget components (`src/components/dashboard/`) use React.memo. Maintain this pattern for new components.
 
 **Data flow:** `useApi(endpointKey)` → `config/api.js` `getApiUrl()` → Vite proxy `/api` → backend on port 8001.
 
