@@ -342,7 +342,7 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
         smoke_checks.append({"check": "GET /api/v1/health", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     try:
-        from app.api.v1.status import system_status
+        from app.api.v1.system import system_status
         st = await system_status()
         smoke_checks.append({"check": "GET /api/v1/status", "status": "ok", "detail": f"healthy={st.get('healthy')}"})
     except Exception as e:
@@ -377,7 +377,7 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
         loop_checks.append({"check": "Readiness", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     try:
-        from app.api.v1.status import system_status
+        from app.api.v1.system import system_status
         st = await system_status()
         loop_checks.append({"check": "Background / status", "status": "ok", "detail": f"activeAgents={st.get('activeAgents', '?')}"})
     except Exception as e:

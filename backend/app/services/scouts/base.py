@@ -71,9 +71,10 @@ class BaseScout(ABC):
         ``scout()``   — single-cycle discovery logic; returns list of payloads
     """
 
-    def __init__(self, message_bus=None):
+    def __init__(self, message_bus=None, initial_delay: float = 0.0):
         self._bus = message_bus
         self._running = False
+        self._initial_delay = initial_delay  # Stagger first cycle to avoid thundering herd
         self._task: Optional[asyncio.Task] = None
         self._heartbeat_task: Optional[asyncio.Task] = None
         self._stats = {
@@ -141,6 +142,10 @@ class BaseScout(ABC):
         return self.interval
 
     async def _run_loop(self) -> None:
+        # Stagger first cycle to prevent all 12 scouts firing simultaneously at startup
+        if self._initial_delay > 0:
+            logger.debug("Scout %s: waiting %.1fs before first cycle", self.name, self._initial_delay)
+            await asyncio.sleep(self._initial_delay)
         while self._running:
             try:
                 # Backpressure: wait if queue is congested before even running cycle
