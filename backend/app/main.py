@@ -431,6 +431,7 @@ async def _start_event_driven_pipeline():
             message_bus=_message_bus,
             gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "0.65")),
             max_concurrent=int(os.getenv("COUNCIL_MAX_CONCURRENT", "3")),
+            burst_concurrent=int(os.getenv("COUNCIL_BURST_CONCURRENT", "8")),
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
         await _council_gate.start()

@@ -46,7 +46,9 @@ SCAN_INTERVAL_PREMARKET = 120   # Pre/post market
 BATCH_SIZE_ALPACA = 50          # Symbols per Alpaca bars request (max efficient batch)
 BATCH_SIZE_SCREEN = 200         # Symbols per DuckDB screen batch
 MAX_SIGNALS_PER_SCAN = 50       # Cap signals to prevent swarm flooding
+MAX_COUNCIL_SIGNALS_PER_SCAN = 5  # Cap signals sent to council (signal.generated) per cycle
 MIN_SIGNAL_SCORE = 0.4          # Minimum composite score to trigger swarm (0-1)
+MIN_COUNCIL_SCORE = 0.65        # Higher bar for triggering full 35-agent council (0-1)
 
 # Multi-node Ollama pool (add PC2 URL for 2x throughput)
 OLLAMA_POOL_URLS = []  # Populated from env: SCANNER_OLLAMA_URLS=http://pc2:11434,http://localhost:11434
@@ -120,14 +122,33 @@ class TurboScanner:
         self._last_scan_time = 0.0
         self._volatile_mode = False
         self._tier2_loaded = False
+        self._council_signals_this_cycle = 0
         self._stats = {
             "total_scans": 0,
             "total_signals": 0,
             "swarms_triggered": 0,
+            "council_signals": 0,
+            "council_skipped_cap": 0,
+            "council_skipped_afterhours": 0,
             "scan_duration_ms": 0.0,
             "symbols_scanned": 0,
             "by_type": defaultdict(int),
         }
+
+    @staticmethod
+    def _is_market_hours() -> bool:
+        """Return True during US market hours (9:30 AM - 4:00 PM ET, Mon-Fri)."""
+        try:
+            from zoneinfo import ZoneInfo
+            eastern = ZoneInfo("America/New_York")
+        except ImportError:
+            from datetime import timezone as tz
+            eastern = tz(timedelta(hours=-5))
+        now_et = datetime.now(eastern)
+        if now_et.weekday() >= 5:
+            return False
+        minutes = now_et.hour * 60 + now_et.minute
+        return 570 <= minutes <= 960  # 9:30 AM to 4:00 PM
 
     async def start(self):
         if self._running:
@@ -158,6 +179,7 @@ class TurboScanner:
         while self._running:
             try:
                 t0 = time.monotonic()
+                self._council_signals_this_cycle = 0
                 signals = await self._run_all_scans()
                 elapsed = (time.monotonic() - t0) * 1000
 
@@ -179,6 +201,8 @@ class TurboScanner:
                     self._stats["total_signals"] += 1
                     self._stats["by_type"][signal.signal_type] += 1
                     await self._emit_signal(signal)
+                    # Yield to event loop so health checks / HTTP can be serviced
+                    await asyncio.sleep(0)
 
                 # deque(maxlen=500) handles history trimming automatically
 
@@ -835,10 +859,18 @@ class TurboScanner:
                         "data": signal.data,
                     },
                 })
-            # Also publish as signal.generated so UnifiedProfitEngine can score it
-            # (only when LLM pipeline active — UnifiedProfitEngine does sync DuckDB queries)
-            # NOTE: signal.score is 0-1 scale; convert to 0-100 to match CouncilGate threshold (65.0)
-            if _llm_on and signal.score >= MIN_SIGNAL_SCORE:
+            # Also publish as signal.generated so UnifiedProfitEngine can score it.
+            # Throttled: only top MAX_COUNCIL_SIGNALS_PER_SCAN per cycle, market hours
+            # only, and higher score bar — each signal.generated triggers a full
+            # 35-agent council DAG which saturates the event loop.
+            if (
+                _llm_on
+                and signal.score >= MIN_COUNCIL_SCORE
+                and self._council_signals_this_cycle < MAX_COUNCIL_SIGNALS_PER_SCAN
+                and self._is_market_hours()
+            ):
+                self._council_signals_this_cycle += 1
+                self._stats["council_signals"] += 1
                 await self._bus.publish("signal.generated", {
                     "symbol": signal.symbol,
                     "score": signal.score * 100,  # Convert 0-1 to 0-100 scale
@@ -847,6 +879,11 @@ class TurboScanner:
                     "regime": "SCANNER",
                     "source": "turbo_scanner",
                 })
+            elif _llm_on and signal.score >= MIN_COUNCIL_SCORE:
+                if not self._is_market_hours():
+                    self._stats["council_skipped_afterhours"] += 1
+                else:
+                    self._stats["council_skipped_cap"] += 1
 
     def reset_daily(self):
         """Reset daily dedup set (call at market open)."""
