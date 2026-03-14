@@ -25,6 +25,18 @@ import time
 from concurrent import futures
 from pathlib import Path
 
+# ── CPU Affinity: pin brain_service to P-cores for low-latency inference ──
+try:
+    import psutil
+    _p = psutil.Process(os.getpid())
+    _cpu_count = psutil.cpu_count(logical=True)
+    if _cpu_count and _cpu_count >= 16:
+        # i7-13700: P-cores = logical 0-15, E-cores = logical 16-23
+        _p.cpu_affinity(list(range(0, 16)))
+    # else: fewer cores, let OS schedule freely
+except (ImportError, OSError, AttributeError):
+    pass  # psutil not installed or platform doesn't support cpu_affinity
+
 # Add proto dir and backend to path for imports
 PROTO_DIR = Path(__file__).parent / "proto"
 BACKEND_DIR = Path(__file__).parent.parent / "backend"
@@ -370,8 +382,10 @@ async def serve():
     brain_pb2_grpc.add_BrainServiceServicer_to_server(
         BrainServiceServicer(), server
     )
-    # Use localhost on Windows (IPv6 [::] and 0.0.0.0 fail with grpc.aio on some Windows builds)
-    bind_addr = f"localhost:{PORT}" if sys.platform == "win32" else f"[::]:{PORT}"
+    # Bind address: use BRAIN_SERVICE_HOST env var for cross-PC access.
+    # Default to 0.0.0.0 to accept connections from PC1 over LAN.
+    bind_host = os.getenv("BRAIN_SERVICE_HOST", "0.0.0.0")
+    bind_addr = f"{bind_host}:{PORT}"
     server.add_insecure_port(bind_addr)
 
     logger.info("Brain Service starting on port %d (max_workers=%d)", PORT, MAX_WORKERS)
