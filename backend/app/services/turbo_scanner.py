@@ -33,6 +33,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import pandas as pd
 
+from app.utils.sector_lookup import get_sector_or_none
+
 logger = logging.getLogger(__name__)
 
 
@@ -320,7 +322,8 @@ class TurboScanner:
                         direction="bullish",
                         score=min(1.0, score),
                         reasoning=f"Bullish alignment: close>{sma20:.0f}>{sma50:.0f}>{sma200:.0f}, ADX={adx:.0f}, RSI={rsi:.0f}",
-                        data={"adx": adx, "rsi": rsi, "sma_stack": "bullish"},
+                        data={"adx": adx, "rsi": rsi, "sma_stack": "bullish",
+                              "sector": get_sector_or_none(symbol) or "Unknown"},
                     ))
                 # Breakdown: below all SMAs + strong downtrend
                 elif close < sma20 < sma50 < sma200 and adx > 25 and rsi < 40:
@@ -331,7 +334,8 @@ class TurboScanner:
                         direction="bearish",
                         score=min(1.0, score),
                         reasoning=f"Bearish alignment: close<{sma20:.0f}<{sma50:.0f}<{sma200:.0f}, ADX={adx:.0f}, RSI={rsi:.0f}",
-                        data={"adx": adx, "rsi": rsi, "sma_stack": "bearish"},
+                        data={"adx": adx, "rsi": rsi, "sma_stack": "bearish",
+                              "sector": get_sector_or_none(symbol) or "Unknown"},
                     ))
 
             return signals
@@ -372,7 +376,8 @@ class TurboScanner:
                     direction=direction,
                     score=score,
                     reasoning=f"Volume spike: {vol_ratio:.1f}x avg, {ret:.1%} return",
-                    data={"vol_ratio": round(vol_ratio, 1), "return_1d": round(ret, 4)},
+                    data={"vol_ratio": round(vol_ratio, 1), "return_1d": round(ret, 4),
+                          "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -418,7 +423,8 @@ class TurboScanner:
                     direction=direction,
                     score=score,
                     reasoning=f"Momentum: {ret_5d:.1%} 5d, {'N/A' if (isinstance(ret_20d, float) and np.isnan(ret_20d)) else f'{ret_20d:.1%}'} 20d",
-                    data={"ret_5d": round(ret_5d, 4), "ret_20d": round(ret_20d, 4)},
+                    data={"ret_5d": round(ret_5d, 4), "ret_20d": round(ret_20d, 4),
+                          "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -458,7 +464,8 @@ class TurboScanner:
                         direction="bullish",
                         score=score,
                         reasoning=f"RSI oversold: {rsi:.0f}" + (" + below BB" if bb_confirm else ""),
-                        data={"rsi": rsi, "bb_confirm": bb_confirm},
+                        data={"rsi": rsi, "bb_confirm": bb_confirm,
+                              "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                     ))
                 elif rsi > 75:
                     bb_confirm = close > bb_upper if bb_upper > 0 else False
@@ -469,7 +476,8 @@ class TurboScanner:
                         direction="bearish",
                         score=score,
                         reasoning=f"RSI overbought: {rsi:.0f}" + (" + above BB" if bb_confirm else ""),
-                        data={"rsi": rsi, "bb_confirm": bb_confirm},
+                        data={"rsi": rsi, "bb_confirm": bb_confirm,
+                              "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                     ))
             return signals
         except Exception as e:
@@ -522,7 +530,8 @@ class TurboScanner:
                     direction=direction,
                     score=min(1.0, score),
                     reasoning=f"MACD {'bullish' if bullish_cross else 'bearish'} cross (ADX={adx:.0f}, RSI={rsi:.0f})",
-                    data={"macd": round(macd, 4), "adx": adx, "rsi": rsi},
+                    data={"macd": round(macd, 4), "adx": adx, "rsi": rsi,
+                          "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -593,7 +602,8 @@ class TurboScanner:
                         direction=direction,
                         score=score,
                         reasoning=reasoning,
-                        data={"divergence_5d": round(divergence, 4), "spy_5d": round(spy_5d, 4)},
+                        data={"divergence_5d": round(divergence, 4), "spy_5d": round(spy_5d, 4),
+                          "sector": get_sector_or_none(symbol) or "Unknown"},
                     ))
             return signals
         except Exception as e:
@@ -634,7 +644,8 @@ class TurboScanner:
                     direction="bearish",
                     score=score,
                     reasoning=f"VIX spike: {prev_vix:.1f} -> {latest_vix:.1f} (+{vix_change_pct:.0%}). Risk-off regime.",
-                    data={"vix": latest_vix, "change_pct": round(vix_change_pct, 3), "avg_20": round(avg_vix_20, 1)},
+                    data={"vix": latest_vix, "change_pct": round(vix_change_pct, 3), "avg_20": round(avg_vix_20, 1),
+                          "sector": "ETF"},
                 ))
                 # Also signal buy opportunity for hedges
                 for hedge in ["UVXY", "SQQQ", "TLT", "GLD"]:
@@ -644,6 +655,7 @@ class TurboScanner:
                         direction="bullish",
                         score=score * 0.8,
                         reasoning=f"VIX spike +{vix_change_pct:.0%} — {hedge} as hedge/beneficiary",
+                        data={"sector": get_sector_or_none(hedge) or "Unknown"},
                     ))
 
             # VIX collapse from high (>25% drop from elevated level)
@@ -656,7 +668,8 @@ class TurboScanner:
                     direction="bullish",
                     score=0.55,
                     reasoning=f"VIX crush: {prev_vix:.1f} -> {latest_vix:.1f} ({vix_change_pct:.0%}). Fear subsiding.",
-                    data={"vix": latest_vix, "change_pct": round(vix_change_pct, 3)},
+                    data={"vix": latest_vix, "change_pct": round(vix_change_pct, 3),
+                          "sector": "ETF"},
                 ))
 
             # Elevated VIX regime (VIX > 25, unusual)
@@ -667,7 +680,8 @@ class TurboScanner:
                     direction="unknown",
                     score=0.5,
                     reasoning=f"Elevated VIX regime: {latest_vix:.1f} (avg20={avg_vix_20:.1f}). High vol environment.",
-                    data={"vix": latest_vix, "avg_20": round(avg_vix_20, 1)},
+                    data={"vix": latest_vix, "avg_20": round(avg_vix_20, 1),
+                          "sector": "ETF"},
                 ))
 
             return signals
@@ -715,7 +729,8 @@ class TurboScanner:
                     direction=direction,
                     score=score,
                     reasoning=f"Options flow {ratio:.1f}x normal (${premium:,.0f}), {'call' if call_vol > put_vol else 'put'} heavy",
-                    data={"premium": premium, "ratio": round(ratio, 1), "pcr": round(pcr, 2)},
+                    data={"premium": premium, "ratio": round(ratio, 1), "pcr": round(pcr, 2),
+                          "sector": get_sector_or_none(symbol) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -769,7 +784,8 @@ class TurboScanner:
                     direction=direction,
                     score=score,
                     reasoning=reasoning,
-                    data={"zscore": round(zscore, 2), "ret_5d": round(ret_5d, 4)},
+                    data={"zscore": round(zscore, 2), "ret_5d": round(ret_5d, 4),
+                          "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -815,7 +831,8 @@ class TurboScanner:
                         direction="bearish",
                         score=score,
                         reasoning=f"Gap-up reversal: gapped +{gap:.1%}, closed {intraday:.1%}",
-                        data={"gap": round(gap, 4), "intraday": round(intraday, 4)},
+                        data={"gap": round(gap, 4), "intraday": round(intraday, 4),
+                              "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                     ))
                 elif gap < -0.02 and intraday > 0.01:
                     score = min(1.0, 0.3 + abs(gap) * 5 + abs(intraday) * 3)
@@ -825,7 +842,8 @@ class TurboScanner:
                         direction="bullish",
                         score=score,
                         reasoning=f"Gap-down reversal: gapped {gap:.1%}, recovered {intraday:.1%}",
-                        data={"gap": round(gap, 4), "intraday": round(intraday, 4)},
+                        data={"gap": round(gap, 4), "intraday": round(intraday, 4),
+                              "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                     ))
             return signals
         except Exception as e:
@@ -898,7 +916,8 @@ class TurboScanner:
                     score=score,
                     reasoning=reasoning,
                     data={"bb_width": round(bb_width, 4), "vol_ratio": round(vol_ratio, 1),
-                           "close": round(close, 2)},
+                           "close": round(close, 2),
+                           "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -980,7 +999,8 @@ class TurboScanner:
                     score=score,
                     reasoning=reasoning,
                     data={"rsi": round(rsi, 1), "rsi_gap": round(rsi_gap, 1),
-                           "close": round(row.get("close", 0) or 0, 2)},
+                           "close": round(row.get("close", 0) or 0, 2),
+                           "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -1074,7 +1094,8 @@ class TurboScanner:
                     reasoning=reasoning,
                     data={"gap_up_pct": round(gap_up, 4), "gap_down_pct": round(gap_down, 4),
                            "intraday_ret": round(intraday, 4), "vol_ratio": round(vol_ratio, 1),
-                           "close": round(row.get("close", 0) or 0, 2)},
+                           "close": round(row.get("close", 0) or 0, 2),
+                           "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:
@@ -1168,7 +1189,8 @@ class TurboScanner:
                     reasoning=reasoning,
                     data={"rsi": round(rsi, 1), "sma_50": round(sma_50, 2),
                            "adx": round(adx, 1), "confluence_count": confluence_count,
-                           "close": round(close, 2)},
+                           "close": round(close, 2),
+                           "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
                 ))
             return signals
         except Exception as e:

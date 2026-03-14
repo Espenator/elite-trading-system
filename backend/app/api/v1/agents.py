@@ -354,24 +354,60 @@ async def _run_ml_learning_tick():
 
 
 async def _run_sentiment_tick():
-    """Run one Sentiment Agent tick: aggregate Stockgeist/News/Discord/X, NLP score per ticker, spike detection."""
-    from app.modules.social_news_engine import run_tick as sentiment_run_tick
+    """Run one Sentiment Agent tick — aggregate social/news sentiment."""
+    import asyncio
 
-    agent_name = _agent_by_id(4)["name"]
     try:
-        with _instrument_tick(4):
-            entries = sentiment_run_tick()
-        for msg, level in entries:
-            _append_log(agent_name, msg, level)
+        from app.modules.social_news_engine.aggregators import aggregate_all
+        from app.modules.social_news_engine.config import DEFAULT_SOURCES
+        # Get symbols from active signals or watchlist
+        symbols = []
+        try:
+            from app.services.turbo_scanner import get_scanner
+            scanner = get_scanner()
+            if scanner:
+                sigs = scanner.get_signals()
+                symbols = list(set(s.symbol for s in sigs))[:20]
+        except Exception:
+            pass
+        if not symbols:
+            symbols = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA"]  # Fallback
+
+        results = await asyncio.to_thread(aggregate_all, symbols, DEFAULT_SOURCES)
+        count = len(results) if results else 0
+
+        # Persist results to sentiment store
+        if results:
+            try:
+                from app.services import sentiment_store
+                for item in results:
+                    sym = (item.get("ticker") or "").upper()
+                    if sym:
+                        sentiment_store.update(sym, {
+                            "source": item.get("source", "unknown"),
+                            "text": (item.get("text") or "")[:200],
+                        })
+            except Exception:
+                pass
+
+        _append_log("Sentiment Agent", f"Aggregated {count} sentiment items for {len(symbols)} symbols", "info")
         _set_last_tick_at(4)
-        _set_current_task(
-            4,
-            entries[0][0][:200] if entries else "Polling Stockgeist, News, Discord, X",
-        )
+        _set_current_task(4, f"Processed {count} items from {len(symbols)} symbols")
     except Exception as e:
-        logger.exception("Sentiment tick failed")
-        _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
-        _set_current_task(4, f"Error: {str(e)[:80]}")
+        logger.warning("Sentiment Agent tick error: %s", e)
+        _append_log("Sentiment Agent", f"Tick error: {str(e)[:80]}", "warning")
+        _set_last_tick_at(4)
+        _set_current_task(4, "Waiting for API keys \u2014 check Settings")
+
+
+async def run_sentiment_tick_if_running():
+    if _effective_status(4) != "running":
+        return
+    await _run_sentiment_tick()
+    await broadcast_ws(
+        "agents",
+        {"type": "tick_completed", "agent_id": 4, "last_tick_at": _get_last_tick_at(4)},
+    )
 
 
 async def _run_youtube_knowledge_tick():

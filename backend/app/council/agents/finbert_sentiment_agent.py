@@ -86,6 +86,24 @@ async def evaluate(
                 blackboard.sentiment["crowd_extremes"].append(symbol)
         blackboard.sentiment["wsb_momentum"][symbol] = wsb_score
 
+    # Publish sentiment to message bus for persistence
+    try:
+        from app.core.message_bus import get_message_bus
+        bus = get_message_bus()
+        if bus and posts:
+            from datetime import datetime
+            await bus.publish("sentiment.update", {
+                "symbol": symbol,
+                "source": "finbert",
+                "score": ticker_score,
+                "headlines_count": len(posts),
+                "bullish_pct": bullish_pct,
+                "volume_anomaly": volume_anomaly,
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+    except Exception:
+        pass  # Never break council voting
+
     # Determine vote with contrarian filter
     direction, confidence = _sentiment_to_vote(
         ticker_score, bullish_pct, is_extreme, extreme_type,

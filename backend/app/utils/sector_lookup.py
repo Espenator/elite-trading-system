@@ -3,9 +3,13 @@
 Provides GICS sector classification for common US equities.
 Used by Risk Governor and OrderExecutor to enforce sector concentration
 and correlation limits even when Alpaca doesn't provide sector data.
+
+Includes a DuckDB fallback for tickers not in the static map, using
+finviz screener data if available.
 """
 
 import logging
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -134,17 +138,59 @@ GICS_SECTORS = [
 ]
 
 
+@lru_cache(maxsize=4096)
+def enrich_sector_from_duckdb(symbol: str) -> str:
+    """Try to look up sector from DuckDB (finviz screener or similar data).
+
+    SYNCHRONOUS — safe to call from sync scan methods.
+    Uses LRU cache so repeated lookups are fast.
+    Returns sector string or "" on any error / miss.
+    """
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        cursor = duckdb_store.get_thread_cursor()
+        # Try finviz_screener table first (has sector column from FinViz data)
+        for table in ("finviz_screener", "stock_fundamentals", "company_info"):
+            try:
+                row = cursor.execute(
+                    f"SELECT sector FROM {table} WHERE ticker = ? OR symbol = ? LIMIT 1",
+                    [symbol.upper(), symbol.upper()],
+                ).fetchone()
+                if row and row[0]:
+                    sector = str(row[0]).strip()
+                    if sector and sector.lower() not in ("", "none", "n/a"):
+                        # Cache in the static map too for future fast lookups
+                        _SECTOR_MAP[symbol.upper()] = sector
+                        return sector
+            except Exception:
+                continue  # Table doesn't exist, try next
+    except Exception as e:
+        logger.debug("DuckDB sector lookup failed for %s: %s", symbol, e)
+    return ""
+
+
 def get_sector(symbol: str) -> str:
     """Look up GICS sector for a symbol.
 
     Returns the sector name or "Unknown" if not found.
+    Tries static map first, then DuckDB fallback.
     """
-    return _SECTOR_MAP.get(symbol.upper(), "Unknown")
+    result = _SECTOR_MAP.get(symbol.upper(), "")
+    if result:
+        return result
+    result = enrich_sector_from_duckdb(symbol)
+    return result if result else "Unknown"
 
 
 def get_sector_or_none(symbol: str) -> str:
-    """Look up GICS sector, return empty string if not found."""
-    return _SECTOR_MAP.get(symbol.upper(), "")
+    """Look up GICS sector, return empty string if not found.
+
+    Tries static map first, then DuckDB fallback.
+    """
+    result = _SECTOR_MAP.get(symbol.upper(), "")
+    if result:
+        return result
+    return enrich_sector_from_duckdb(symbol)
 
 
 def is_known_symbol(symbol: str) -> bool:
