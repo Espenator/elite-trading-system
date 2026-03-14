@@ -7,6 +7,7 @@ import ws from '../services/websocket';
 import clsx from 'clsx';
 import { Minus, Plus } from 'lucide-react';
 import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
+import SectionErrorBoundary from '../components/ui/SectionErrorBoundary';
 
 /* ────────────────────────────────────────────────────────────
    Shared tiny components used only in this page
@@ -414,6 +415,7 @@ export default function TradeExecution() {
         </div>
 
         {/* ═══ COL 2 ROW 1: ADVANCED ORDER BUILDER + VISUAL PRICE LADDER ═══ */}
+        <SectionErrorBoundary name="Order Builder">
         <div className="bg-[rgba(42,52,68,0.5)] flex flex-row overflow-hidden" style={{ gap: '1px' }}>
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ flex: '3 1 0%' }}>
           <PanelHead>Advanced Order Builder</PanelHead>
@@ -522,6 +524,7 @@ export default function TradeExecution() {
           />
         </div>
         </div>{/* /col2-flex-row */}
+        </SectionErrorBoundary>
 
         {/* ═══ COL 3 ROW 1: LIVE ORDER BOOK ═══ */}
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
@@ -622,6 +625,7 @@ export default function TradeExecution() {
         </div>
 
         {/* ═══ BOTTOM LEFT (cols 1-3): LIVE POSITIONS ═══ */}
+        <SectionErrorBoundary name="Live Positions">
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ gridColumn: '1 / 4' }}>
           <div className="flex gap-0 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] shrink-0">
             <button onClick={() => setPositionsTab('positions')} className={clsx('px-3.5 py-1.5 font-mono text-[9px] border-b-2 cursor-pointer', positionsTab === 'positions' ? 'text-[#00D9FF] border-[#00D9FF]' : 'text-gray-500 border-transparent hover:text-[#c8d6e5]')}>Live Positions</button>
@@ -692,6 +696,7 @@ export default function TradeExecution() {
             )}
           </div>
         </div>
+        </SectionErrorBoundary>
 
         {/* ═══ BOTTOM RIGHT (col 4): SYSTEM STATUS LOG ═══ */}
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">

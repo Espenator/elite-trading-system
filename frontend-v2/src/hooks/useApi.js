@@ -16,6 +16,25 @@ const DEFAULT_TIMEOUT_MS = 15000;
 // healthz uses extended timeout — backend event loop can be busy (scouts, streams) causing 15–25s latency
 const HEALTHZ_TIMEOUT_MS = 25000;
 
+// Per-endpoint timeout map — longer timeouts for slow endpoints
+const _TIMEOUT_MAP = {
+  '/signals': 5000,
+  '/quotes': 10000,
+  '/backtest': 30000,
+  '/system/status': 10000,
+  '/healthz': HEALTHZ_TIMEOUT_MS,
+  '/council/evaluate': 30000,
+  '/features/compute': 20000,
+  default: 8000,
+};
+
+function _getTimeout(url) {
+  for (const [pattern, timeout] of Object.entries(_TIMEOUT_MAP)) {
+    if (pattern !== 'default' && url.includes(pattern)) return timeout;
+  }
+  return _TIMEOUT_MAP.default;
+}
+
 // Simple in-memory cache (stale-while-revalidate)
 const _apiCache = new Map();
 const CACHE_MAX_SIZE = 200;
@@ -24,11 +43,11 @@ const CACHE_STALE_MS = 300000; // 5 min
 // Global concurrency limiter — prevents browser connection exhaustion
 let _activeRequests = 0;
 const MAX_CONCURRENT = 6;
-const _queue = [];
+const _pendingQueue = [];
 
 function _runNext() {
-  while (_queue.length > 0 && _activeRequests < MAX_CONCURRENT) {
-    const { resolve } = _queue.shift();
+  while (_pendingQueue.length > 0 && _activeRequests < MAX_CONCURRENT) {
+    const { resolve } = _pendingQueue.shift();
     _activeRequests++;
     resolve();
   }
@@ -39,12 +58,33 @@ function _acquireSlot() {
     _activeRequests++;
     return Promise.resolve();
   }
-  return new Promise((resolve) => _queue.push({ resolve }));
+  return new Promise((resolve) => _pendingQueue.push({ resolve }));
 }
 
 function _releaseSlot() {
   _activeRequests--;
   _runNext();
+}
+
+/**
+ * Enqueue a request function through the concurrency limiter.
+ * Returns a promise that resolves with the function's return value.
+ */
+async function _enqueueRequest(fn) {
+  await _acquireSlot();
+  try {
+    return await fn();
+  } finally {
+    _releaseSlot();
+  }
+}
+
+// Reduce polling frequency when tab is hidden to save resources
+function _getEffectiveInterval(baseInterval) {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    return Math.max(baseInterval * 12, 60000); // At least 60s when hidden
+  }
+  return baseInterval;
 }
 
 // Per-URL in-flight deduplication + short-lived result cache (2s window)
@@ -89,15 +129,6 @@ export function useApi(endpoint, options = {}) {
   // Track whether the tab is visible — pause polling when hidden
   const visibleRef = useRef(!document.hidden);
 
-  // Page visibility listener — pause/resume polling
-  useEffect(() => {
-    const handleVisibility = () => {
-      visibleRef.current = !document.hidden;
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
-
   const fetchData = useCallback(async (signal) => {
     let url = getApiUrl(endpoint);
     if (endpointOverride) {
@@ -108,6 +139,24 @@ export function useApi(endpoint, options = {}) {
       setError(new Error(`Unknown endpoint: ${endpoint}`));
       setLoading(false);
       return;
+    }
+
+    // Stale-while-revalidate: serve cached data immediately, revalidate in background
+    const swrCached = _apiCache.get(url);
+    if (swrCached) {
+      const age = Date.now() - swrCached.ts;
+      if (age < CACHE_STALE_MS) {
+        // Serve cached data immediately (eliminates loading spinners on revisit)
+        if (!signal?.aborted) {
+          setData(swrCached.data);
+          setLoading(false);
+          setIsStale(age > DEDUP_WINDOW_MS); // Mark stale if older than dedup window
+          setLastUpdated(swrCached.ts);
+        }
+        // If cache is very fresh (within dedup window), skip network entirely
+        if (age < DEDUP_WINDOW_MS) return;
+        // Otherwise, continue to revalidate in background (don't return)
+      }
     }
 
     // Deduplicate: if same URL was fetched within DEDUP_WINDOW_MS, reuse result
@@ -148,44 +197,39 @@ export function useApi(endpoint, options = {}) {
       }
     }
 
-    const fetchPromise = (async () => {
-      await _acquireSlot();
-      try {
-        const MAX_RETRIES = 3;
-        const effectiveTimeout = timeoutMs ?? (endpoint === "healthz" ? HEALTHZ_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-          const timeoutCtrl = new AbortController();
-          const timeoutId = setTimeout(() => timeoutCtrl.abort(), effectiveTimeout);
-          const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
+    const fetchPromise = _enqueueRequest(async () => {
+      const MAX_RETRIES = 3;
+      const effectiveTimeout = timeoutMs ?? _getTimeout(url);
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const timeoutCtrl = new AbortController();
+        const timeoutId = setTimeout(() => timeoutCtrl.abort(), effectiveTimeout);
+        const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
 
-          try {
-            const res = await fetch(url, {
-              cache: "no-store",
-              headers: getAuthHeaders(),
-              signal: combinedCtrl.signal,
-            });
-            // Retry on 503 Service Unavailable with exponential backoff
-            if (res.status === 503 && attempt < MAX_RETRIES) {
-              clearTimeout(timeoutId);
-              await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
-              continue;
-            }
-            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-            const json = await res.json();
-            if (_apiCache.size >= CACHE_MAX_SIZE) {
-              const oldest = _apiCache.keys().next().value;
-              _apiCache.delete(oldest);
-            }
-            _apiCache.set(url, { data: json, ts: Date.now() });
-            return json;
-          } finally {
+        try {
+          const res = await fetch(url, {
+            cache: "no-store",
+            headers: getAuthHeaders(),
+            signal: combinedCtrl.signal,
+          });
+          // Retry on 503 Service Unavailable with exponential backoff
+          if (res.status === 503 && attempt < MAX_RETRIES) {
             clearTimeout(timeoutId);
+            await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+            continue;
           }
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          const json = await res.json();
+          if (_apiCache.size >= CACHE_MAX_SIZE) {
+            const oldest = _apiCache.keys().next().value;
+            _apiCache.delete(oldest);
+          }
+          _apiCache.set(url, { data: json, ts: Date.now() });
+          return json;
+        } finally {
+          clearTimeout(timeoutId);
         }
-      } finally {
-        _releaseSlot();
       }
-    })();
+    });
 
     _inflight.set(url, fetchPromise);
     // Store in dedup cache so near-simultaneous requests share this result
@@ -214,6 +258,19 @@ export function useApi(endpoint, options = {}) {
     }
   }, [endpoint, endpointOverride]);
 
+  // Page visibility listener — pause/resume polling + immediate refetch on tab focus
+  useEffect(() => {
+    const handleVisibility = () => {
+      visibleRef.current = !document.hidden;
+      // When tab becomes visible again, trigger an immediate refresh
+      if (document.visibilityState === 'visible' && pollIntervalMs > 0 && enabled) {
+        fetchData(abortRef.current?.signal);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [pollIntervalMs, enabled, fetchData]);
+
   useEffect(() => {
     if (!enabled) {
       setLoading(false);
@@ -227,14 +284,19 @@ export function useApi(endpoint, options = {}) {
     return () => ctrl.abort();
   }, [enabled, fetchData]);
 
-  // Polling with visibility pause — skips tick when tab is hidden
+  // Polling with visibility-aware interval — slower when tab is hidden, normal when visible
   useEffect(() => {
     if (!enabled || pollIntervalMs <= 0) return;
-    const id = setInterval(() => {
-      if (!visibleRef.current) return; // FIX: pause when tab hidden
-      fetchData(abortRef.current?.signal);
-    }, pollIntervalMs);
-    return () => clearInterval(id);
+    let id;
+    const scheduleTick = () => {
+      const interval = _getEffectiveInterval(pollIntervalMs);
+      id = setTimeout(() => {
+        fetchData(abortRef.current?.signal);
+        scheduleTick(); // Schedule next tick with potentially updated interval
+      }, interval);
+    };
+    scheduleTick();
+    return () => clearTimeout(id);
   }, [enabled, pollIntervalMs, fetchData]);
 
   // 24/7 recovery: when API was down (error set) and we use polling, retry every 5s until back up
@@ -277,24 +339,28 @@ export function useKellyRanked(enabled = true) {
 
 /**
  * Shared fetch wrapper with timeout + AbortController support.
+ * Routes through the concurrency limiter and uses per-endpoint timeouts.
  */
-async function apiFetch(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(), ...options.headers },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    return res.json();
-  } catch (err) {
-    if (err.name === 'AbortError') throw new Error(`Request timeout after ${timeoutMs}ms`);
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+async function apiFetch(url, options = {}, timeoutMs) {
+  const effectiveTimeout = timeoutMs ?? _getTimeout(url);
+  return _enqueueRequest(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(), ...options.headers },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      return res.json();
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error(`Request timeout after ${effectiveTimeout}ms`);
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  });
 }
 
 export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {

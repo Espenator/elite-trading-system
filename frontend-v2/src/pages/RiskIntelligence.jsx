@@ -18,6 +18,7 @@ import {
   Clock, Octagon, ChevronDown, Radio, X
 } from 'lucide-react';
 import { ParameterSweepsPanel } from '../components/dashboard/RiskWidgets';
+import SectionErrorBoundary from '../components/ui/SectionErrorBoundary';
 
 // ─── COLOR PALETTE (dark theme) ─────────────────────────────────────────────
 const C = {
@@ -617,6 +618,7 @@ export default function RiskIntelligence() {
           ════════════════════════════════════════════════════════════════════════ */}
       <div className="p-3 space-y-3">
       {/* TOP SECTION ROW: Risk Configuration | Parameter Sweeps | Realtime Risk Detail */}
+      <SectionErrorBoundary name="Risk Configuration">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
 
         {/* --- Risk Configuration (left, 4 cols) --- */}
@@ -800,10 +802,12 @@ export default function RiskIntelligence() {
           </div>
         </Card>
       </div>
+      </SectionErrorBoundary>
 
       {/* ════════════════════════════════════════════════════════════════════════
           MAIN GRID ROW: Stop-Loss | Correlation | Vol Regime | AI Monitors | Position Sizing
           ════════════════════════════════════════════════════════════════════════ */}
+      <SectionErrorBoundary name="Risk Monitors">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3">
 
         {/* --- Stop-Loss Command (2 cols) --- */}
@@ -975,6 +979,7 @@ export default function RiskIntelligence() {
           <PositionSizer kelly={kelly} portfolioValue={portfolioValue} loading={kellyLoading} />
         </Card>
       </div>
+      </SectionErrorBoundary>
 
       {/* ════════════════════════════════════════════════════════════════════════
           ROW 3: Risk Interdependencies
@@ -1001,6 +1006,7 @@ export default function RiskIntelligence() {
       {/* ════════════════════════════════════════════════════════════════════════
           BOTTOM: 90-Day Risk History (data table)
           ════════════════════════════════════════════════════════════════════════ */}
+      <SectionErrorBoundary name="Risk History">
       <Card title="90-Day Risk History"
             action={
               <div className="flex items-center gap-3">
@@ -1123,6 +1129,7 @@ export default function RiskIntelligence() {
           )}
         </div>
       </Card>
+      </SectionErrorBoundary>
 
       </div>
 

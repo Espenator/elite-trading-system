@@ -7,6 +7,7 @@ Data sources (in priority order):
 If Finviz is unavailable, all endpoints automatically fall back to Alpaca.
 """
 import logging
+import time
 from fastapi import APIRouter, HTTPException, Query, Path
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,28 @@ from app.core.config import settings
 router = APIRouter()
 logger = logging.getLogger(__name__)
 finviz_service = FinvizService()
+
+# Per-ticker quote cache (5s TTL) — avoids hammering Alpaca/Finviz on rapid refreshes
+_quote_cache: Dict[str, Dict[str, Any]] = {}
+_QUOTE_CACHE_TTL = 5  # seconds
+
+
+def _get_cached_quote(cache_key: str) -> Any:
+    """Return cached quote data if fresh, else None."""
+    entry = _quote_cache.get(cache_key)
+    if entry and time.time() - entry["timestamp"] < _QUOTE_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def _set_cached_quote(cache_key: str, data: Any) -> None:
+    """Store quote data in cache. Evict old entries if cache grows too large."""
+    if len(_quote_cache) > 500:
+        # Evict oldest half
+        sorted_keys = sorted(_quote_cache, key=lambda k: _quote_cache[k]["timestamp"])
+        for k in sorted_keys[:250]:
+            del _quote_cache[k]
+    _quote_cache[cache_key] = {"data": data, "timestamp": time.time()}
 
 # Whether Finviz is available (has API key)
 _finviz_available = bool(settings.FINVIZ_API_KEY)
@@ -159,7 +182,14 @@ async def get_candles(
     """
     Get OHLCV candles for the Dashboard Price Action chart.
     Returns { candles: [ { time, open, high, low, close, volume }, ... ] }.
+
+    Cached for 5 seconds per ticker+timeframe to avoid API hammering.
     """
+    cache_key = f"candles:{ticker}:{timeframe}:{limit}"
+    cached = _get_cached_quote(cache_key)
+    if cached is not None:
+        return cached
+
     p_map = {"1m": "i1", "5m": "i5", "15m": "i15", "1h": "h", "4h": "h", "1D": "d", "1W": "w"}
     r_map = {"1m": "d1", "5m": "d1", "15m": "d5", "1h": "d5", "4h": "m1", "1D": "m3", "1W": "y1"}
     p = p_map.get(timeframe, "h")
@@ -172,7 +202,9 @@ async def get_candles(
             if quotes and isinstance(quotes, list):
                 normalized = [n for row in quotes if (n := _normalize_row(row))]
                 if normalized:
-                    return {"candles": normalized, "bars": normalized}
+                    result = {"candles": normalized, "bars": normalized}
+                    _set_cached_quote(cache_key, result)
+                    return result
         except Exception as e:
             logger.warning("Finviz candle fetch failed for %s, trying Alpaca: %s", ticker, e)
 
@@ -182,7 +214,9 @@ async def get_candles(
     bar_limit = min(max(bar_limit, 1), 1000)
     alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=effective_tf, limit=bar_limit)
     if alpaca_bars:
-        return {"candles": alpaca_bars, "bars": alpaca_bars, "source": "alpaca"}
+        result = {"candles": alpaca_bars, "bars": alpaca_bars, "source": "alpaca"}
+        _set_cached_quote(cache_key, result)
+        return result
 
     return {"candles": [], "bars": []}
 
@@ -242,7 +276,14 @@ async def get_quote_data(
     Accepts ?timeframe=15m (e.g. from Signal Intelligence) or legacy ?p=&r=.
     Returns { bars: [ { time, open, high, low, close, volume }, ... ], data: same }.
     On Finviz/API error returns 200 with empty bars so charts can render.
+
+    Cached for 5 seconds per ticker+timeframe to avoid API hammering.
     """
+    cache_key = f"quote:{ticker}:{timeframe}:{p}:{r}:{limit}"
+    cached = _get_cached_quote(cache_key)
+    if cached is not None:
+        return cached
+
     p_map = {"1m": "i1", "5m": "i5", "15m": "i15", "1h": "h", "4h": "h", "1D": "d", "1W": "w"}
     r_map = {"1m": "d1", "5m": "d1", "15m": "d5", "1h": "d5", "4h": "m1", "1D": "m3", "1W": "y1"}
     if timeframe:
@@ -266,14 +307,18 @@ async def get_quote_data(
             if quotes and isinstance(quotes, list):
                 normalized = [n for row in quotes if (n := _normalize_row(row))]
                 if normalized:
-                    return {"bars": normalized, "data": normalized}
+                    result = {"bars": normalized, "data": normalized}
+                    _set_cached_quote(cache_key, result)
+                    return result
         except Exception as e:
             logger.warning("Quote fetch failed for %s (timeframe=%s), trying Alpaca: %s", ticker, timeframe or p, e)
 
     # Alpaca Market Data API fallback (works 24/7 including weekends)
     alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=effective_tf, limit=bar_limit)
     if alpaca_bars:
-        return {"bars": alpaca_bars, "data": alpaca_bars, "source": "alpaca"}
+        result = {"bars": alpaca_bars, "data": alpaca_bars, "source": "alpaca"}
+        _set_cached_quote(cache_key, result)
+        return result
 
     return {"bars": [], "data": []}
 

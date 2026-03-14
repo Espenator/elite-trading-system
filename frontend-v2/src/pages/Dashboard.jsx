@@ -8,6 +8,7 @@ import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import SectionErrorBoundary from "../components/ui/SectionErrorBoundary";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals, snapshots = {} }) => {
@@ -1358,6 +1359,7 @@ export default function Dashboard() {
         </div>
       )}
       {/* TOP HEADER BAR */}
+      <SectionErrorBoundary name="Header Bar">
       <header className="flex items-center justify-between px-4 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-2 pr-4 border-r border-[rgba(42,52,68,0.5)]">
@@ -1463,6 +1465,7 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+      </SectionErrorBoundary>
 
       {/* SCROLLING TICKER STRIP */}
       <TickerStrip indices={indices} signals={processedSignals} snapshots={tickerSnapshots} />
@@ -1479,6 +1482,7 @@ export default function Dashboard() {
       <main className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
         {/* CENTER COLUMN: Sort Pills + Table (dominant area) */}
+        <SectionErrorBoundary name="Signal Table">
         <section className="flex flex-col flex-1 min-w-0 md:border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14] min-h-[300px] md:min-h-0">
           {/* Sort Pills Row */}
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 overflow-x-auto no-scrollbar">
@@ -1655,8 +1659,10 @@ export default function Dashboard() {
             </div>
           )}
         </section>
+        </SectionErrorBoundary>
 
         {/* RIGHT COLUMN: Intelligence Panel (~32%) */}
+        <SectionErrorBoundary name="Intelligence Panel">
         <section className="flex flex-col w-full md:w-[32%] max-h-[50vh] md:max-h-none bg-[#111827] overflow-y-auto custom-scrollbar border-t md:border-t-0 border-[rgba(42,52,68,0.5)]">
           {/* Swarm Consensus Bars (prominent at top per mockup) — GET /api/v1/agents/consensus */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
@@ -1936,6 +1942,7 @@ export default function Dashboard() {
             <FlywheelPipeline flywheel={flywheel} />
           </div>
         </section>
+        </SectionErrorBoundary>
       </main>
 
       {/* BOTTOM ACTION BAR */}
@@ -1960,9 +1967,7 @@ export default function Dashboard() {
       </div>
 
       {/* Global CSS */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
+      <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -1974,9 +1979,7 @@ export default function Dashboard() {
         .ticker-strip:hover { animation-play-state: paused; }
         @keyframes ticker-glow { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
         .ticker-glow { animation: ticker-glow 2s ease-in-out infinite; }
-      `,
-        }}
-      />
+      `}</style>
 
       {/* Confirmation Dialogs */}
       <ConfirmDialog
