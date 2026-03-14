@@ -39,8 +39,32 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.services.execution_decision import ExecutionDecision, ExecutionDenyReason
+from app.services.data_swarm.session_clock import get_session_clock, TradingSession
 
 logger = logging.getLogger(__name__)
+
+
+def _get_session_order_params() -> Dict[str, Any]:
+    """Return session-aware order parameters for Alpaca 24/5 trading.
+
+    Maps current TradingSession to the correct time_in_force and
+    extended_hours values per Alpaca's 24/5 overnight trading API.
+
+    Returns:
+        Dict with 'time_in_force' and 'extended_hours' keys.
+
+    Session mapping:
+      REGULAR:     day / no extended   (standard market hours)
+      PRE_MARKET:  day / extended=True  (4 AM - 9:30 AM ET)
+      AFTER_HOURS: day / extended=True  (4 PM - 8 PM ET)
+      OVERNIGHT:   day / extended=True  (8 PM - 4 AM ET, Alpaca 24/5)
+      WEEKEND:     day / no extended    (orders queue for next open)
+    """
+    session = get_session_clock().get_current_session()
+    if session in (TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS, TradingSession.OVERNIGHT):
+        return {"time_in_force": "day", "extended_hours": True}
+    # REGULAR and WEEKEND: standard day order (WEEKEND orders queue until next open)
+    return {"time_in_force": "day", "extended_hours": False}
 
 
 def _emit_gate_denied(reason: str) -> None:
@@ -682,13 +706,14 @@ class OrderExecutor:
         )
         alpaca = self._get_alpaca_service()
         try:
+            session_params = _get_session_order_params()
             order_kwargs: Dict[str, Any] = {
                 "symbol": record.symbol,
                 "qty": str(record.qty),
                 "side": record.side,
                 "type": order_type,
-                "time_in_force": "day",
                 "client_order_id": record.client_order_id,
+                **session_params,
             }
             # Add limit price for limit orders (B5)
             if order_type == "limit" and limit_price:
@@ -856,8 +881,8 @@ class OrderExecutor:
                     side="buy" if decision.direction == "buy" else "sell",
                     type="limit",
                     limit_price=str(round(limit_price, 2)),
-                    time_in_force="day",
                     client_order_id=child_id,
+                    **_get_session_order_params(),
                 )
                 if result:
                     filled_total += slice_qty
@@ -1089,8 +1114,8 @@ class OrderExecutor:
                 qty=str(remainder),
                 side=original.side,
                 type="market",  # Always market for remainder (speed)
-                time_in_force="day",
                 client_order_id=client_order_id,
+                **_get_session_order_params(),
             )
             if result:
                 rem_record = OrderRecord(
@@ -1614,7 +1639,7 @@ class OrderExecutor:
                         qty=str(abs(int(float(qty)))),
                         side=close_side,
                         type="market",
-                        time_in_force="day",
+                        **_get_session_order_params(),
                     )
                     if resp:
                         logger.info("Flatten CLOSED: %s %s qty=%s", symbol, close_side, qty)
@@ -1696,7 +1721,7 @@ class OrderExecutor:
                         qty=item["qty"],
                         side=item["side"],
                         type="market",
-                        time_in_force="day",
+                        **_get_session_order_params(),
                     )
                     if resp:
                         logger.info("Recovery close succeeded for %s (attempt %d)", symbol, attempt + 1)

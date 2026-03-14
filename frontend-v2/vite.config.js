@@ -32,7 +32,8 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             vendor: ["react", "react-dom", "react-router-dom"],
-            charts: ["lightweight-charts", "recharts"],
+            recharts: ["recharts"],
+            "lightweight-charts": ["lightweight-charts"],
             flow: ["reactflow"],
           },
         },

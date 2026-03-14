@@ -12,6 +12,10 @@ Only starts when SCHEDULER_ENABLED=true.
 Market Hours Guard:
   GPU training jobs (XGBoost CUDA) are blocked during 09:30-16:00 ET
   to protect VRAM for gemma3:12b live inference on PC2.
+
+24/5 Session Support:
+  is_trading_session() — True for any active session (Sun 8 PM - Fri 8 PM ET)
+  get_cycle_interval() — session-specific cycle interval in seconds
 """
 import asyncio
 import logging
@@ -26,6 +30,8 @@ def is_market_hours() -> bool:
 
     Used to block GPU training jobs that would starve VRAM
     needed for gemma3:12b live inference on PC2.
+    Note: This is the VRAM protection guard — NOT the trading session check.
+    For 24/5 trading session awareness, use is_trading_session() instead.
     """
     try:
         import pytz
@@ -35,6 +41,49 @@ def is_market_hours() -> bool:
         et_offset = timezone(timedelta(hours=-5))  # EST approximation
         et = datetime.now(et_offset).time()
     return dt_time(9, 30) <= et <= dt_time(16, 0)
+
+
+def is_trading_session() -> bool:
+    """Return True if we're in any active 24/5 trading session.
+
+    Active sessions (Sun 8 PM ET through Fri 8 PM ET):
+      OVERNIGHT, PRE_MARKET, REGULAR, AFTER_HOURS
+
+    Inactive:
+      WEEKEND (Sat 8 PM - Sun 8 PM ET)
+
+    Used by the scanning/trading pipeline to decide whether to
+    process signals and submit orders.
+    """
+    from app.services.data_swarm.session_clock import get_session_clock, TradingSession
+    session = get_session_clock().get_current_session()
+    return session != TradingSession.WEEKEND
+
+
+# Session-specific cycle intervals (seconds)
+_SESSION_CYCLE_INTERVALS = {
+    "regular": 15 * 60,       # 15 min — full liquidity, tight cycles
+    "pre_market": 30 * 60,    # 30 min — thinner liquidity
+    "after_hours": 30 * 60,   # 30 min — thinner liquidity
+    "overnight": 60 * 60,     # 60 min — minimal liquidity, conserve resources
+    "weekend": 0,             # No trading
+}
+
+
+def get_cycle_interval() -> int:
+    """Return the appropriate scan/trading cycle interval for current session.
+
+    Returns:
+        Interval in seconds. 0 means no trading (weekend).
+        - REGULAR:     900s  (15 min)
+        - PRE_MARKET:  1800s (30 min)
+        - AFTER_HOURS: 1800s (30 min)
+        - OVERNIGHT:   3600s (60 min)
+        - WEEKEND:     0     (inactive)
+    """
+    from app.services.data_swarm.session_clock import get_session_clock
+    session = get_session_clock().get_current_session()
+    return _SESSION_CYCLE_INTERVALS.get(session.value, 900)
 
 _scheduler = None
 
