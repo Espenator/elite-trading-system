@@ -7,6 +7,7 @@ assessment) and synthesizes results. Requires OLLAMA_NUM_PARALLEL=4 on PC2.
 import asyncio
 import json
 import logging
+import os
 from typing import Any, Dict, List
 
 from app.council.agent_config import get_agent_thresholds
@@ -15,6 +16,8 @@ from app.council.schemas import AgentVote
 logger = logging.getLogger(__name__)
 
 NAME = "hypothesis"
+# Tight timeout for hypothesis inference (default 1.5s from BRAIN_SERVICE_TIMEOUT)
+_HYPOTHESIS_TIMEOUT = float(os.getenv("BRAIN_SERVICE_TIMEOUT", "1.5"))
 
 
 async def evaluate(
@@ -71,6 +74,7 @@ async def evaluate(
             feature_json=feature_json,
             regime=regime,
             context=brain_context,
+            timeout=_HYPOTHESIS_TIMEOUT,
         )
 
         # Map LLM confidence to direction (coerce to float for safety)
@@ -112,6 +116,10 @@ async def evaluate(
             "llm_direction": direction,
             "llm_latency_ms": latency_ms,
         }
+        logger.info(
+            "[hypothesis] LLM: brain_pc2 | %dms | conf=%.3f | dir=%s | symbol=%s",
+            latency_ms, llm_conf, direction, symbol,
+        )
         return AgentVote(
             agent_name=NAME,
             direction=direction,
@@ -122,13 +130,14 @@ async def evaluate(
         )
 
     except Exception as e:
-        logger.warning("Hypothesis agent error: %s", e)
+        logger.warning("Hypothesis agent error (falling back): %s", e)
         return AgentVote(
             agent_name=NAME,
             direction="hold",
             confidence=0.1,
-            reasoning=f"Hypothesis error: {e}",
+            reasoning=f"LLM unavailable — rule-based fallback: {e}",
             weight=cfg["weight_hypothesis"],
+            metadata={"fallback": True, "error": str(e)},
         )
 
 

@@ -223,8 +223,12 @@ class BrainClient:
         feature_json: str = "{}",
         regime: str = "unknown",
         context: str = "",
+        timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Request LLM inference from Brain Service.
+
+        Args:
+            timeout: Per-call timeout override in seconds. Defaults to BRAIN_REQUEST_TIMEOUT.
 
         Returns dict with: summary, confidence, risk_flags, reasoning_bullets, error
         """
@@ -261,9 +265,10 @@ class BrainClient:
                 context=context,
             )
             _t0 = time.monotonic()
+            _timeout = timeout if timeout is not None else BRAIN_REQUEST_TIMEOUT
             response = await asyncio.wait_for(
                 self._stub.InferCandidateContext(request),
-                timeout=BRAIN_REQUEST_TIMEOUT,
+                timeout=_timeout,
             )
             latency_ms = (time.monotonic() - _t0) * 1000
             self._circuit.record_success(latency_ms=latency_ms)
@@ -277,7 +282,8 @@ class BrainClient:
                 "latency_ms": round(latency_ms, 1),
             }
         except asyncio.TimeoutError:
-            logger.warning("Brain infer timed out after %ds", BRAIN_REQUEST_TIMEOUT)
+            _timeout = timeout if timeout is not None else BRAIN_REQUEST_TIMEOUT
+            logger.warning("Brain infer timed out after %.1fs", _timeout)
             self._circuit.record_failure()
             return {**_stub_infer_response("timeout"), "error": "timeout"}
         except Exception as e:
@@ -291,8 +297,13 @@ class BrainClient:
         symbol: str,
         entry_context: str = "",
         outcome_json: str = "{}",
+        timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Request post-trade critic analysis from Brain Service."""
+        """Request post-trade critic analysis from Brain Service.
+
+        Args:
+            timeout: Per-call timeout override in seconds. Defaults to BRAIN_REQUEST_TIMEOUT.
+        """
         if not self.enabled:
             return _stub_critic_response()
 
@@ -323,9 +334,10 @@ class BrainClient:
                 entry_context=entry_context,
                 outcome_json=outcome_json,
             )
+            _timeout = timeout if timeout is not None else BRAIN_REQUEST_TIMEOUT
             response = await asyncio.wait_for(
                 self._stub.CriticPostmortem(request),
-                timeout=BRAIN_REQUEST_TIMEOUT,
+                timeout=_timeout,
             )
             self._circuit.record_success()
             return {

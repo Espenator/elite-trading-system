@@ -8,6 +8,8 @@ backend/.embodier.pid
 # ── Environment (AUDIT FIX Task 16: catch ALL .env variants) ──
 .env*
 !.env.example
+!.env.pc1
+!.env.pc2
 .github-token
 backend/.env*
 !backend/.env.example
