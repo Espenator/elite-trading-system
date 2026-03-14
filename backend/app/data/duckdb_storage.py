@@ -155,8 +155,8 @@ class DuckDBStorage:
                 self._conn = duckdb.connect(self._db_path)
                 # PC1: use all cores for analytical queries (ESPENMAIN i9)
                 self._conn.execute("SET threads = 8")
-                self._conn.execute("SET memory_limit = '8GB'")
-                self._conn.execute("SET enable_progress_bar = true")
+                self._conn.execute("SET memory_limit = '16GB'")
+                self._conn.execute("SET enable_progress_bar = false")
                 # Initialize schema on first connection
                 if not self._schema_initialized:
                     self._init_schema_internal(self._conn)

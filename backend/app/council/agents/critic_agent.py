@@ -6,6 +6,7 @@ if brain service is unavailable.
 
 Writes postmortem to DuckDB after every post-trade evaluation.
 """
+import asyncio
 import logging
 import os
 import uuid
@@ -211,7 +212,7 @@ async def evaluate(
             "blackboard_snapshot": blackboard.to_snapshot() if blackboard else {},
             "critic_analysis": critic_analysis or "; ".join(lessons[:3]),
         }
-        duckdb_store.insert_postmortem(postmortem)
+        await asyncio.to_thread(duckdb_store.insert_postmortem, postmortem)
         logger.info("Postmortem written for %s: R=%.2f, PnL=$%.2f", symbol, r_multiple, pnl)
     except Exception as e:
         logger.debug("Postmortem write failed: %s", e)
