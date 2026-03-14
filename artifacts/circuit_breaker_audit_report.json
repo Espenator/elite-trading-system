@@ -7,7 +7,7 @@
   "position_limit_halts": true,
   "market_hours_halts": false,
   "runner_skips_council_on_halt": true,
-  "execution_time_ms": 1,
+  "execution_time_ms": 32,
   "thresholds_from_directives": true,
   "errors": [
     "market_hours_halts: Expected halt reason for off-hours\nassert None is not None"
