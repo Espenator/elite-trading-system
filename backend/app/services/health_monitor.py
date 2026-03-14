@@ -180,9 +180,7 @@ class HealthMonitor:
         try:
             from app.services.alpaca_service import alpaca_service
             if alpaca_service:
-                account = await asyncio.to_thread(
-                    lambda: alpaca_service.get_account()
-                )
+                account = await alpaca_service.get_account()
                 if account:
                     equity = getattr(account, "equity", "unknown")
                     status = getattr(account, "status", "unknown")
