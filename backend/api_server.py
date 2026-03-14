@@ -118,6 +118,27 @@ async def health():
     except Exception:
         pass
 
+    # Check Ollama models loaded
+    ollama_info = {}
+    try:
+        import httpx
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get(f"{ollama_url}/api/ps")
+            if resp.status_code == 200:
+                ps_data = resp.json()
+                loaded = ps_data.get("models", [])
+                ollama_info = {
+                    "status": "healthy",
+                    "loaded_models": [
+                        {"name": m.get("name", "?"), "size_gb": round(m.get("size", 0) / 1e9, 1)}
+                        for m in loaded
+                    ],
+                    "models_in_vram": len(loaded),
+                }
+    except Exception:
+        ollama_info = {"status": "unknown"}
+
     status = "healthy" if (redis_ok and brain_ok) else "degraded"
     return {
         "status": status,
@@ -131,6 +152,7 @@ async def health():
                 "vram_gb": _gpu_status.get("vram_gb", 0),
                 "model": _gpu_status.get("model", "none"),
             },
+            "ollama": ollama_info,
         },
     }
 

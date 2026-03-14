@@ -25,6 +25,15 @@ import time
 from concurrent import futures
 from pathlib import Path
 
+# Load backend/.env so brain_service gets OLLAMA_BASE_URL, BRAIN_PORT, etc.
+try:
+    from dotenv import load_dotenv
+    _env = Path(__file__).parent.parent / "backend" / ".env"
+    if _env.exists():
+        load_dotenv(_env, override=False)  # don't override explicit system vars
+except ImportError:
+    pass  # dotenv not required
+
 # ── CPU Affinity: pin brain_service to P-cores for low-latency inference ──
 try:
     import psutil
@@ -66,11 +75,18 @@ MAX_WORKERS = int(os.getenv("BRAIN_MAX_WORKERS", "8"))
 class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
     """gRPC service implementation — LLM + distributed compute."""
 
+    def __init__(self):
+        self._call_count = 0
+        self._total_infer_ms = 0.0
+        self._total_critic_ms = 0.0
+        self._infer_count = 0
+        self._critic_count = 0
+
     async def InferCandidateContext(self, request, context):
+        t0 = time.monotonic()
         logger.info(
-            "InferCandidateContext: symbol=%s, timeframe=%s",
-            request.symbol,
-            request.timeframe,
+            "InferCandidateContext: symbol=%s, timeframe=%s, regime=%s",
+            request.symbol, request.timeframe, request.regime,
         )
         try:
             result = await infer_candidate_context(
@@ -80,6 +96,14 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
                 regime=request.regime,
                 context=request.context,
             )
+            latency_ms = (time.monotonic() - t0) * 1000
+            self._infer_count += 1
+            self._total_infer_ms += latency_ms
+            model_used = result.get("_model_used", "unknown")
+            logger.info(
+                "InferCandidateContext done: symbol=%s, model=%s, conf=%.2f, %.0fms",
+                request.symbol, model_used, result["confidence"], latency_ms,
+            )
             return brain_pb2.InferResponse(
                 summary=result["summary"],
                 confidence=result["confidence"],
@@ -87,7 +111,8 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
                 reasoning_bullets=result["reasoning_bullets"],
             )
         except Exception as e:
-            logger.exception("InferCandidateContext error: %s", e)
+            latency_ms = (time.monotonic() - t0) * 1000
+            logger.exception("InferCandidateContext error (%.0fms): %s", latency_ms, e)
             return brain_pb2.InferResponse(
                 summary="Internal error",
                 confidence=0.1,
@@ -96,10 +121,10 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
             )
 
     async def CriticPostmortem(self, request, context):
+        t0 = time.monotonic()
         logger.info(
             "CriticPostmortem: trade_id=%s, symbol=%s",
-            request.trade_id,
-            request.symbol,
+            request.trade_id, request.symbol,
         )
         try:
             result = await critic_postmortem(
@@ -108,13 +133,22 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
                 entry_context=request.entry_context,
                 outcome_json=request.outcome_json,
             )
+            latency_ms = (time.monotonic() - t0) * 1000
+            self._critic_count += 1
+            self._total_critic_ms += latency_ms
+            model_used = result.get("_model_used", "unknown")
+            logger.info(
+                "CriticPostmortem done: symbol=%s, model=%s, score=%.2f, %.0fms",
+                request.symbol, model_used, result["performance_score"], latency_ms,
+            )
             return brain_pb2.CriticResponse(
                 analysis=result["analysis"],
                 lessons=result["lessons"],
                 performance_score=result["performance_score"],
             )
         except Exception as e:
-            logger.exception("CriticPostmortem error: %s", e)
+            latency_ms = (time.monotonic() - t0) * 1000
+            logger.exception("CriticPostmortem error (%.0fms): %s", latency_ms, e)
             return brain_pb2.CriticResponse(
                 analysis="Internal error",
                 error=str(e),

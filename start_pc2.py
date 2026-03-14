@@ -131,11 +131,33 @@ def main():
         except Exception as e:
             print(f"    [affinity skip] {e}")
 
+    # ── Pre-warm Ollama models (reduce first-call latency from ~19s to ~2s) ──
+    def prewarm_ollama():
+        """Load primary model into GPU VRAM before brain_service starts."""
+        import urllib.request
+        import json as _json
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        primary_model = os.environ.get("BRAIN_OLLAMA_MODEL", "gemma3:12b")
+        print(f"  {CYAN}Pre-warming {primary_model} into VRAM...{RESET}", end="", flush=True)
+        try:
+            req = urllib.request.Request(
+                f"{ollama_url}/api/generate",
+                data=_json.dumps({"model": primary_model, "prompt": "hello", "stream": False}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            urllib.request.urlopen(req, timeout=120)
+            print(f" {GREEN}[OK]{RESET}")
+        except Exception as e:
+            print(f" {YELLOW}[skip: {e}]{RESET}")
+
     if gpu_only:
         # Just the GPU worker
         p = start_process("GPU Worker", [python, "gpu_worker.py"], BACKEND)
         apply_affinity_to_proc(p, "e_cores")
     else:
+        # ── 1b. Pre-warm Ollama primary model ──
+        prewarm_ollama()
+
         # ── 2. Brain Service (gRPC on 50051) -- P-cores (latency-sensitive) ──
         brain_server = BRAIN / "server.py"
         if brain_server.exists():

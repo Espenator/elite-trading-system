@@ -19,11 +19,20 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "localhost")
-OLLAMA_PORT = int(os.getenv("OLLAMA_PORT", "11434"))
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
-OLLAMA_URL = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
+# Resolve Ollama URL: prefer OLLAMA_BASE_URL (explicit full URL) over OLLAMA_HOST
+# because Ollama's own OLLAMA_HOST env var is often "0.0.0.0" (bind address, not connect address)
+_base_url = os.getenv("OLLAMA_BASE_URL", "")
+if _base_url:
+    OLLAMA_URL = _base_url.rstrip("/")
+else:
+    _host = os.getenv("OLLAMA_HOST", "localhost")
+    # Guard against Ollama's bind-address "0.0.0.0" leaking into client URL
+    if _host in ("0.0.0.0", ""):
+        _host = "localhost"
+    _port = int(os.getenv("OLLAMA_PORT", "11434"))
+    OLLAMA_URL = f"http://{_host}:{_port}"
 
 # --- Dual-model routing via gpu_config ---
 _gpu_config = None
