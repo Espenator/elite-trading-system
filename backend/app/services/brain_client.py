@@ -226,11 +226,15 @@ class BrainClient:
             import sys
             from pathlib import Path
 
-            proto_dir = (
+            brain_service_dir = (
                 Path(__file__).resolve().parent.parent.parent.parent
                 / "brain_service"
-                / "proto"
             )
+            proto_dir = brain_service_dir / "proto"
+            # Need both: brain_service/ for "from proto import ..."
+            # and proto/ for internal "import brain_pb2" in generated stubs
+            if str(brain_service_dir) not in sys.path:
+                sys.path.insert(0, str(brain_service_dir))
             if str(proto_dir) not in sys.path:
                 sys.path.insert(0, str(proto_dir))
             from proto import brain_pb2_grpc
