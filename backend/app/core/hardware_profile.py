@@ -487,3 +487,72 @@ def get_ram_allocation(profile: Optional[HardwareProfile] = None) -> Dict[str, i
             "os_system": 2048,
             "headroom": max(0, ram - 6912),
         }
+
+
+# ── Convenience Wrappers (Prompt 3B) ─────────────────────────────
+
+def pin_to_p_cores() -> bool:
+    """Pin current process to P-cores (logical 0-15).
+
+    Use for: brain_service gRPC server, Ollama dispatch, any latency-sensitive path.
+    """
+    try:
+        import psutil
+        proc = psutil.Process(os.getpid())
+        p_cores = list(range(0, 16))
+        proc.cpu_affinity(p_cores)
+        log.info("[hardware] Pinned PID %d to P-cores 0-%d", os.getpid(), p_cores[-1])
+        return True
+    except (ImportError, AttributeError):
+        log.debug("[hardware] psutil not available for CPU affinity")
+        return False
+    except psutil.AccessDenied:
+        log.warning("[hardware] CPU affinity requires elevated permissions. Skipping.")
+        return False
+    except Exception as e:
+        log.warning("[hardware] CPU affinity pin failed: %s", e)
+        return False
+
+
+def pin_to_e_cores() -> bool:
+    """Pin current process to E-cores (logical 16-23).
+
+    Use for: background scheduler, overnight XGBoost training, walk-forward jobs.
+    """
+    try:
+        import psutil
+        proc = psutil.Process(os.getpid())
+        e_cores = list(range(16, 24))
+        proc.cpu_affinity(e_cores)
+        log.info("[hardware] Pinned PID %d to E-cores %d-%d", os.getpid(), e_cores[0], e_cores[-1])
+        return True
+    except (ImportError, AttributeError):
+        log.debug("[hardware] psutil not available for CPU affinity")
+        return False
+    except psutil.AccessDenied:
+        log.warning("[hardware] CPU affinity requires elevated permissions. Skipping.")
+        return False
+    except Exception as e:
+        log.warning("[hardware] CPU affinity pin failed: %s", e)
+        return False
+
+
+def get_affinity_info() -> dict:
+    """Return current CPU affinity for health endpoint reporting."""
+    try:
+        import psutil
+        proc = psutil.Process(os.getpid())
+        affinity = proc.cpu_affinity()
+        if affinity == list(range(0, 16)):
+            pinned = "p_cores"
+        elif affinity == list(range(16, 24)):
+            pinned = "e_cores"
+        else:
+            pinned = "custom"
+        return {
+            "pid": os.getpid(),
+            "cpu_affinity": affinity,
+            "pinned_to": pinned,
+        }
+    except Exception:
+        return {"pid": os.getpid(), "cpu_affinity": "unknown", "pinned_to": "unknown"}

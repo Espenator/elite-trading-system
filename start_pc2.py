@@ -43,6 +43,13 @@ BRAIN = ROOT / "brain_service"
 processes = []
 
 
+# ── Ollama GPU optimization flags (set before any subprocess starts) ──
+os.environ.setdefault("OLLAMA_FLASH_ATTENTION", "1")
+os.environ.setdefault("OLLAMA_KV_CACHE_TYPE", "q8_0")
+os.environ.setdefault("OLLAMA_NUM_GPU", "1")
+os.environ.setdefault("OLLAMA_GPU_LAYERS", "50")
+
+
 def banner():
     print(f"""
 {CYAN}{BOLD}================================================================

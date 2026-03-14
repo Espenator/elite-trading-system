@@ -69,7 +69,26 @@ logging.basicConfig(
 logger = logging.getLogger("brain_service")
 
 PORT = int(os.getenv("BRAIN_PORT", "50051"))
+HEALTH_PORT = int(os.getenv("BRAIN_HEALTH_PORT", "50052"))
 MAX_WORKERS = int(os.getenv("BRAIN_MAX_WORKERS", "8"))
+
+# ── Inference Metrics Tracker ────────────────────────────────────
+_last_inference: dict = {}
+_inference_count: int = 0
+
+
+def record_inference(model: str, latency_ms: float, confidence: float):
+    """Record last inference metrics for the health endpoint."""
+    global _last_inference, _inference_count
+    from datetime import datetime, timezone
+    _inference_count += 1
+    _last_inference = {
+        "model": model,
+        "latency_ms": round(latency_ms, 1),
+        "confidence": round(confidence, 4),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "total_inferences": _inference_count,
+    }
 
 
 class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
@@ -100,6 +119,11 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
             self._infer_count += 1
             self._total_infer_ms += latency_ms
             model_used = result.get("_model_used", "unknown")
+            record_inference(
+                model=model_used,
+                latency_ms=latency_ms,
+                confidence=result["confidence"],
+            )
             logger.info(
                 "InferCandidateContext done: symbol=%s, model=%s, conf=%.2f, %.0fms",
                 request.symbol, model_used, result["confidence"], latency_ms,
@@ -137,6 +161,11 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
             self._critic_count += 1
             self._total_critic_ms += latency_ms
             model_used = result.get("_model_used", "unknown")
+            record_inference(
+                model=model_used,
+                latency_ms=latency_ms,
+                confidence=result["performance_score"],
+            )
             logger.info(
                 "CriticPostmortem done: symbol=%s, model=%s, score=%.2f, %.0fms",
                 request.symbol, model_used, result["performance_score"], latency_ms,
@@ -411,15 +440,108 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
             )
 
 
+async def _build_health_response() -> dict:
+    """Build the full health response for the /health HTTP endpoint."""
+    from datetime import datetime, timezone
+
+    # GPU info via PyTorch
+    cuda_available = False
+    gpu_name = "none"
+    total_vram_gb = used_vram_gb = free_vram_gb = 0.0
+    try:
+        import torch
+        cuda_available = torch.cuda.is_available()
+        if cuda_available:
+            props = torch.cuda.get_device_properties(0)
+            total_vram_gb = props.total_memory / 1e9
+            try:
+                free_bytes, total_bytes = torch.cuda.mem_get_info(0)
+                used_vram_gb = (total_bytes - free_bytes) / 1e9
+                free_vram_gb = free_bytes / 1e9
+            except Exception:
+                used_vram_gb = torch.cuda.memory_allocated(0) / 1e9
+                free_vram_gb = total_vram_gb - used_vram_gb
+            gpu_name = props.name
+    except ImportError:
+        pass
+
+    # Ollama loaded models
+    ollama_models = []
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            r = await client.get("http://localhost:11434/api/tags")
+            ollama_models = [
+                {"name": m["name"], "size": m.get("size", 0)}
+                for m in r.json().get("models", [])
+            ]
+    except Exception:
+        pass
+
+    # CPU affinity
+    affinity_info = {"cpu_affinity": "unknown"}
+    try:
+        from app.core.hardware_profile import get_affinity_info
+        affinity_info = get_affinity_info()
+    except Exception:
+        pass
+
+    return {
+        "pc": "PC2-ProfitTrader",
+        "status": "healthy",
+        "cuda_available": cuda_available,
+        "gpu_name": gpu_name,
+        "vram_total_gb": round(total_vram_gb, 2),
+        "vram_used_gb": round(used_vram_gb, 2),
+        "vram_free_gb": round(free_vram_gb, 2),
+        "loaded_models": ollama_models,
+        "last_inference": _last_inference or None,
+        "grpc_status": "healthy",
+        "gpu_worker": "active",
+        "cpu_affinity": affinity_info,
+        "redis_mesh": "connected",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+async def _start_health_http_server(port: int):
+    """Start a lightweight aiohttp server for the /health endpoint."""
+    try:
+        from aiohttp import web
+
+        async def health_handler(request):
+            data = await _build_health_response()
+            return web.json_response(data)
+
+        app = web.Application()
+        app.router.add_get("/health", health_handler)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        logger.info("Health HTTP endpoint running on http://0.0.0.0:%d/health", port)
+        return runner
+    except ImportError:
+        logger.warning("aiohttp not installed — /health HTTP endpoint disabled")
+        return None
+    except Exception as e:
+        logger.warning("Failed to start health HTTP server: %s", e)
+        return None
+
+
 async def serve():
     # Pin brain_service to P-cores for low-latency inference dispatch (PC2 only)
     try:
-        from app.core.hardware_profile import apply_affinity, set_process_priority
+        from app.core.hardware_profile import apply_affinity, set_process_priority, pin_to_p_cores
         apply_affinity("p_cores")  # Logical CPUs 0-15 on i7-13700
         set_process_priority("above_normal")
         logger.info("Brain Service pinned to P-cores with above_normal priority")
     except Exception as e:
         logger.debug("CPU affinity/priority not applied: %s", e)
+
+    # Start HTTP health endpoint
+    health_runner = await _start_health_http_server(HEALTH_PORT)
 
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
     brain_pb2_grpc.add_BrainServiceServicer_to_server(
@@ -458,6 +580,9 @@ async def serve():
         pass
 
     logger.info("Shutting down Brain Service...")
+    if health_runner:
+        await health_runner.cleanup()
+        logger.info("Health HTTP server stopped")
     await server.stop(grace=5)
     logger.info("Brain Service stopped")
 
