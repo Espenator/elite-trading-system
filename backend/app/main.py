@@ -2127,10 +2127,10 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-        # Shutdown CPU process pool (GIL escape hatch)
+        # Shut down MessageBus executor pools (ProcessPool + ThreadPool)
         try:
-            from app.core.message_bus import shutdown_cpu_pool
-            shutdown_cpu_pool()
+            from app.core.message_bus import shutdown_pools
+            shutdown_pools()
         except Exception:
             pass
 
