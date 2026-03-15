@@ -49,12 +49,12 @@ Write-Host "  Circuit breaker: max $MaxCrashesInWindow crashes in ${CrashWindowM
 Write-Host ""
 
 function Test-BackendHealth {
-    # Try /api/v1/health first (reliable JSON endpoint)
+    # Try /healthz first (lightweight liveness probe, <50ms)
     try {
         $r = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
         if ($r.StatusCode -eq 200) { return $true }
     } catch { }
-    # Fallback to /health
+    # Fallback to /readyz
     try {
         $r = Invoke-WebRequest -Uri $HealthUrlFallback -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
         return $r.StatusCode -eq 200

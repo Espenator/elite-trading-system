@@ -15,17 +15,23 @@ echo   Embodier Trader - Unified Launcher
 echo  ====================================
 echo.
 
-REM Start backend
-echo [1/4] Starting backend on port 8001...
-start "EmbodierBackend" /min cmd /c "cd /d "%ROOT%backend" && python run_server.py"
+REM Clean stale port cache and DuckDB locks
+echo [0/4] Cleaning stale state...
+if exist "%ROOT%.embodier-ports.json" del /f "%ROOT%.embodier-ports.json"
+if exist "%ROOT%.git\index.lock" del /f "%ROOT%.git\index.lock"
+for %%f in ("%ROOT%backend\app\data\*.duckdb.wal" "%ROOT%backend\app\data\*.duckdb.lock" "%ROOT%backend\app\data\*.duckdb.tmp") do if exist "%%f" del /f "%%f"
 
-REM Wait for backend to be ready
+REM Start backend
+echo [1/4] Starting backend on port 8000...
+start "EmbodierBackend" /min cmd /c "cd /d "%ROOT%backend" && set PORT=8000 && python run_server.py"
+
+REM Wait for backend to be ready (use /healthz — lightweight, <50ms)
 echo [2/4] Waiting for backend...
 set /a TRIES=0
 :wait_backend
 timeout /t 2 /nobreak >nul
 set /a TRIES+=1
-curl -s http://localhost:8001/api/v1/system/health-check >nul 2>nul
+curl -s http://localhost:8000/healthz >nul 2>nul
 if errorlevel 1 (
     if %TRIES% GEQ 30 (
         echo [WARN] Backend not responding after 60s. Continuing anyway...
@@ -53,8 +59,8 @@ echo  ====================================
 echo   Embodier Trader is running!
 echo  ------------------------------------
 echo   Frontend:  http://localhost:5173
-echo   Backend:   http://localhost:8001
-echo   API Docs:  http://localhost:8001/docs
+echo   Backend:   http://localhost:8000
+echo   API Docs:  http://localhost:8000/docs
 echo  ====================================
 echo.
 echo  Press any key to STOP all services...
