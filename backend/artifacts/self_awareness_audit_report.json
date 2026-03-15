@@ -13,6 +13,6 @@
   "errors": [
     "bayesian_weights_update: 'BayesianAgentWeights' object has no attribute 'update'",
     "bayesian_save_load_duckdb: 'BayesianAgentWeights' object has no attribute 'update'",
-    "postmortem_insert_query: IO Error: Could not set lock on file \"/home/user/elite-trading-system/backend/data/analytics.duckdb\": Conflicting lock is held in /usr/bin/python3.11 (PID 8375). See also https://duckdb.org/docs/connect/concurrency"
+    "postmortem_insert_query: IO Error: Could not set lock on file \"/home/user/elite-trading-system/backend/data/analytics.duckdb\": Conflicting lock is held in /usr/bin/python3.11 (PID 13573). See also https://duckdb.org/docs/connect/concurrency"
   ]
 }
