@@ -2409,7 +2409,10 @@ async def websocket_endpoint(websocket: WebSocket):
             elif msg_type == "subscribe":
                 ch = msg.get("channel")
                 if ch and ch in _VALID_WS_CHANNELS:
-                    subscribe(websocket, ch)
+                    result = subscribe(websocket, ch)
+                    await websocket.send_json({"type": "subscribed", "channel": ch, "success": True})
+                elif ch:
+                    await websocket.send_json({"type": "subscribed", "channel": ch, "success": False, "error": f"unknown_channel:{ch}"})
             elif msg_type == "unsubscribe":
                 ch = msg.get("channel")
                 if ch:

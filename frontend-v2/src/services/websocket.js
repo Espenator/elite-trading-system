@@ -28,17 +28,20 @@ class AppWebSocket {
     this._intentionalClose = false;
     this.state = "connecting";
     const url = getWsBaseUrl();
+    console.log("[WS] Connecting to:", url);
     try {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
         this.state = "connected";
         this._reconnectAttempts = 0;
+        console.log("[WS] Connected successfully");
 
         // Re-subscribe to all active channels on (re)connect
         for (const channel of this.handlers.keys()) {
           if (channel !== "*") {
             this._sendRaw({ type: "subscribe", channel });
+            console.log("[WS] Subscribing to:", channel);
           }
         }
 
@@ -65,6 +68,16 @@ class AppWebSocket {
           // Ignore server pings (heartbeat)
           if (msg.type === "ping") return;
 
+          // Log subscribe acknowledgments for debugging
+          if (msg.type === "subscribed") {
+            if (msg.success) {
+              console.log("[WS] Subscribed to:", msg.channel);
+            } else {
+              console.warn("[WS] Subscribe rejected:", msg.channel, msg.error);
+            }
+            return;
+          }
+
           const channel = msg.channel || "*";
           const data = msg.data !== undefined ? msg.data : msg;
 
@@ -78,7 +91,8 @@ class AppWebSocket {
         }
       };
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (evt) => {
+        console.warn("[WS] Connection closed", { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
         clearInterval(this._heartbeatTimer);
         this.state = "disconnected";
         if (this.handlers.has("*"))

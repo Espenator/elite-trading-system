@@ -121,7 +121,7 @@ BrowserRouter
 
 7. **React.memo**: All dashboard widget components (`src/components/dashboard/`) use React.memo. Maintain this pattern for new components.
 
-**Data flow:** `useApi(endpointKey)` → `config/api.js` `getApiUrl()` → Vite proxy `/api` → backend on port 8001.
+**Data flow:** `useApi(endpointKey)` → `config/api.js` `getApiUrl()` → Vite proxy `/api` → backend on port 8000.
 
 **WebSocket:** `services/websocket.js` connects via `config/api.js` `getWsUrl()`. CNSProvider subscribes to WS channels for real-time homeostasis/circuit-breaker/verdict updates.
 
@@ -159,7 +159,7 @@ All routes are lazy-loaded with `React.lazy()` + `Suspense`, wrapped in a per-pa
 ## Startup Requirements
 
 - **Node.js** 18+
-- **Backend** must be running on port 8001 (or set `VITE_BACKEND_URL`)
+- **Backend** must be running on port 8000 (or set `VITE_BACKEND_URL`)
 - **Env vars** (optional, defaults to localhost:8001):
   - `VITE_BACKEND_URL` — backend base URL (e.g. `http://localhost:8001`)
   - `VITE_API_AUTH_TOKEN` — auth token for API headers
