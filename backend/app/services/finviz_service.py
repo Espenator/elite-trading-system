@@ -326,3 +326,74 @@ class FinvizService:
                 results[name] = []
         return results
 
+    async def get_trending_tickers(self, limit: int = 10) -> List[Dict]:
+        """Return trending tickers from screener sorted by volume (used by SentimentScout)."""
+        try:
+            stocks = await self.get_stock_list(filters="sh_avgvol_o500,sh_relvol_o2")
+            # Sort by relative volume descending as a proxy for trending
+            stocks.sort(key=lambda s: float(s.get("Relative Volume", 0) or 0), reverse=True)
+            return [
+                {
+                    "ticker": s.get("Ticker", ""),
+                    "sentiment": 0,  # Finviz doesn't provide sentiment; neutral
+                    "mention_change": float(s.get("Relative Volume", 0) or 0),
+                    "score": float(s.get("Change", "0").strip("%") or 0) / 100,
+                }
+                for s in stocks[:limit]
+            ]
+        except Exception as e:
+            logger.debug("get_trending_tickers failed: %s", e)
+            return []
+
+    async def get_short_squeeze_candidates(self, min_short_float: float = 0.20, limit: int = 15) -> List[Dict]:
+        """Return high short-float stocks from screener (used by ShortSqueezeScout)."""
+        try:
+            stocks = await self.get_stock_list(filters="sh_short_o20,sh_avgvol_o500")
+            results = []
+            for s in stocks:
+                sf_str = s.get("Short Float", "0").strip("%")
+                short_float = float(sf_str or 0) / 100
+                vol_ratio = float(s.get("Relative Volume", 0) or 0)
+                if short_float >= min_short_float:
+                    results.append({
+                        "ticker": s.get("Ticker", ""),
+                        "short_float": short_float,
+                        "volume_ratio": vol_ratio,
+                    })
+            results.sort(key=lambda x: x["short_float"], reverse=True)
+            return results[:limit]
+        except Exception as e:
+            logger.debug("get_short_squeeze_candidates failed: %s", e)
+            return []
+
+    async def get_recent_ipos(self, days_back: int = 7, limit: int = 20) -> List[Dict]:
+        """Return recent IPOs from screener (used by IPOScout)."""
+        try:
+            stocks = await self.get_stock_list(filters="ipo_thismonth,sh_avgvol_o100")
+            results = []
+            for s in stocks:
+                cap_str = s.get("Market Cap", "0")
+                cap_num = _parse_market_cap_num(cap_str)
+                results.append({
+                    "ticker": s.get("Ticker", ""),
+                    "market_cap": cap_num or 0,
+                    "ipo_date": s.get("IPO Date", "recent"),
+                })
+            results.sort(key=lambda x: x["market_cap"], reverse=True)
+            return results[:limit]
+        except Exception as e:
+            logger.debug("get_recent_ipos failed: %s", e)
+            return []
+
+
+# Module-level singleton
+_finviz_service: Optional[FinvizService] = None
+
+
+def get_finviz_service() -> FinvizService:
+    """Get or create the FinvizService singleton."""
+    global _finviz_service
+    if _finviz_service is None:
+        _finviz_service = FinvizService()
+    return _finviz_service
+

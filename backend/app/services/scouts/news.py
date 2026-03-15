@@ -23,8 +23,8 @@ class NewsScout(BaseScout):
     poll of the aggregator only.
     """
 
-    def __init__(self, message_bus=None):
-        super().__init__(message_bus)
+    def __init__(self, message_bus=None, **kwargs):
+        super().__init__(message_bus, **kwargs)
         self._pending: List[DiscoveryPayload] = []
         self._subscribed = False
 

@@ -115,12 +115,24 @@ def _last_council_eval() -> Dict[str, Any]:
         return {"last_eval_timestamp": None, "error": str(e)[:200]}
 
 
+async def _safe_check(name: str, coro, timeout_s: float = 5.0) -> Dict[str, Any]:
+    """Run a health sub-check with a timeout so one slow check can't hang the endpoint."""
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_s)
+    except asyncio.TimeoutError:
+        logger.warning("Health sub-check '%s' timed out after %.1fs", name, timeout_s)
+        return {"status": "timeout", "connected": False, "error": f"Timed out after {timeout_s}s"}
+    except Exception as e:
+        logger.warning("Health sub-check '%s' failed: %s", name, e)
+        return {"status": "error", "connected": False, "error": str(e)[:200]}
+
+
 @router.get("")
 async def system_health():
     """Comprehensive health: DuckDB, Alpaca, Brain gRPC, MessageBus, last council eval + data sources."""
     result: Dict[str, Any] = {}
 
-    # Core infrastructure checks
+    # Core infrastructure checks — each wrapped with timeout to prevent hanging
     # Process lock info
     try:
         from app.core.process_lock import get_lock_info
@@ -128,10 +140,10 @@ async def system_health():
     except Exception:
         result["process_lock"] = {"locked": False}
 
-    result["duckdb"] = await _check_duckdb()
-    result["alpaca"] = await _check_alpaca()
-    result["brain_grpc"] = await _check_brain_grpc()
-    result["message_bus"] = await _messagebus_queue_depth()
+    result["duckdb"] = await _safe_check("duckdb", _check_duckdb())
+    result["alpaca"] = await _safe_check("alpaca", _check_alpaca(), timeout_s=8.0)
+    result["brain_grpc"] = await _safe_check("brain_grpc", _check_brain_grpc())
+    result["message_bus"] = await _safe_check("message_bus", _messagebus_queue_depth())
     result["council"] = _last_council_eval()
 
     # Existing data source aggregator
@@ -342,7 +354,7 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
         smoke_checks.append({"check": "GET /api/v1/health", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     try:
-        from app.api.v1.status import system_status
+        from app.api.v1.system import system_status
         st = await system_status()
         smoke_checks.append({"check": "GET /api/v1/status", "status": "ok", "detail": f"healthy={st.get('healthy')}"})
     except Exception as e:
@@ -377,7 +389,7 @@ async def _run_startup_phases_async() -> Dict[str, Any]:
         loop_checks.append({"check": "Readiness", "status": "fail", "detail": str(e)[:300]})
         overall_ok = False
     try:
-        from app.api.v1.status import system_status
+        from app.api.v1.system import system_status
         st = await system_status()
         loop_checks.append({"check": "Background / status", "status": "ok", "detail": f"activeAgents={st.get('activeAgents', '?')}"})
     except Exception as e:

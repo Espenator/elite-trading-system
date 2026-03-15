@@ -74,7 +74,7 @@ if ($DryRun) {
     Write-Host "[4/5] Starting all services with auto-restart..." -ForegroundColor Green
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "  Services: Backend(:8001) | Frontend(:3000) | Electron" -ForegroundColor White
+    Write-Host "  Services: Backend(:8000) | Frontend(:5173) | Electron" -ForegroundColor White
     Write-Host "  Auto-restart: ON | Health checks: every 30s" -ForegroundColor White
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""

@@ -97,7 +97,13 @@ async def get_risk_shield_status() -> Dict[str, Any]:
     app.modules.openclaw.execution.risk_governor
     """
     if not risk_gov:
-        raise HTTPException(status_code=503, detail="RiskGovernor unavailable")
+        return {
+            "status": "unavailable",
+            "reason": "RiskGovernor module not loaded",
+            "checks": {},
+            "equity": 0,
+            "message": "Risk shield starting — check back in 60s",
+        }
 
     try:
         # Dummy order for checks that require an OrderRequest (status-only read)

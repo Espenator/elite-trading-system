@@ -9,11 +9,14 @@ Includes an in-memory ring buffer for the /api/v1/logs endpoint.
 """
 import json
 import logging
+import logging.handlers
+import os
 import sys
 import uuid
 from collections import deque
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import Lock
 
 from app.core.config import settings
@@ -78,6 +81,33 @@ def setup_logging() -> None:
         ))
 
     root.addHandler(handler)
+
+    # Add file handler for crash diagnosis (persists logs across restarts)
+    _log_file = os.getenv("LOG_FILE", "")
+    if not _log_file:
+        # Default: logs/backend.log relative to repo root (backend/../logs/)
+        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        _log_dir = _repo_root / "logs"
+        try:
+            _log_dir.mkdir(exist_ok=True)
+            _log_file = str(_log_dir / "backend.log")
+        except OSError:
+            _log_file = ""
+
+    if _log_file:
+        try:
+            file_handler = logging.handlers.RotatingFileHandler(
+                _log_file, maxBytes=10 * 1024 * 1024, backupCount=3,
+                encoding="utf-8",
+            )
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(logging.Formatter(
+                fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            ))
+            root.addHandler(file_handler)
+        except OSError:
+            pass  # Can't write log file — continue without it
 
     # Add ring buffer handler for /api/v1/logs endpoint
     global _ring_handler

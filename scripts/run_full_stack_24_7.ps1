@@ -122,8 +122,6 @@ if (Test-Path $frontendEnv) {
 if (-not (Test-Path $BackendAutorestart)) { Write-Host "ERROR: $BackendAutorestart not found." -ForegroundColor Red; exit 1 }
 if (-not (Test-Path $FrontendAutorestart)) { Write-Host "ERROR: $FrontendAutorestart not found." -ForegroundColor Red; exit 1 }
 
-# Use /healthz (lightweight liveness probe, <50ms) — /api/v1/health is too heavy
-# and times out during DuckDB init, causing false restarts
 $HealthUrl = "http://127.0.0.1:${BackendPort}/healthz"
 
 Write-Host ""

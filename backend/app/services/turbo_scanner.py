@@ -276,6 +276,13 @@ class TurboScanner:
         await asyncio.sleep(_startup_delay)
         while self._running:
             try:
+                # Session-aware interval: reduce CPU when market is closed
+                from app.services.data_swarm.session_clock import get_scan_interval
+                session_interval = get_scan_interval()
+                # VIX-volatile mode can override to shorter interval during regular hours
+                effective_interval = min(self._scan_interval, session_interval) if self._volatile_mode else session_interval
+                self._scan_interval = effective_interval
+
                 t0 = time.monotonic()
                 self._council_signals_this_cycle = 0
                 signals = await self._run_all_scans()
@@ -305,7 +312,7 @@ class TurboScanner:
                 # deque(maxlen=500) handles history trimming automatically
                 interval = self._get_scan_interval()
                 logger.info(
-                    "TurboScan #%d: %d raw signals, %d actionable, %.0fms (next in %.0fs)",
+                    "TurboScan #%d: %d raw signals, %d actionable, %.0fms (interval=%ds)",
                     self._stats["total_scans"], len(signals),
                     len(actionable), elapsed, interval,
                 )

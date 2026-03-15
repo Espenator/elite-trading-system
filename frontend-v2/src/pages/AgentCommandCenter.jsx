@@ -93,13 +93,13 @@ export default function AgentCommandCenter() {
 
   // Derived metrics
   const onlineCount = agentsForHealth.filter(a => a.status === "running").length;
-  const totalCount = agentsForHealth.length || 42;
+  const totalCount = agentsForHealth.length || 0;
   const cpuAvg = agents.length > 0
     ? Math.round(agents.reduce((s, a) => s + (a.cpu_usage || 0), 0) / agents.length)
-    : 47;
-  const ramPct = systemStatus?.memory_percent || 31;
-  const gpuPct = systemStatus?.gpu_percent || 61;
-  const uptime = systemStatus?.uptime || "47d 12h 33m";
+    : 0;
+  const ramPct = systemStatus?.memory_percent ?? 0;
+  const gpuPct = systemStatus?.gpu_percent ?? 0;
+  const uptime = systemStatus?.uptime || "—";
 
   const setTab = (key) => setSearchParams({ tab: key });
 
