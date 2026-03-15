@@ -32,6 +32,21 @@ async def evaluate(
     # Collect signals from available alt data providers
     signals: List[Dict[str, Any]] = []
     sources: List[str] = []
+    f = features.get("features", features) if features else {}
+
+    # B5: SqueezeMetrics DIX/GEX as dark pool alt data (zero new API calls)
+    dix = f.get("uw_dark_pool_index") or f.get("dix")
+    gex = f.get("uw_gex") or f.get("gex")
+    if dix is not None or gex is not None:
+        dix_val = float(dix) if dix is not None else 0.0
+        gex_val = float(gex) if gex is not None else 0.0
+        dp_signal = "bullish" if dix_val > 45 else ("bearish" if dix_val < 40 else "neutral")
+        dp_direction = "buy" if dp_signal == "bullish" else ("sell" if dp_signal == "bearish" else "hold")
+        signals.append({
+            "source": "dark_pool", "dix": dix_val, "gex": gex_val,
+            "signal": dp_signal, "direction": dp_direction, "confidence": 0.5,
+        })
+        sources.append("dark_pool")
 
     # Satellite / geospatial data
     sat_signal = await _fetch_satellite_data(symbol)

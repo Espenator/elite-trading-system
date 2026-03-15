@@ -26,6 +26,19 @@ async def evaluate(
 
     # Fetch raw social data from all configured sources
     items = _fetch_social_data(symbol)
+
+    # B1: Fallback to news_items from blackboard when no social data
+    if not items:
+        blackboard = context.get("blackboard")
+        if blackboard:
+            news_items = getattr(blackboard, "metadata", {}).get("news_items") or []
+            if news_items:
+                items = [
+                    {"text": (item if isinstance(item, str) else item.get("headline", "")),
+                     "ticker": symbol, "source": "news_catalyst"}
+                    for item in news_items[:30]
+                ]
+
     if not items:
         return AgentVote(
             agent_name=NAME,

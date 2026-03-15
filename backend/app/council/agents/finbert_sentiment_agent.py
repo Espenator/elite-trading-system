@@ -48,6 +48,16 @@ async def evaluate(
 
     # Collect social media posts
     posts = await _collect_posts(symbol)
+
+    # B1: Fallback to news_items from news_catalyst_agent on blackboard
+    if not posts and blackboard:
+        news_items = getattr(blackboard, "metadata", {}).get("news_items") or []
+        if news_items:
+            posts = [
+                {"text": (item if isinstance(item, str) else item.get("headline", "")), "source": "news_catalyst"}
+                for item in news_items[:30]
+            ]
+
     if not posts:
         if blackboard:
             blackboard.sentiment["ticker_scores"][symbol] = 0.0

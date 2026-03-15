@@ -130,7 +130,7 @@ class HyperSwarm:
             self._workers.append(task)
 
         logger.info(
-            "HyperSwarm started: %d workers, %d Ollama nodes, escalation_threshold=%d",
+            "HyperSwarm: %d workers across %d nodes (escalation_threshold=%d)",
             worker_count, len(self._ollama_urls), ESCALATION_THRESHOLD,
         )
 

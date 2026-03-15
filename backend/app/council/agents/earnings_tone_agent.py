@@ -56,8 +56,41 @@ async def evaluate(
     blackboard = context.get("blackboard")
 
     # Fetch latest earnings transcript
+    import os
+    if os.getenv("EARNINGS_TONE_ENABLED", "true").lower() != "true":
+        return AgentVote(
+            agent_name=NAME, direction="hold", confidence=0.1,
+            reasoning="Earnings tone agent disabled",
+            weight=cfg.get("weight_earnings_tone_agent", 0.8),
+            metadata={"data_available": False},
+        )
+
     transcript = await _fetch_transcript(symbol)
     if not transcript:
+        # B2: Check if earnings are imminent (within 3 days)
+        earnings_date = f.get("earnings_date") or f.get("next_earnings_date")
+        if earnings_date:
+            try:
+                from datetime import datetime, timezone
+                if isinstance(earnings_date, str):
+                    ed = datetime.fromisoformat(earnings_date.replace("Z", "+00:00"))
+                else:
+                    ed = earnings_date
+                now = datetime.now(timezone.utc)
+                if hasattr(ed, "tzinfo") and ed.tzinfo is None:
+                    from datetime import timezone as tz
+                    ed = ed.replace(tzinfo=tz.utc)
+                days_until = (ed - now).days
+                if 0 <= days_until <= 3:
+                    return AgentVote(
+                        agent_name=NAME, direction="hold", confidence=0.3,
+                        reasoning=f"Earnings imminent ({days_until}d away) — no transcript yet",
+                        weight=cfg.get("weight_earnings_tone_agent", 0.8),
+                        metadata={"data_available": False, "earnings_imminent": True, "days_until": days_until},
+                    )
+            except Exception:
+                pass
+
         return AgentVote(
             agent_name=NAME,
             direction="hold",

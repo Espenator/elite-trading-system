@@ -46,8 +46,22 @@ async def evaluate(
     cfg = get_agent_thresholds()
     blackboard = context.get("blackboard")
 
-    # Get current portfolio state
-    portfolio = await _get_portfolio_state()
+    # Enhancement E: Use pre-fetched portfolio state from blackboard (avoids REST call)
+    _bb_portfolio = None
+    if blackboard:
+        _bb_portfolio = getattr(blackboard, "metadata", {}).get("portfolio_state")
+        if not _bb_portfolio and isinstance(blackboard, dict):
+            _bb_portfolio = blackboard.get("portfolio_state")
+    if _bb_portfolio and _bb_portfolio.get("account"):
+        account = _bb_portfolio["account"]
+        portfolio = {
+            "positions": _bb_portfolio.get("positions", []),
+            "equity": float(account.get("equity", 0)),
+            "buying_power": float(account.get("buying_power", 0)),
+            "position_count": len(_bb_portfolio.get("positions", [])),
+        }
+    else:
+        portfolio = await _get_portfolio_state()
 
     if not portfolio:
         return AgentVote(

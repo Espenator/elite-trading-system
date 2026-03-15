@@ -100,6 +100,14 @@ def build_slim_context(blackboard) -> str:
     if corr_breaks:
         slim["correlation_break"] = corr_breaks[:2]  # Top 2 breaks
 
+    # Enhancement D: Geopolitical context from GeopoliticalRadar
+    geo = raw_features.get("geopolitical") or metadata.get("geopolitical")
+    if geo:
+        slim["geopolitical"] = {
+            "alert_level": geo.get("alert_level", "normal"),
+            "latest_event": geo.get("latest_event"),
+        }
+
     # Similar past decisions from KnowledgeGraph layered_memory
     memory = metadata.get("layered_memory", {})
     if memory.get("short_term"):

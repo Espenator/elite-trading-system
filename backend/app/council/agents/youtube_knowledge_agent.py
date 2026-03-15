@@ -116,12 +116,33 @@ async def evaluate(
 
 
 def _get_relevant_knowledge(symbol: str) -> List[Dict[str, Any]]:
-    """Read YouTube knowledge store and return entries mentioning this symbol."""
+    """Read YouTube knowledge store and return entries mentioning this symbol.
+
+    B3: First tries DuckDB youtube_knowledge table, then falls back to config store.
+    Only returns confidence=0.1 stub if both are empty AND no YOUTUBE_API_KEY.
+    """
+    import os
+
+    # Try DuckDB youtube_knowledge table first
+    try:
+        from app.services.duckdb_service import get_duckdb
+        db = get_duckdb()
+        rows = db.execute(
+            "SELECT * FROM youtube_knowledge WHERE symbol = ? ORDER BY created_at DESC LIMIT 10",
+            [symbol.upper()],
+        ).fetchall()
+        if rows:
+            columns = [d[0] for d in db.description]
+            return [dict(zip(columns, row)) for row in rows]
+    except Exception:
+        pass  # Table may not exist yet
+
+    # Fallback: config store
     try:
         from app.services.database import db_service
         all_knowledge = db_service.get_config("youtube_knowledge") or []
         if not isinstance(all_knowledge, list):
-            return []
+            all_knowledge = []
 
         sym = symbol.upper()
         relevant = []
@@ -132,10 +153,11 @@ def _get_relevant_knowledge(symbol: str) -> List[Dict[str, Any]]:
 
         # Also return recent entries even without symbol match (general market intel)
         if not relevant:
-            # Return last 3 entries as general market context
             relevant = all_knowledge[-3:] if all_knowledge else []
 
-        return relevant[:10]  # Cap at 10 entries to avoid overload
+        if relevant:
+            return relevant[:10]
     except Exception as e:
         logger.debug("YouTube knowledge fetch failed: %s", e)
-        return []
+
+    return []

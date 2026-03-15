@@ -24,6 +24,7 @@ Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -299,6 +300,24 @@ async def run_council(
     except Exception as e:
         logger.debug("Intelligence gathering failed (proceeding without): %s", e)
 
+    # Enhancement D: Inject geopolitical context into features for agents
+    try:
+        from app.services.geopolitical_radar import get_geopolitical_radar
+        geo_radar = get_geopolitical_radar()
+        geo_status = geo_radar.get_status()
+        active_events = geo_status.get("active_events", [])
+        if active_events:
+            _feat = features.get("features", {})
+            if isinstance(_feat, dict):
+                _feat["geopolitical"] = {
+                    "alert_level": geo_status.get("alert_level", "normal"),
+                    "latest_event": active_events[-1] if active_events else None,
+                    "event_count": len(active_events),
+                }
+                features["features"] = _feat
+    except Exception as e:
+        logger.debug("Geopolitical context injection skipped: %s", e)
+
     # ── Knowledge System: recall relevant heuristics + memories ─────────
     try:
         from app.core.config import settings as app_settings
@@ -394,6 +413,50 @@ async def run_council(
     decision_id = blackboard.council_decision_id
 
     _stage_start = time.monotonic() * 1000
+
+    # Pre-Stage: TradingConference adversarial pre-filter (Enhancement A)
+    # 4-agent mini-conference: Researcher → RiskOfficer → Adversary → Arbitrator
+    # If it vetoes with high confidence, skip the full council DAG.
+    if os.getenv("TRADING_CONFERENCE_ENABLED", "true").lower() == "true":
+        _feat_inner = features.get("features", features) if features else {}
+        _score = _feat_inner.get("score", 0) if isinstance(_feat_inner, dict) else 0
+        if _score >= 80:
+            try:
+                from app.modules.openclaw.intelligence.trading_conference import TradingConference
+                _conf_result = await asyncio.wait_for(
+                    TradingConference().convene(symbol, timeframe),
+                    timeout=8.0,
+                )
+                blackboard.metadata["conference_result"] = {
+                    "decision": _conf_result.decision,
+                    "confidence": _conf_result.confidence,
+                    "session_id": _conf_result.session_id,
+                }
+                if _conf_result.decision == "NO_TRADE" and _conf_result.confidence > 0.75:
+                    blackboard.metadata["conference_veto"] = True
+                    logger.info(
+                        "TradingConference vetoed %s (decision=%s, confidence=%.2f)",
+                        symbol, _conf_result.decision, _conf_result.confidence,
+                    )
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.debug("TradingConference skipped for %s: %s", symbol, e)
+
+    # Enhancement E: Pre-fetch Alpaca portfolio state into blackboard
+    # Eliminates redundant REST call inside Stage 5 portfolio_optimizer_agent
+    try:
+        from app.services.alpaca_service import alpaca_service
+        portfolio_state = await asyncio.wait_for(
+            alpaca_service.get_account(), timeout=2.0,
+        )
+        positions = await asyncio.wait_for(
+            alpaca_service.get_positions(), timeout=2.0,
+        )
+        blackboard.metadata["portfolio_state"] = {
+            "account": portfolio_state or {},
+            "positions": positions or [],
+        }
+    except Exception:
+        blackboard.metadata["portfolio_state"] = {}
 
     # Stage 1: Perception (13 agents) — distributed across PCs
     stage1_configs = [
@@ -699,9 +762,28 @@ async def run_council(
         decision.council_decision_id = blackboard.council_decision_id
         return decision
 
-    # Stage 7: Arbiter (Phase 4: pass regime_entropy for meta-model)
-    _arbiter_regime_entropy = blackboard.metadata.get("regime_entropy", 0.0)
-    decision = arbitrate(symbol, timeframe, timestamp, all_votes, regime_entropy=_arbiter_regime_entropy)
+    # TradingConference adversarial veto — intercept before arbiter (Enhancement A)
+    if blackboard.metadata.get("conference_veto"):
+        decision = DecisionPacket(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=timestamp,
+            votes=all_votes,
+            final_direction="hold",
+            final_confidence=0.0,
+            vetoed=True,
+            veto_reasons=["TradingConference: adversarial pre-filter rejected trade"],
+            risk_limits={},
+            execution_ready=False,
+            council_reasoning="VETOED by TradingConference adversarial pipeline",
+            council_decision_id=blackboard.council_decision_id,
+        )
+        decision.council_decision_id = blackboard.council_decision_id
+        logger.info("TradingConference veto enforced for %s — skipping arbiter", symbol)
+    else:
+        # Stage 7: Arbiter (Phase 4: pass regime_entropy for meta-model)
+        _arbiter_regime_entropy = blackboard.metadata.get("regime_entropy", 0.0)
+        decision = arbitrate(symbol, timeframe, timestamp, all_votes, regime_entropy=_arbiter_regime_entropy)
     decision.council_decision_id = blackboard.council_decision_id
 
     # ── Phase 4 (Item 5): Latency instrumentation — 2.5s budget ────────

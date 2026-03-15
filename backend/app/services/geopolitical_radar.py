@@ -394,6 +394,19 @@ class GeopoliticalRadar:
             if new_level in SCAN_INTERVALS:
                 if new_level != self._alert_level:
                     logger.warning("Radar alert level changed: %s -> %s", self._alert_level, new_level)
+                    # Enhancement D: publish alert level change
+                    if self._bus:
+                        try:
+                            await self._bus.publish("geopolitical.event", {
+                                "event_type": "alert_level_change",
+                                "severity": new_level,
+                                "alert_level": new_level,
+                                "previous_level": self._alert_level,
+                                "headline": f"Geopolitical alert level changed: {self._alert_level} -> {new_level}",
+                                "timestamp": "",
+                            })
+                        except Exception:
+                            pass
                 self._alert_level = new_level
 
             events = []
@@ -502,6 +515,21 @@ class GeopoliticalRadar:
         self._active_events.append(event)
         if len(self._active_events) > 50:
             self._active_events = self._active_events[-50:]
+
+        # Enhancement D: publish geopolitical.event to MessageBus
+        if self._bus:
+            try:
+                await self._bus.publish("geopolitical.event", {
+                    "event_type": event.event_type,
+                    "severity": event.severity,
+                    "alert_level": self._alert_level,
+                    "affected_instruments": getattr(event, "affected_instruments", []),
+                    "playbook_response": getattr(event, "playbook_response", ""),
+                    "headline": event.headline,
+                    "timestamp": getattr(event, "timestamp", ""),
+                })
+            except Exception as e:
+                logger.debug("Failed to publish geopolitical.event: %s", e)
 
         if event.severity == EventSeverity.CRITICAL:
             self._stats["critical_events"] += 1

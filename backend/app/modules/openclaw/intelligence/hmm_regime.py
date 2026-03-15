@@ -40,9 +40,11 @@ HMM_N_ITER = 100
 HMM_MIN_HOLD_HOURS = 48
 HMM_CONFIDENCE_THRESHOLD = 0.6
 HURST_WINDOW = 100
-# GPU Channel 8: 30s refresh on GPU vs 300s on CPU (5min stale regime = wrong playbook)
-MODEL_RETRAIN_INTERVAL = 30 if GPU_HMM else 4 * 3600
-REGIME_REFRESH_SECONDS = 30 if GPU_HMM else 300
+# GPU Channel 8: env-var overrides for refresh/retrain timing
+# MODEL_RETRAIN_INTERVAL stays at 4h — retraining is expensive, not a hot path
+MODEL_RETRAIN_INTERVAL = int(os.getenv("HMM_RETRAIN_INTERVAL", str(4 * 3600)))
+# REGIME_REFRESH_SECONDS: 30s on GPU (real-time regime), 300s on CPU
+REGIME_REFRESH_SECONDS = int(os.getenv("REGIME_REFRESH_SECONDS", "30" if GPU_HMM else "300"))
 MODEL_CACHE_PATH = os.path.join(os.path.dirname(__file__), "hmm_model_cache.pkl")
 N_TRAINING_SEEDS = 5  # Train with multiple seeds, pick best
 

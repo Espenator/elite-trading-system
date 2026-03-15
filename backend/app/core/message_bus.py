@@ -161,6 +161,7 @@ class MessageBus:
         "market.correlation_break",
         "world.awareness_snapshot",
         "perception.sentiment",
+        "geopolitical.event",
         # ── C9: Silent failure alerting ──
         "alert.agent_failure",
         "alert.data_starvation",

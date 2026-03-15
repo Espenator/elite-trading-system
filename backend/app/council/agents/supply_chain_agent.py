@@ -138,7 +138,28 @@ def _contagion_to_vote(
 
 
 async def _load_knowledge_graph(symbol: str) -> Optional[Dict[str, Any]]:
-    """Load or build the supply chain knowledge graph."""
+    """Load or build the supply chain knowledge graph.
+
+    B4: First tries DuckDB supply_chain_graph table, then cached graph, then SEC.
+    """
+    # B4: Try DuckDB supply_chain_graph table first
+    try:
+        from app.services.duckdb_service import get_duckdb
+        db = get_duckdb()
+        rows = db.execute(
+            "SELECT related_symbol, relationship, weight FROM supply_chain_graph WHERE symbol = ?",
+            [symbol.upper()],
+        ).fetchall()
+        if rows:
+            nodes = {symbol: {"ticker": symbol, "type": "target"}}
+            edges = []
+            for related, rel_type, weight in rows:
+                nodes[related] = {"ticker": related, "type": rel_type or "supplier"}
+                edges.append({"source": symbol, "target": related, "type": rel_type or "supplier", "confidence": float(weight or 0.5)})
+            return {"nodes": nodes, "edges": edges}
+    except Exception:
+        pass  # Table may not exist yet
+
     # Try cached graph
     try:
         from app.services.knowledge_graph_service import get_supply_chain_graph

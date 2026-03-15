@@ -18,6 +18,7 @@ Market Hours Guard:
 """
 import asyncio
 import logging
+import os
 from datetime import datetime, time as dt_time
 from typing import Optional
 
@@ -259,6 +260,15 @@ def start_scheduler() -> Optional[object]:
     if not settings.SCHEDULER_ENABLED:
         log.info("Scheduler disabled (SCHEDULER_ENABLED=false in config)")
         return None
+
+    # Pin scheduler jobs to E-cores (16-23) on i7-13700 for background work
+    if os.getenv("CPU_AFFINITY_ENABLED", "true").lower() == "true":
+        try:
+            import psutil
+            psutil.Process().cpu_affinity(list(range(16, 24)))
+            log.info("Scheduler CPU affinity: E-cores 16-23 pinned for background jobs")
+        except Exception as e:
+            log.debug("Scheduler CPU affinity skipped: %s", e)
 
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler

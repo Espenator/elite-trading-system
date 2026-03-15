@@ -40,13 +40,14 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
 
-FULL_SWEEP_INTERVAL = 14400       # 4 hours between full sweeps
-INCREMENTAL_INTERVAL = 1800       # 30 min between incremental scans
+FULL_SWEEP_INTERVAL = int(os.getenv("MARKET_SWEEP_FULL_INTERVAL", "3600"))       # env default 1h (was 4h)
+INCREMENTAL_INTERVAL = int(os.getenv("MARKET_SWEEP_INCR_INTERVAL", "300"))      # env default 5min (was 30min)
 BATCH_SIZE = 50                   # Symbols per Alpaca batch request
 MAX_UNIVERSE_SIZE = 8000          # Maximum symbols to track
 INGEST_DAYS = 5                   # Days of data per incremental ingest
 FULL_INGEST_DAYS = 60             # Days per full backfill
-MAX_CONCURRENT_BATCHES = 10       # Parallel Alpaca requests
+MAX_CONCURRENT_BATCHES = int(os.getenv("MARKET_SWEEP_CONCURRENCY", "20"))       # env default 20 (was 10)
+BATCH_SIZE_SCREEN = int(os.getenv("MARKET_SWEEP_SCREEN_BATCH", "500"))          # screening batch (was 200)
 
 
 @dataclass

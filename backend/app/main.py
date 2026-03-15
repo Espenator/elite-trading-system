@@ -1498,6 +1498,15 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(acquire_lock, port=settings.effective_port)
     log.info("[STARTUP] Phase -1: Process lock acquired (%.1fs)", _elapsed())
 
+    # 0a. CPU affinity: pin API + council to P-cores (0-15) on i7-13700
+    if os.getenv("CPU_AFFINITY_ENABLED", "true").lower() == "true":
+        try:
+            import psutil
+            psutil.Process().cpu_affinity(list(range(16)))  # P-cores for API
+            log.info("CPU affinity: P-cores 0-15 pinned for API + Council")
+        except Exception as e:
+            log.debug("CPU affinity skipped: %s", e)
+
     # 0. Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
     _pool_size = getattr(settings, "ASYNCIO_THREAD_POOL_WORKERS", 64)
     loop = asyncio.get_running_loop()
