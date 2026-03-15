@@ -746,13 +746,12 @@ async def _start_event_driven_pipeline():
                 def _batch_insert():
                     conn = duckdb_store._get_conn()
                     with duckdb_store._lock:
-                        for row in deduped:
-                            conn.execute(
-                                "INSERT OR REPLACE INTO daily_ohlcv "
-                                "(symbol, date, open, high, low, close, volume, source) "
-                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                list(row),
-                            )
+                        conn.executemany(
+                            "INSERT OR REPLACE INTO daily_ohlcv "
+                            "(symbol, date, open, high, low, close, volume, source) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            [list(row) for row in deduped],
+                        )
 
                 await asyncio.to_thread(_batch_insert)
                 log.debug("Flushed %d bars to DuckDB (%d unique)", len(batch), len(deduped))
