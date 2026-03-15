@@ -6,7 +6,7 @@
 # Default (no args): CleanPorts + Supervisor + NoElectron = app runs and restarts automatically 24/7.
 
 param(
-    [int]$BackendPort = 8001,
+    [int]$BackendPort = 8000,
     [int]$FrontendPort = 5173,
     [int]$BackendPortMax = 8010,
     [int]$FrontendPortMax = 5183,
@@ -122,7 +122,9 @@ if (Test-Path $frontendEnv) {
 if (-not (Test-Path $BackendAutorestart)) { Write-Host "ERROR: $BackendAutorestart not found." -ForegroundColor Red; exit 1 }
 if (-not (Test-Path $FrontendAutorestart)) { Write-Host "ERROR: $FrontendAutorestart not found." -ForegroundColor Red; exit 1 }
 
-$HealthUrl = "http://127.0.0.1:${BackendPort}/api/v1/health"
+# Use /healthz (lightweight liveness probe, <50ms) — /api/v1/health is too heavy
+# and times out during DuckDB init, causing false restarts
+$HealthUrl = "http://127.0.0.1:${BackendPort}/healthz"
 
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor DarkCyan

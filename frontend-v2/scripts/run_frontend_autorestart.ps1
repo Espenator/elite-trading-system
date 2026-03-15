@@ -1,6 +1,6 @@
 # run_frontend_autorestart.ps1 - Run frontend (Vite) with auto-restart on exit
 # Usage: from repo root, or call from start-embodier.ps1 -Watch:
-#   .\frontend-v2\scripts\run_frontend_autorestart.ps1 -FrontendPort 5173 -BackendPort 8001
+#   .\frontend-v2\scripts\run_frontend_autorestart.ps1 -FrontendPort 5173 -BackendPort 8000
 #
 # - Restarts when Vite process exits (crash or close).
 # - Uses VITE_PORT and VITE_BACKEND_URL so proxy targets the correct backend.
@@ -8,7 +8,7 @@
 
 param(
     [int]$FrontendPort = 5173,
-    [int]$BackendPort = 8001,
+    [int]$BackendPort = 8000,
     [int]$RestartDelaySeconds = 2
 )
 

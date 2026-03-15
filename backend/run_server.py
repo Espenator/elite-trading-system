@@ -22,7 +22,7 @@ import uvicorn
 
 def main():
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8001"))
+    port = int(os.getenv("PORT", "8000"))
     workers = int(os.getenv("UVICORN_WORKERS", "1"))
 
     # Multi-worker: Set UVICORN_WORKERS=4 in .env to use i7 cores on PC1.

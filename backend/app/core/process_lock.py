@@ -51,15 +51,20 @@ def _is_process_alive(pid: int) -> bool:
 def _is_healthy_backend(port: int) -> bool:
     """Check if a healthy Embodier backend is responding on the given port.
 
-    Uses /api/v1/health (reliable JSON endpoint) with retries.
-    Falls back to /health if /api/v1/health doesn't respond.
+    Uses /healthz (lightweight liveness probe, <50ms, zero dependencies) first.
+    Falls back to /health if /healthz doesn't exist on older versions.
+
+    IMPORTANT: Do NOT use /api/v1/health here — it calls DuckDB, ML services,
+    and can take 5-15s. During startup the backend may be alive (serving HTTP)
+    but still initializing DuckDB. Using a heavy endpoint causes false negatives
+    which trigger the process lock to kill a healthy-but-starting backend.
     """
     import urllib.request
 
-    # Try /api/v1/health first (always returns JSON, most reliable)
+    # Try /healthz first (lightweight liveness probe — always fast)
     for attempt in range(_HEALTH_CHECK_RETRIES):
         try:
-            url = f"http://127.0.0.1:{port}/api/v1/health"
+            url = f"http://127.0.0.1:{port}/healthz"
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=_HEALTH_CHECK_TIMEOUT) as resp:
                 if resp.status == 200:
@@ -67,7 +72,7 @@ def _is_healthy_backend(port: int) -> bool:
         except Exception:
             pass
 
-        # On last retry, try /health as fallback
+        # On last retry, try /health as fallback for older versions
         if attempt == _HEALTH_CHECK_RETRIES - 1:
             try:
                 url = f"http://127.0.0.1:{port}/health"

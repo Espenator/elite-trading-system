@@ -24,6 +24,7 @@ Design:
 """
 import asyncio
 import logging
+import os
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -198,7 +199,9 @@ class TurboScanner:
     # Main Scan Loop
     # ──────────────────────────────────────────────────────────────────────
     async def _scan_loop(self):
-        await asyncio.sleep(15)  # Brief warmup
+        _startup_delay = int(os.environ.get("TURBO_SCANNER_STARTUP_DELAY", "60"))
+        logger.info("TurboScanner waiting %ds for startup stabilization...", _startup_delay)
+        await asyncio.sleep(_startup_delay)
         while self._running:
             try:
                 t0 = time.monotonic()

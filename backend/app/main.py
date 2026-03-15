@@ -149,11 +149,13 @@ def _init_ml_singletons():
     return initialized
 
 
-async def _supervised_loop(name: str, coro_factory, max_consecutive_failures: int = 3):
+async def _supervised_loop(name: str, coro_factory, max_consecutive_failures: int = 5):
     """Supervisor wrapper for background loops (SF9 fix).
 
     On crash: log error, wait 5s, respawn. After max_consecutive_failures,
-    stop retrying and alert.
+    stop retrying and alert via Slack.
+
+    TIER 4b: Increased default from 3 to 5 for more resilience against transient errors.
     """
     consecutive_failures = 0
     while True:
@@ -328,6 +330,26 @@ _channels_orch = None
 _ml_pub = None
 
 
+def _log_task_exception(task: asyncio.Task) -> None:
+    """Callback for fire-and-forget tasks — logs unhandled exceptions.
+
+    TIER 3c: Without this, exceptions in create_task() tasks are silently lost
+    to the event loop's unhandled task warning (stderr only, no log file).
+    """
+    try:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc:
+            log.error(
+                "Background task '%s' crashed: %s",
+                task.get_name(), exc,
+                exc_info=exc,
+            )
+    except asyncio.CancelledError:
+        pass
+
+
 async def _start_event_driven_pipeline():
     """Initialize and start the event-driven trading pipeline.
 
@@ -362,13 +384,15 @@ async def _start_event_driven_pipeline():
     # 0. Node Discovery (non-blocking) — must run before other services
     from app.services.node_discovery import NodeDiscovery
     _node_discovery = NodeDiscovery()
-    asyncio.create_task(_node_discovery.start())  # Fire and forget
+    _nd_task = asyncio.create_task(_node_discovery.start())
+    _nd_task.add_done_callback(_log_task_exception)  # TIER 3c
     log.info("NodeDiscovery started (PC2: %s)", settings.CLUSTER_PC2_HOST or "disabled")
 
     # 0b. OllamaNodePool health checks
     from app.services.ollama_node_pool import get_ollama_pool
     _ollama_pool = get_ollama_pool()
-    asyncio.create_task(_ollama_pool.start_health_checks())
+    _ollama_task = asyncio.create_task(_ollama_pool.start_health_checks())
+    _ollama_task.add_done_callback(_log_task_exception)  # TIER 3c
     log.info("\u2705 OllamaNodePool health checks started (%d nodes)", len(_ollama_pool.urls))
 
     # 1. MessageBus
@@ -397,7 +421,8 @@ async def _start_event_driven_pipeline():
     # 1b. GPU Telemetry Daemon — broadcasts to cluster.telemetry
     from app.services.gpu_telemetry import GPUTelemetryDaemon
     _gpu_telemetry_daemon = GPUTelemetryDaemon(message_bus=_message_bus)
-    asyncio.create_task(_gpu_telemetry_daemon.start())
+    _gpu_task = asyncio.create_task(_gpu_telemetry_daemon.start())
+    _gpu_task.add_done_callback(_log_task_exception)  # TIER 3c
     log.info("\u2705 GPUTelemetryDaemon started (interval=%.1fs)", settings.GPU_TELEMETRY_INTERVAL)
 
     # 1c. LLM Dispatcher — telemetry-aware workload routing
@@ -735,7 +760,8 @@ async def _start_event_driven_pipeline():
                 log.debug("DuckDB bar batch persist failed: %s", e)
 
     await _message_bus.subscribe("market_data.bar", _persist_bar_to_duckdb)
-    asyncio.create_task(_flush_bar_buffer())
+    _flush_task = asyncio.create_task(_flush_bar_buffer())
+    _flush_task.add_done_callback(_log_task_exception)  # TIER 3c
     try:
         from app.core.config import settings as _bar_settings
         _bar_flush_sec = getattr(_bar_settings, "BAR_BUFFER_FLUSH_SEC", 5.0)
@@ -777,6 +803,7 @@ async def _start_event_driven_pipeline():
         symbols = list(set(tracked or default_symbols))
         _stream_manager = AlpacaStreamManager(_message_bus, symbols)
         _alpaca_stream_task = asyncio.create_task(_stream_manager.start())
+        _alpaca_stream_task.add_done_callback(_log_task_exception)  # TIER 3c
         # Keep _alpaca_stream reference for backward compat in health checks
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
@@ -1030,7 +1057,8 @@ async def _start_event_driven_pipeline():
 
         log.info("\u2705 All deferred heavy services started")
 
-    asyncio.create_task(_start_deferred_services())
+    _deferred_task = asyncio.create_task(_start_deferred_services())
+    _deferred_task.add_done_callback(_log_task_exception)  # TIER 3c
 
     # 22. UnifiedProfitEngine — single adaptive scorer replacing 5 competing brains
     # Subscribes to signal.generated and does synchronous DuckDB queries for ML scoring.
@@ -1232,8 +1260,24 @@ async def _start_event_driven_pipeline():
             "\U0001F6A8 CRITICAL: These essential topics have NO consumers \u2014 trading pipeline is broken: %s",
             ", ".join(_critical_missing),
         )
-        # Don't fail hard \u2014 log the error so it's visible but allow startup to continue
-        # in development mode. In production, this should be a hard failure.
+        # TIER 3b: Set degraded flag so /readyz and dashboard reflect broken pipeline
+        # (previously just logged and continued silently)
+        try:
+            from app.core.service_registry import register_degraded
+            register_degraded("message_bus", f"Critical topics without consumers: {', '.join(_critical_missing)}")
+        except Exception:
+            pass
+        # Alert via Slack
+        try:
+            from app.services.slack_notification_service import get_slack_service
+            slack = get_slack_service()
+            import asyncio as _aio
+            _aio.create_task(slack.send_alert(
+                f"CRITICAL: Trading pipeline broken — zero consumers on: {', '.join(_critical_missing)}",
+                level="critical",
+            ))
+        except Exception:
+            pass
 
     _active_topics = len(_all_topics) - len(_no_subscribers)
     log.info(
@@ -1480,61 +1524,79 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         err_msg = str(e).lower()
         if ("already open" in err_msg or "file is already open" in err_msg or "being used by another process" in err_msg):
-            # Progressive retry with exponential backoff (~30s total)
+            # TIER 1a: Clean stale files IMMEDIATELY before retrying (not after 30s).
+            # If no other backend is running, the lock is from a crash — clean it now.
+            from app.core.process_lock import is_locked
+            from app.data.duckdb_storage import DuckDBStorage
             _duckdb_connected = False
-            _retry_delays = [2, 4, 8, 16]
-            for _attempt, _delay in enumerate(_retry_delays, 1):
+
+            if not is_locked():
                 log.warning(
-                    "DuckDB file locked, retry %d/%d in %ds (may be WAL recovery)...",
-                    _attempt, len(_retry_delays), _delay,
+                    "DuckDB file locked but no other backend running. "
+                    "Cleaning stale files from previous crash BEFORE retry loop..."
                 )
-                await asyncio.sleep(_delay)
+                await asyncio.to_thread(
+                    DuckDBStorage.cleanup_stale_files, duckdb_store._db_path
+                )
+                # Immediate retry after cleanup (no delay needed)
                 try:
-                    # Reset connection state so _get_conn() retries duckdb.connect()
                     duckdb_store._conn = None
                     duckdb_store._schema_initialized = False
                     await asyncio.to_thread(duckdb_store.init_schema)
                     health = await asyncio.to_thread(duckdb_store.health_check)
                     log.info(
-                        "DuckDB ready on retry %d: %d tables, %d rows",
-                        _attempt,
+                        "DuckDB ready after immediate WAL cleanup: %d tables, %d rows",
                         health.get("total_tables", 0),
                         health.get("total_rows", 0),
                     )
                     _duckdb_connected = True
-                    break
                 except Exception:
-                    pass
+                    log.warning("DuckDB still locked after cleanup — entering retry loop")
+
+            # Progressive retry with exponential backoff (only if immediate cleanup didn't work)
+            if not _duckdb_connected:
+                _retry_delays = [2, 4, 8, 16]
+                for _attempt, _delay in enumerate(_retry_delays, 1):
+                    log.warning(
+                        "DuckDB file locked, retry %d/%d in %ds (may be WAL recovery)...",
+                        _attempt, len(_retry_delays), _delay,
+                    )
+                    await asyncio.sleep(_delay)
+                    try:
+                        duckdb_store._conn = None
+                        duckdb_store._schema_initialized = False
+                        await asyncio.to_thread(duckdb_store.init_schema)
+                        health = await asyncio.to_thread(duckdb_store.health_check)
+                        log.info(
+                            "DuckDB ready on retry %d: %d tables, %d rows",
+                            _attempt,
+                            health.get("total_tables", 0),
+                            health.get("total_rows", 0),
+                        )
+                        _duckdb_connected = True
+                        break
+                    except Exception:
+                        pass
 
             if not _duckdb_connected:
-                # All retries exhausted — check if another backend is actually running
-                from app.core.process_lock import is_locked
                 if is_locked():
                     log.warning(
-                        "DuckDB init failed after %d retries — another backend instance "
+                        "DuckDB init failed after retries — another backend instance "
                         "is running. Only one backend per data directory. Exiting.",
-                        len(_retry_delays),
                     )
                     os._exit(2)
-
-                # No other backend alive — stale lock from crash. Clean up WAL.
-                log.warning(
-                    "DuckDB still locked after %d retries but no other backend running. "
-                    "Cleaning stale WAL files from previous crash...",
-                    len(_retry_delays),
-                )
-                from app.data.duckdb_storage import DuckDBStorage
+                # Final cleanup + retry
+                log.warning("DuckDB still locked after retries. Final WAL cleanup attempt...")
                 await asyncio.to_thread(
                     DuckDBStorage.cleanup_stale_files, duckdb_store._db_path
                 )
-                # Final attempt after cleanup
                 try:
                     duckdb_store._conn = None
                     duckdb_store._schema_initialized = False
                     await asyncio.to_thread(duckdb_store.init_schema)
                     health = await asyncio.to_thread(duckdb_store.health_check)
                     log.info(
-                        "DuckDB ready after WAL cleanup: %d tables, %d rows",
+                        "DuckDB ready after final WAL cleanup: %d tables, %d rows",
                         health.get("total_tables", 0),
                         health.get("total_rows", 0),
                     )
@@ -1581,12 +1643,29 @@ async def lifespan(app: FastAPI):
     log.info("[STARTUP] Phase 2: ML singletons done (%.1fs)", _elapsed())
 
     # 3. Event-driven pipeline (council-controlled)
+    # TIER 3a: Surface pipeline failures instead of silently continuing.
+    # Set a degraded flag so health checks and dashboard reflect the real state.
+    app.state.pipeline_healthy = False
     try:
         await _start_event_driven_pipeline()
+        app.state.pipeline_healthy = True
     except Exception:
         log.exception(
-            "Event-driven pipeline failed to start -- falling back to polling only"
+            "\U0001F6A8 CRITICAL: Event-driven pipeline failed to start! "
+            "Trading is DISABLED. The app will serve HTTP but no signals, "
+            "council verdicts, or orders will execute. Check logs above for root cause."
         )
+        # Alert via Slack if possible
+        try:
+            from app.services.slack_notification_service import get_slack_service
+            slack = get_slack_service()
+            await slack.send_alert(
+                "CRITICAL: Event-driven pipeline failed to start. Trading is DISABLED. "
+                "Manual restart required.",
+                level="critical",
+            )
+        except Exception:
+            pass
 
     log.info("[STARTUP] Phase 3: Event-driven pipeline done (%.1fs)", _elapsed())
     # 3a-issue76. Cancel stale unfilled orders older than 24h (Issue #76)
@@ -1695,7 +1774,11 @@ async def lifespan(app: FastAPI):
     drift_task = asyncio.create_task(
         _supervised_loop("drift_check", _drift_check_loop)
     ) if (_llm_on and _bg_loops) else None
-    heartbeat_task = asyncio.create_task(heartbeat_loop())
+    # TIER 2a: Wrap heartbeat in supervised loop so it auto-restarts on crash
+    # (previously bare create_task — if it crashed once, all WS clients hung)
+    heartbeat_task = asyncio.create_task(
+        _supervised_loop("ws_heartbeat", heartbeat_loop, max_consecutive_failures=5)
+    )
     risk_monitor_task = asyncio.create_task(
         _supervised_loop("risk_monitor", _risk_monitor_loop)
     ) if _bg_loops else None
@@ -2120,15 +2203,10 @@ async def consensus_alias():
     return await get_consensus()
 
 
-# --- Valid WebSocket channels (server-side only publishing) ---
-# Must match WS_ALLOWED_CHANNELS in websocket_manager.py and frontend WS_CHANNELS (config/api.js)
-_VALID_WS_CHANNELS = frozenset({
-    "signal", "signals", "order", "council", "council_verdict",
-    "risk", "swarm", "kelly", "market", "macro", "blackboard",
-    "alerts", "performance", "agents", "data_sources", "datasources",
-    "trades", "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
-    "health", "market_data", "outcomes", "system", "briefing",
-})
+# --- Valid WebSocket channels — SINGLE SOURCE OF TRUTH in websocket_manager.py ---
+# TIER 2c: Eliminated duplicate whitelist. Import from websocket_manager so the
+# two sets can never drift apart causing silent subscription failures.
+from app.websocket_manager import WS_ALLOWED_CHANNELS as _VALID_WS_CHANNELS
 
 # --- WebSocket rate limiting (Audit Task 15) ---
 _WS_MSG_RATE: dict = {}  # websocket -> list of timestamps
@@ -2225,8 +2303,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     unsubscribe(websocket, ch)
             # SECURITY: No client-to-channel relay. Clients cannot broadcast.
             # Commands (e.g., trigger council evaluation) go through REST endpoints.
-    except Exception:
-        pass
+    except Exception as ws_err:
+        # TIER 2d: Log WS errors instead of silently swallowing (was except: pass)
+        if not isinstance(ws_err, (ConnectionError, OSError)):
+            log.warning("WebSocket endpoint error: %s", ws_err)
     finally:
         _WS_MSG_RATE.pop(websocket, None)
         remove_connection(websocket)
@@ -2257,10 +2337,16 @@ async def readiness():
     ready = True
 
     # DuckDB — critical for all data operations
+    # TIER 4a: Timeout prevents hung DuckDB from blocking the event loop
     try:
         from app.data.duckdb_storage import duckdb_store
-        health = await asyncio.to_thread(duckdb_store.health_check)
+        health = await asyncio.wait_for(
+            asyncio.to_thread(duckdb_store.health_check), timeout=5.0
+        )
         checks["duckdb"] = "ok" if health.get("total_tables", 0) > 0 else "degraded"
+    except asyncio.TimeoutError:
+        checks["duckdb"] = "timeout"
+        ready = False
     except Exception:
         checks["duckdb"] = "unavailable"
         ready = False
@@ -2271,6 +2357,11 @@ async def readiness():
 
     # Event pipeline running
     checks["message_bus"] = "ok" if _message_bus else "not_started"
+    # TIER 3a: Surface pipeline health in readiness probe
+    pipeline_ok = getattr(app.state, "pipeline_healthy", False)
+    checks["pipeline"] = "ok" if pipeline_ok else "degraded"
+    if not pipeline_ok:
+        ready = False
 
     # Per-service health (Audit Task 8)
     try:
@@ -2390,11 +2481,15 @@ async def health_check():
         except Exception:
             agent_weights = {"status": "unavailable"}
 
-        # DuckDB status
+        # DuckDB status (TIER 4a: timeout to prevent event loop block)
         duckdb_status = {}
         try:
             from app.data.duckdb_storage import duckdb_store
-            duckdb_status = await asyncio.to_thread(duckdb_store.health_check)
+            duckdb_status = await asyncio.wait_for(
+                asyncio.to_thread(duckdb_store.health_check), timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            duckdb_status = {"status": "timeout"}
         except Exception:
             duckdb_status = {"status": "unavailable"}
 

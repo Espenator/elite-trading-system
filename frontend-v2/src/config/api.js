@@ -28,30 +28,16 @@ function _deriveWsFromBackend(backendUrl) {
   return u ? (secure ? `wss://${u}` : `ws://${u}`) : "";
 }
 
-// --- Environment variable normalization ---
-function _normalizeUrl(url) {
-  if (!url) return '';
-  return url.replace(/\/+$/, ''); // Strip trailing slashes
-}
-
-const BACKEND_URL = _normalizeUrl(
-  import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:8001'
-);
-
-// Log config on first load (dev only)
-if (import.meta.env.DEV) {
-  console.log('[api] Backend URL:', BACKEND_URL);
-  if (!import.meta.env.VITE_BACKEND_URL) {
-    console.warn('[api] VITE_BACKEND_URL not set — using default http://localhost:8001');
-  }
-}
+// Hardcoded 24/7 defaults so app runs and reconnects without .env (backend 8000, WS same host).
+const _DEFAULT_BACKEND = "http://localhost:8000";
+const _DEFAULT_WS = "ws://localhost:8000";
 
 const API_CONFIG = {
   // Env overrides; fallback to hardcoded backend so app runs automatically.
-  BASE_URL: BACKEND_URL,
+  BASE_URL: import.meta.env.VITE_API_URL ?? import.meta.env.VITE_BACKEND_URL ?? _DEFAULT_BACKEND,
   API_PREFIX: "/api/v1",
-  // WS base; fallback derived from BACKEND_URL so WebSocket reconnects to backend automatically.
-  WS_URL: _normalizeUrl(import.meta.env.VITE_WS_URL) || _deriveWsFromBackend(BACKEND_URL) || 'ws://localhost:8001',
+  // WS base; fallback to hardcoded so WebSocket reconnects to backend automatically.
+  WS_URL: import.meta.env.VITE_WS_URL ?? (_deriveWsFromBackend(import.meta.env.VITE_BACKEND_URL ?? "") || _DEFAULT_WS),
 
   endpoints: {
     // ---- CORE DATA ----
@@ -303,14 +289,19 @@ export function getApiUrl(endpoint) {
  * @param {string} [channel] - WS topic/channel name
  */
 export function getWsUrl(channel) {
-  // FIX #52: Always use the configured WS_URL (defaults to ws://localhost:8001).
-  // Previously fell back to window.location.host which resolved to Vite dev server
-  // (ws://localhost:5173) — the Vite WS proxy is unreliable for long-lived connections.
-  const base = API_CONFIG.WS_URL;
   const token = (typeof localStorage !== "undefined" && localStorage.getItem("auth_token")) ||
                 import.meta.env.VITE_API_AUTH_TOKEN || "";
-  const wsBase = token ? `${base}/ws?token=${encodeURIComponent(token)}` : `${base}/ws`;
-  return wsBase;
+  const tokenSuffix = token ? `?token=${encodeURIComponent(token)}` : "";
+
+  // In dev: use Vite proxy (ws://localhost:5173/ws) so proxy forwards to backend.
+  // Direct ws://localhost:8000 can fail due to browser/proxy quirks.
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}/ws${tokenSuffix}`;
+  }
+
+  const base = API_CONFIG.WS_URL;
+  return `${base}/ws${tokenSuffix}`;
 }
 
 export function getWsBaseUrl() {

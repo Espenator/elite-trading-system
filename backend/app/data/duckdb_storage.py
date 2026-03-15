@@ -263,24 +263,30 @@ class DuckDBStorage:
 
     @staticmethod
     def cleanup_stale_files(db_path: str) -> bool:
-        """Remove stale DuckDB WAL file if no other process is using the database.
+        """Remove stale DuckDB lock/WAL files if no other process is using the database.
 
         Only call this when you have confirmed no other backend process is running
         (via process_lock). Returns True if any files were removed.
+
+        Cleans up: .wal, .wal-wal, .lock, .tmp files that DuckDB may leave
+        behind after an unclean shutdown (crash, SIGKILL, power loss).
 
         Safe because committed data is already in the main .duckdb file;
         the WAL only contains uncommitted transactions from the crashed process.
         """
         import os
         removed = False
-        wal_path = db_path + ".wal"
-        if os.path.exists(wal_path):
-            try:
-                os.remove(wal_path)
-                logger.warning("Removed stale DuckDB WAL file: %s", wal_path)
-                removed = True
-            except OSError as e:
-                logger.warning("Could not remove WAL file %s: %s", wal_path, e)
+        # All known DuckDB leftover file patterns
+        stale_suffixes = [".wal", ".wal-wal", ".lock", ".tmp"]
+        for suffix in stale_suffixes:
+            stale_path = db_path + suffix
+            if os.path.exists(stale_path):
+                try:
+                    os.remove(stale_path)
+                    logger.warning("Removed stale DuckDB file: %s", stale_path)
+                    removed = True
+                except OSError as e:
+                    logger.warning("Could not remove stale file %s: %s", stale_path, e)
         return removed
 
     def _init_schema_internal(self, conn):

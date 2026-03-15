@@ -173,7 +173,6 @@ class DataIngestionService:
                                 break
 
                         all_rows.extend(batch_rows)
-                        # Count per symbol
                         for row in batch_rows:
                             s = row["symbol"]
                             results[s] = results.get(s, 0) + 1
@@ -181,14 +180,15 @@ class DataIngestionService:
                             "Alpaca multi-bars batch (%d symbols): %d rows",
                             len(batch), len(batch_rows),
                         )
-
-                # Yield to event loop between batches so HTTP handlers can run
-                await asyncio.sleep(0.1)
+                        await asyncio.sleep(0)
 
             except Exception as exc:
                 logger.error("Alpaca multi-bars batch failed: %s", exc)
                 for s in batch:
                     results.setdefault(s, 0)
+
+            # Yield to event loop between batches so HTTP endpoints stay responsive
+            await asyncio.sleep(0.1)
 
         if all_rows:
             df = pd.DataFrame(all_rows)
@@ -614,86 +614,57 @@ class DataIngestionService:
     # D1: Startup backfill orchestrator
     # ------------------------------------------------------------------
 
+    CORE_SYMBOLS = [
+        "SPY", "QQQ", "IWM", "DIA", "TLT", "GLD",
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META",
+        "JPM", "V", "JNJ", "XOM", "UNH",
+    ]
+
     async def run_startup_backfill(self, days: int = 252) -> Dict[str, Any]:
-        """Run gap-only backfill on startup for priority symbols.
+        """Smart startup backfill: only fills gaps for core symbols.
 
-        Called from main.py lifespan. Runs in background so API server
-        is responsive immediately.
-
-        Optimizations vs naive 252-day × full-universe approach:
-        1. Caps symbols to 50 max (core + positions + recent council)
-        2. Queries DuckDB for latest date per symbol — only fetches the gap
-        3. Skips symbols already up-to-date (latest >= yesterday)
+        Instead of fetching 252 days for 1,589 symbols (saturates the event
+        loop), this queries DuckDB for the latest date per core symbol and
+        only fetches the missing days. Runs heavy I/O via to_thread so HTTP
+        endpoints remain responsive during backfill.
         """
-        logger.info("=== STARTUP BACKFILL: gap-only, priority symbols ===")
         start = datetime.now(timezone.utc)
 
-        # Get tracked symbols, capped to avoid event loop saturation
-        all_symbols = self._get_tracked_symbols()
-        if not all_symbols:
-            logger.warning("No tracked symbols found — skipping startup backfill")
-            return {"skipped": True, "reason": "no_symbols"}
+        symbols = self.CORE_SYMBOLS[:]
+        gap_days = days
 
-        # Priority cap: core ETFs first, then limit to 50 max
-        _CORE = {"SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "NVDA", "TSLA",
-                 "GOOGL", "AMZN", "META", "TLT", "GLD"}
-        core = [s for s in all_symbols if s in _CORE]
-        rest = [s for s in all_symbols if s not in _CORE]
-        _MAX_STARTUP_SYMBOLS = 50
-        symbols = core + rest[:_MAX_STARTUP_SYMBOLS - len(core)]
-
-        # Query DuckDB for latest date per symbol to compute gap
-        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
-        gap_days = days  # default if no existing data
         try:
             conn = self.store._get_conn()
-            placeholders = ",".join(["?" for _ in symbols])
-            rows = conn.execute(
-                f"SELECT symbol, MAX(date) as latest FROM daily_ohlcv "
-                f"WHERE symbol IN ({placeholders}) GROUP BY symbol",
-                symbols,
-            ).fetchall()
-            latest_map = {r[0]: r[1] for r in rows}
-
-            # Filter out symbols already up-to-date
-            need_backfill = []
-            for s in symbols:
-                latest = latest_map.get(s)
-                if latest is None:
-                    need_backfill.append(s)
-                else:
-                    # Convert to date if needed
-                    if hasattr(latest, 'date'):
-                        latest = latest.date()
-                    if latest < yesterday:
-                        need_backfill.append(s)
-
-            if latest_map:
-                # Use the largest gap across all symbols that need updating
-                min_latest = min(
-                    (v.date() if hasattr(v, 'date') else v
-                     for v in latest_map.values()),
-                    default=None,
-                )
-                if min_latest:
-                    gap_days = (datetime.now(timezone.utc).date() - min_latest).days + 1
-                    gap_days = max(gap_days, 5)  # at least 5 days
-
-            skipped = len(symbols) - len(need_backfill)
-            if skipped:
+            df = conn.execute(
+                "SELECT symbol, MAX(date) AS last_date FROM daily_ohlcv "
+                "WHERE symbol IN (" + ",".join(f"'{s}'" for s in symbols) + ") "
+                "GROUP BY symbol"
+            ).fetchdf()
+            if not df.empty:
+                from datetime import date as date_type
+                latest = df["last_date"].max()
+                if hasattr(latest, "date"):
+                    latest = latest.date()
+                elif isinstance(latest, str):
+                    latest = datetime.fromisoformat(latest).date()
+                today = date_type.today()
+                gap_days = max(1, (today - latest).days + 1)
                 logger.info(
-                    "Startup backfill: %d symbols up-to-date, %d need data (gap=%d days)",
-                    skipped, len(need_backfill), gap_days,
+                    "Startup backfill: DuckDB has data up to %s — gap is %d days",
+                    latest, gap_days,
                 )
-            symbols = need_backfill
         except Exception as e:
-            logger.warning("Gap detection failed, falling back to full backfill: %s", e)
+            logger.warning("Could not determine DuckDB data gap: %s — using %d days", e, gap_days)
 
-        if not symbols:
-            logger.info("=== STARTUP BACKFILL: all symbols up-to-date, nothing to do ===")
-            return {"skipped": True, "reason": "up_to_date", "symbol_count": 0}
+        if gap_days <= 1:
+            logger.info("Startup backfill: data is current — skipping")
+            return {"skipped": True, "reason": "data_current", "gap_days": 0}
 
-        logger.info("Backfilling %d symbols (%d days gap)...", len(symbols), gap_days)
+        gap_days = min(gap_days, days)
+        logger.info(
+            "=== STARTUP BACKFILL: %d core symbols, %d gap-days ===",
+            len(symbols), gap_days,
+        )
 
         report = await self.ingest_all(symbols, days=gap_days)
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
@@ -701,8 +672,8 @@ class DataIngestionService:
         report["symbol_count"] = len(symbols)
 
         logger.info(
-            "=== STARTUP BACKFILL COMPLETE: %d symbols, %.1fs ===",
-            len(symbols), elapsed,
+            "=== STARTUP BACKFILL COMPLETE: %d symbols, %d days, %.1fs ===",
+            len(symbols), gap_days, elapsed,
         )
         return report
 

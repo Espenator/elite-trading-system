@@ -5,7 +5,7 @@
 # ============================================================
 
 param(
-    [int]$BackendPort  = 8001,
+    [int]$BackendPort  = 8000,
     [int]$FrontendPort = 5173,
     [switch]$NoElectron,
     [switch]$SkipFrontend
@@ -248,6 +248,15 @@ if (-not $SkipFrontend) {
 $stepNum++
 Write-Step $stepNum $totalSteps "Starting backend on port $BackendPort..."
 
+# Clean stale DuckDB WAL (prevents "file locked" on crash recovery)
+$walPath = Join-Path $BackendDir "data\analytics.duckdb.wal"
+if (Test-Path $walPath) {
+    try {
+        Remove-Item $walPath -Force -ErrorAction SilentlyContinue
+        Write-Ok "Removed stale DuckDB WAL (previous crash)"
+    } catch { }
+}
+
 # Clean stale PID file
 $pidFile = Join-Path $BackendDir ".embodier.pid"
 if (Test-Path $pidFile) {
@@ -271,26 +280,27 @@ $portsFile = Join-Path $Root ".embodier-ports.json"
     ConvertTo-Json | Set-Content -Path $portsFile -Encoding utf8 -Force
 Write-Ok "Ports saved to .embodier-ports.json (backend:$BackendPort, frontend:$FrontendPort)"
 
-# Activate venv and start
+# Activate venv and start (PORT must match BackendPort for frontend/API alignment)
 if (Test-Path $venvPython) {
     $activateScript = Join-Path $BackendDir "venv\Scripts\Activate.ps1"
     Start-Process powershell -ArgumentList @(
         "-NoExit", "-Command",
         "`$Host.UI.RawUI.WindowTitle = 'Embodier Backend :$BackendPort'; " +
+        "`$env:PORT = '$BackendPort'; " +
         "Set-Location '$BackendDir'; " +
         "& '$activateScript'; " +
         "python run_server.py"
     ) -WindowStyle Normal
 } else {
-    Start-Process cmd -ArgumentList "/k", "title Embodier Backend :$BackendPort && cd /d `"$BackendDir`" && python run_server.py" -WindowStyle Normal
+    Start-Process cmd -ArgumentList "/k", "title Embodier Backend :$BackendPort && set PORT=$BackendPort && cd /d `"$BackendDir`" && python run_server.py" -WindowStyle Normal
 }
 
 # Wait for backend health (backend loads 20+ services, typically takes 30-60s)
-$healthy = Wait-ForUrl "http://localhost:$BackendPort/api/v1/health" 120 "Backend"
+$healthy = Wait-ForUrl "http://localhost:$BackendPort/healthz" 120 "Backend"
 if (-not $healthy) {
     # Double-check: maybe /healthz is slow but API works
     try {
-        $fallback = Invoke-WebRequest -Uri "http://localhost:$BackendPort/api/v1/health" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
+        $fallback = Invoke-WebRequest -Uri "http://localhost:$BackendPort/healthz" -TimeoutSec 5 -UseBasicParsing -ErrorAction SilentlyContinue
         if ($fallback.StatusCode -eq 200) {
             Write-Ok "Backend responding on /api/v1/health (startup still completing)"
             $healthy = $true
@@ -315,7 +325,7 @@ if ($SkipFrontend) {
 $stepNum++
 Write-Step $stepNum $totalSteps "Starting frontend on port $FrontendPort..."
 
-Start-Process cmd -ArgumentList "/k", "title Embodier Frontend :$FrontendPort && cd /d `"$FrontendDir`" && npm run dev" -WindowStyle Normal
+Start-Process cmd -ArgumentList "/k", "title Embodier Frontend :$FrontendPort && set VITE_BACKEND_URL=http://localhost:$BackendPort && set VITE_WS_URL=ws://localhost:$BackendPort && set VITE_PORT=$FrontendPort && cd /d `"$FrontendDir`" && npm run dev" -WindowStyle Normal
 
 # Wait for Vite dev server
 $viteReady = Wait-ForUrl "http://localhost:$FrontendPort" 30 "Frontend (Vite)"
