@@ -173,6 +173,52 @@ def _run_overnight_refresh():
         log.exception("Scheduled overnight_refresh failed: %s", e)
 
 
+def _run_world_awareness_scan():
+    """Part 6: Continuous World Awareness — Perplexity Sonar Pro every 15 min.
+
+    Fires 5 parallel intelligence scans and publishes world.awareness_snapshot
+    to MessageBus so macro_regime_agent and hypothesis_agent have live context.
+    """
+    import asyncio
+
+    async def _scan():
+        try:
+            from app.services.perplexity_intelligence import get_perplexity_intel
+            from app.core.message_bus import get_message_bus
+            intel = get_perplexity_intel()
+            results = await asyncio.gather(
+                intel.scan_fed_macro(),
+                intel.scan_sector_rotation(),
+                intel.get_fear_greed_context(),
+                intel.scan_breaking_news("SPY"),
+                intel.get_institutional_flow("QQQ"),
+                return_exceptions=True,
+            )
+            bus = get_message_bus()
+            if bus._running:
+                snapshot = {
+                    "fed_macro": results[0] if not isinstance(results[0], Exception) else None,
+                    "sector_rotation": results[1] if not isinstance(results[1], Exception) else None,
+                    "fear_greed": results[2] if not isinstance(results[2], Exception) else None,
+                    "spy_news": results[3] if not isinstance(results[3], Exception) else None,
+                    "qqq_flow": results[4] if not isinstance(results[4], Exception) else None,
+                }
+                await bus.publish("world.awareness_snapshot", snapshot)
+            log.info("World awareness scan: %d/5 succeeded",
+                     sum(1 for r in results if not isinstance(r, Exception)))
+        except Exception as e:
+            log.warning("World awareness scan failed: %s", e)
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(_scan())
+        else:
+            asyncio.run(_scan())
+    except Exception as e:
+        log.exception("World awareness scheduler error: %s", e)
+
+
 def _run_morning_briefing():
     """9 AM ET weekdays: generate morning briefing and push to TradingView webhook."""
     from app.jobs.morning_briefing_job import run_morning_briefing
@@ -295,6 +341,17 @@ def start_scheduler() -> Optional[object]:
         CronTrigger(minute=30, timezone="UTC"),
         id="historical_signal_resolution",
         name="Historical Signal Resolution (hourly)",
+        replace_existing=True,
+    )
+
+    # Part 6: Continuous World Awareness — Perplexity scan every 15 minutes
+    # 7 days: world events don't stop on weekends
+    from apscheduler.triggers.interval import IntervalTrigger
+    _scheduler.add_job(
+        _run_world_awareness_scan,
+        IntervalTrigger(minutes=15),
+        id="world_awareness_scan",
+        name="World Awareness Scan (Perplexity, 15min)",
         replace_existing=True,
     )
 

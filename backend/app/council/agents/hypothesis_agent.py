@@ -32,6 +32,7 @@ def build_slim_context(blackboard) -> str:
     metadata = getattr(blackboard, "metadata", {})
     timestamp = getattr(blackboard, "timestamp", None)
 
+    # Firehose v5: expand from 9 to 25+ cross-domain features
     slim = {
         "symbol": getattr(blackboard, "symbol", ""),
         "regime": perceptions.get("regime", {}).get("state", "unknown"),
@@ -40,16 +41,70 @@ def build_slim_context(blackboard) -> str:
             "market": perceptions.get("market_perception", {}).get("direction"),
             "flow": perceptions.get("flow_perception", {}).get("signal"),
         },
+        # Full price features (expanded from 9 → 25+)
         "key_features": {
             k: v for k, v in raw_features.items()
             if k in {
+                # Original 9
                 "ret_1d", "ret_5d", "volume_ratio", "vix", "vix_term_structure",
                 "unusual_flow_score", "short_interest_pct", "rsi_14", "adx_14",
+                # Expanded price features
+                "ret_20d", "vix_percentile_1y", "bb_position", "macd_signal",
+                "obv_trend", "put_call_ratio", "iv_rank", "iv_percentile",
+                # Volume and momentum
+                "volume_surge_ratio", "atr_pct", "volatility_20d",
+                "return_1d", "return_5d", "return_20d",
             }
         },
         "session": metadata.get("session", "market_open"),
         "council_decision_id": getattr(blackboard, "council_decision_id", ""),
     }
+
+    # Cross-domain signals from firehose sources
+    # Task 1.3: Benzinga news catalyst
+    news_cat = metadata.get("news_catalysts")
+    if news_cat:
+        slim["news_catalyst"] = {
+            "bullish": news_cat.get("bullish_count", 0),
+            "bearish": news_cat.get("bearish_count", 0),
+            "top_headline": news_cat.get("top_headline", ""),
+        }
+
+    # Task 1.1: SEC EDGAR insider signal
+    insider = metadata.get("insider")
+    if insider:
+        slim["insider_signal"] = {
+            "top_signal": insider.get("top_signal", "neutral"),
+            "cluster_tickers": insider.get("cluster_tickers", [])[:3],
+        }
+
+    # Task 1.2: SqueezeMetrics dark pool
+    dark_pool = metadata.get("dark_pool")
+    if dark_pool:
+        slim["dark_pool_dix"] = dark_pool.get("dix")
+        slim["dark_pool_gex"] = dark_pool.get("gex")
+
+    # Task 1.5: FRED macro yield spread
+    macro = metadata.get("macro") or perceptions.get("macro", {})
+    if macro:
+        slim["macro_yield_spread"] = macro.get("yield_spread_2_10")
+        slim["fed_funds_rate"] = macro.get("fed_funds_rate")
+
+    # Task 1.4: Congressional signal
+    congressional = metadata.get("congressional")
+    if congressional:
+        slim["congressional_signal"] = congressional.get("top_signal", "neutral")
+
+    # Part 3: Correlation break from CorrelationRadar
+    corr_breaks = metadata.get("correlation_breaks")
+    if corr_breaks:
+        slim["correlation_break"] = corr_breaks[:2]  # Top 2 breaks
+
+    # Similar past decisions from KnowledgeGraph layered_memory
+    memory = metadata.get("layered_memory", {})
+    if memory.get("short_term"):
+        slim["similar_past_decisions"] = memory["short_term"][:3]
+
     if timestamp:
         slim["timestamp"] = timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp)
     return json.dumps(slim, default=str)

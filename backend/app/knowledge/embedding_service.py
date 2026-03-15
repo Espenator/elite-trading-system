@@ -63,11 +63,14 @@ class EmbeddingEngine:
         if self._model == "fallback":
             return self._fallback_embed(texts)
 
+        # GPU Channel 10: RTX 4080 can handle 512-batch for MiniLM-L6-v2
+        # CPU stays at 32 to avoid memory pressure
+        gpu_batch = 512 if self._device and "cuda" in str(self._device) else 32
         embeddings = self._model.encode(
             texts,
             normalize_embeddings=True,
             show_progress_bar=False,
-            batch_size=32,
+            batch_size=gpu_batch,
         )
         return np.array(embeddings, dtype=np.float32)
 

@@ -152,6 +152,15 @@ class MessageBus:
         "perception.squeezemetrics",
         "perception.earnings",
         "perception.congressional",
+        # ── Firehose v5: dedicated source → agent topics ──
+        "sec.insider_filing",
+        "market.dark_pool",
+        "news.catalyst",
+        "congress.trade",
+        "macro.snapshot",
+        "market.correlation_break",
+        "world.awareness_snapshot",
+        "perception.sentiment",
         # ── C9: Silent failure alerting ──
         "alert.agent_failure",
         "alert.data_starvation",
@@ -246,6 +255,15 @@ class MessageBus:
         "ingest.dlq",
         "ingest.to_awareness",
         "ingest.awareness_enriched",
+        # Firehose v5: cross-PC intelligence topics
+        "sec.insider_filing",
+        "market.dark_pool",
+        "news.catalyst",
+        "congress.trade",
+        "macro.snapshot",
+        "market.correlation_break",
+        "world.awareness_snapshot",
+        "perception.sentiment",
     }
 
     # Redis channel prefix to avoid collisions with other apps

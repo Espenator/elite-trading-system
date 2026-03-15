@@ -146,6 +146,18 @@ class SecEdgarService:
                     "source": "sec_edgar_service",
                     "timestamp": time.time(),
                 })
+                # Firehose v5: publish each filing individually for insider_agent
+                for txn in transactions[:limit]:
+                    await bus.publish("sec.insider_filing", {
+                        "symbol": txn.get("ticker", ""),
+                        "insider_name": txn.get("insider_name", ""),
+                        "transaction_type": "P" if txn.get("transaction_type") == "purchase" else "S",
+                        "shares": 0,
+                        "value_usd": txn.get("transaction_value", 0),
+                        "filing_date": txn.get("filing_date", ""),
+                        "form_type": txn.get("form_type", "4"),
+                        "source": "sec_edgar",
+                    })
         except Exception:
             pass
 

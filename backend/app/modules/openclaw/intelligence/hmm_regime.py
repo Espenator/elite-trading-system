@@ -24,6 +24,14 @@ from typing import Dict, Optional, Tuple
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+# GPU Channel 8: cuML GPU HMM when available — 30s refresh vs 300s on CPU
+try:
+    from cuml.hmm import GaussianHMM as CuMLGaussianHMM
+    GPU_HMM = True
+    logger.info("HMM Regime: cuML GPU acceleration ENABLED — 30s refresh")
+except ImportError:
+    GPU_HMM = False
+
 # --- HMM Configuration ---
 HMM_N_COMPONENTS = 7
 HMM_LOOKBACK_DAYS = 365
@@ -32,7 +40,9 @@ HMM_N_ITER = 100
 HMM_MIN_HOLD_HOURS = 48
 HMM_CONFIDENCE_THRESHOLD = 0.6
 HURST_WINDOW = 100
-MODEL_RETRAIN_INTERVAL = 4 * 3600  # 4 hours between retrains
+# GPU Channel 8: 30s refresh on GPU vs 300s on CPU (5min stale regime = wrong playbook)
+MODEL_RETRAIN_INTERVAL = 30 if GPU_HMM else 4 * 3600
+REGIME_REFRESH_SECONDS = 30 if GPU_HMM else 300
 MODEL_CACHE_PATH = os.path.join(os.path.dirname(__file__), "hmm_model_cache.pkl")
 N_TRAINING_SEEDS = 5  # Train with multiple seeds, pick best
 

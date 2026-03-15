@@ -234,6 +234,14 @@ async def get_earnings_transcript(symbol: str) -> Optional[Dict[str, Any]]:
                     "source": "benzinga_service",
                     "timestamp": time.time(),
                 }))
+                # Firehose v5: news catalyst topic for news_catalyst_agent
+                asyncio.get_event_loop().create_task(bus.publish("news.catalyst", {
+                    "symbol": symbol.upper(),
+                    "headline": f"Earnings transcript available for {symbol.upper()}",
+                    "summary": clean[:500] if clean else "",
+                    "published_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "benzinga",
+                }))
         except Exception:
             pass
 

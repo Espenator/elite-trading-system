@@ -40,6 +40,24 @@ from app.services.cognitive_telemetry import (
 logger = logging.getLogger(__name__)
 
 
+async def _run_background_critic(spawner, symbol, timeframe, context, blackboard):
+    """GPU Channel 7: Run critic postmortem as fire-and-forget background task.
+
+    PC2's GPU handles the deep reasoning pass (up to 30s budget) while the
+    council pipeline has already returned the decision. Results are stored
+    in the blackboard for the next cycle's reference.
+    """
+    try:
+        stage6 = await spawner.spawn("critic", symbol, timeframe, context=context)
+        blackboard.critic_review = stage6.to_dict()
+        logger.info(
+            "Background critic completed for %s: direction=%s conf=%.2f",
+            symbol, stage6.direction, stage6.confidence,
+        )
+    except Exception as e:
+        logger.debug("Background critic failed for %s: %s", symbol, e)
+
+
 def _check_council_health(votes: List[AgentVote], total_agents: int = 33) -> dict:
     """Check council health — alert if >20% agents failed/degraded.
 
@@ -627,12 +645,35 @@ async def run_council(
         logger.debug("Stage 5.5 (debate/red-team) failed (proceeding): %s", e)
     blackboard.stage_latencies["stage5.5"] = time.monotonic() * 1000 - _stage_start
 
-    # Stage 6: Critic
+    # Stage 6: Critic — GPU Channel 7: background task on PC2
+    # Critic postmortem runs with 500ms budget. If it exceeds that,
+    # it fires as a background task so the council pipeline returns
+    # the decision without waiting for the full 30s deep reasoning pass.
     _stage_start = time.monotonic() * 1000
-    stage6 = await spawner.spawn("critic", symbol, timeframe, context=context)
-    all_votes.append(stage6)
-    context["stage6"] = {stage6.agent_name: stage6.to_dict()}
-    blackboard.critic_review = stage6.to_dict()
+    try:
+        stage6 = await asyncio.wait_for(
+            spawner.spawn("critic", symbol, timeframe, context=context),
+            timeout=0.5,
+        )
+        all_votes.append(stage6)
+        context["stage6"] = {stage6.agent_name: stage6.to_dict()}
+        blackboard.critic_review = stage6.to_dict()
+    except asyncio.TimeoutError:
+        logger.info("Critic timed out (500ms) — background postmortem for %s", symbol)
+        asyncio.create_task(
+            _run_background_critic(spawner, symbol, timeframe, context, blackboard)
+        )
+        stage6_stub = AgentVote(
+            agent_name="critic",
+            direction="hold",
+            confidence=0.0,
+            reasoning="Critic deferred to background postmortem (GPU Channel 7)",
+            weight=0.0,
+            metadata={"background": True},
+        )
+        all_votes.append(stage6_stub)
+    except Exception as e:
+        logger.debug("Critic failed (proceeding without): %s", e)
     blackboard.stage_latencies["stage6"] = time.monotonic() * 1000 - _stage_start
 
     # Pre-arbiter: Council health check

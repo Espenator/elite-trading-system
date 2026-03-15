@@ -34,9 +34,19 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import pandas as pd
 
+# GPU Channel 4: cuDF for GPU-accelerated screening (200ms vs 2-5s on CPU)
+try:
+    import cudf as cudf_gpu
+    GPU_SCANNER = True
+except ImportError:
+    cudf_gpu = None
+    GPU_SCANNER = False
+
 from app.utils.sector_lookup import get_sector_or_none
 
 logger = logging.getLogger(__name__)
+if GPU_SCANNER:
+    logger.info("TurboScanner: cuDF GPU screening ENABLED (~200ms for 8000+ symbols)")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -56,6 +66,33 @@ MIN_COUNCIL_SCORE = 0.65        # Higher bar for triggering full 35-agent counci
 
 # Multi-node Ollama pool (add PC2 URL for 2x throughput)
 OLLAMA_POOL_URLS = []  # Populated from env: SCANNER_OLLAMA_URLS=http://pc2:11434,http://localhost:11434
+
+# Part 4: Dual Discovery — PC2 independent scanner with different params
+# PC2 targets smaller-float, higher-relative-volume stocks that PC1 misses
+def _get_pc_role() -> str:
+    try:
+        from app.core.config import settings
+        return getattr(settings, "PC_ROLE", "primary").lower()
+    except Exception:
+        return os.getenv("PC_ROLE", "primary").lower()
+
+SCAN_PARAMS_PC2 = {
+    "min_volume": 500_000,
+    "max_price": 50.0,
+    "min_relative_volume": 3.0,  # Higher momentum threshold than PC1
+    "min_float_short_pct": 15.0,  # Short squeeze candidates
+}
+
+def get_scan_params() -> dict:
+    """Return scan parameters based on PC role."""
+    if _get_pc_role() == "secondary":
+        return SCAN_PARAMS_PC2
+    return {
+        "min_volume": 1_000_000,
+        "max_price": 500.0,
+        "min_relative_volume": 1.5,
+        "min_float_short_pct": 0.0,
+    }
 
 # Universe tiers — scan frequency varies by tier
 UNIVERSE_TIER_1 = [  # Scan every cycle — most liquid

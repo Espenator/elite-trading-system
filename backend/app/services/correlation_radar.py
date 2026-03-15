@@ -229,6 +229,20 @@ class CorrelationRadar:
             self._break_history.append(brk)
             self._stats["correlation_breaks"] += 1
             await self._trigger_swarm_from_break(brk)
+            # Firehose v5: publish to market.correlation_break for intermarket_agent
+            if self._bus:
+                await self._bus.publish("market.correlation_break", {
+                    "symbol_a": brk.pair[0],
+                    "symbol_b": brk.pair[1],
+                    "pair_type": brk.pair_type,
+                    "correlation_shift": round(brk.deviation, 3),
+                    "normal_corr": round(brk.normal_corr, 3),
+                    "current_corr": round(brk.current_corr, 3),
+                    "interpretation": brk.interpretation,
+                    "trade_idea": brk.trade_idea,
+                    "rotation_signal": None,
+                    "mean_reversion_score": 0.0,
+                })
 
         # 2. Sector rotation
         rotations = self._detect_sector_rotation(prices)
@@ -236,6 +250,16 @@ class CorrelationRadar:
             self._rotation_history.append(rot)
             self._stats["rotation_signals"] += 1
             await self._trigger_swarm_from_rotation(rot)
+            # Firehose v5: rotation signals to correlation_break topic
+            if self._bus:
+                await self._bus.publish("market.correlation_break", {
+                    "symbol_a": rot.from_sector,
+                    "symbol_b": rot.to_sector,
+                    "pair_type": "sector_rotation",
+                    "correlation_shift": round(rot.spread, 3),
+                    "rotation_signal": f"{rot.from_sector} → {rot.to_sector}",
+                    "mean_reversion_score": 0.0,
+                })
 
         # 3. Mean reversion
         reversions = self._detect_mean_reversion(prices, indicators)
@@ -243,6 +267,16 @@ class CorrelationRadar:
             self._reversion_history.append(rev)
             self._stats["reversion_signals"] += 1
             await self._trigger_swarm_from_reversion(rev)
+            # Firehose v5: mean reversion scores
+            if self._bus:
+                await self._bus.publish("market.correlation_break", {
+                    "symbol_a": rev.symbol,
+                    "symbol_b": "",
+                    "pair_type": "mean_reversion",
+                    "correlation_shift": 0.0,
+                    "rotation_signal": None,
+                    "mean_reversion_score": round(rev.reversal_probability, 3),
+                })
 
         # deque(maxlen=100) handles history trimming automatically
 

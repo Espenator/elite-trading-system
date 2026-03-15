@@ -117,6 +117,46 @@ class FREDAdapter(BaseSourceAdapter):
 
             logger.info(f"FRED: Fetched {len(events)} observations across {len(FRED_SERIES)} series")
 
+            # Firehose v5: publish macro.snapshot for all perception agents
+            if events:
+                snapshot = {}
+                for ev in events:
+                    p = ev.payload_json
+                    sid = p.get("series_id", "")
+                    try:
+                        val = float(p.get("value", 0))
+                    except (ValueError, TypeError):
+                        continue
+                    if sid == "DFF":
+                        snapshot["fed_funds_rate"] = val
+                    elif sid == "DGS10":
+                        snapshot["yield_10y"] = val
+                    elif sid == "DGS2":
+                        snapshot["yield_2y"] = val
+                    elif sid == "CPIAUCSL":
+                        snapshot["cpi_yoy"] = val
+                    elif sid == "UNRATE":
+                        snapshot["unemployment"] = val
+                    elif sid == "VIXCLS":
+                        snapshot["vix"] = val
+
+                if snapshot.get("yield_10y") and snapshot.get("yield_2y"):
+                    snapshot["yield_spread_2_10"] = round(
+                        snapshot["yield_10y"] - snapshot["yield_2y"], 3
+                    )
+
+                if snapshot:
+                    try:
+                        from app.core.message_bus import get_message_bus
+                        bus = get_message_bus()
+                        if bus._running:
+                            import asyncio
+                            asyncio.get_event_loop().create_task(
+                                bus.publish("macro.snapshot", snapshot)
+                            )
+                    except Exception:
+                        pass
+
         except Exception as e:
             logger.error(f"FRED fetch failed: {e}", exc_info=True)
             raise

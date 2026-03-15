@@ -171,6 +171,13 @@ async def get_dix_gex() -> Optional[Dict[str, Any]]:
                         "source": "squeezemetrics_service",
                         "timestamp": time.time(),
                     }))
+                    # Firehose v5: dedicated dark pool topic for dark_pool_agent + gex_agent
+                    asyncio.get_event_loop().create_task(bus.publish("market.dark_pool", {
+                        "dix": result.get("dix"),
+                        "gex": result.get("gex"),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "source": "squeezemetrics",
+                    }))
             except Exception:
                 pass
 

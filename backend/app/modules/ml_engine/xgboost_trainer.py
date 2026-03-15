@@ -355,7 +355,7 @@ def train_xgboost(
     # --- GPU config (VRAM-safe) ------------------------------------------
     base_params: Dict[str, Any] = {
         "objective": "binary:logistic",
-        "eval_metric": ["logloss", "error"],
+        "eval_metric": ["logloss", "error", "auc"],  # Channel 11: AUC for GPU training
         "verbosity": 1,
         "seed": 42,
     }

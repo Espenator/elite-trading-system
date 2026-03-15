@@ -55,6 +55,16 @@ async def get_trades_by_ticker(symbol: str) -> List[Dict[str, Any]]:
                     "source": "capitol_trades_service",
                     "timestamp": time.time(),
                 })
+                # Firehose v5: individual congress.trade events
+                for t in trades:
+                    await bus.publish("congress.trade", {
+                        "symbol": symbol,
+                        "politician": t.get("member", ""),
+                        "transaction_type": t.get("transaction_type", ""),
+                        "amount_range": t.get("amount", ""),
+                        "disclosure_delay_days": None,
+                        "source": "capitol_trades",
+                    })
         except Exception:
             pass
         return trades
@@ -75,6 +85,15 @@ async def get_trades_by_ticker(symbol: str) -> List[Dict[str, Any]]:
                     "source": "capitol_trades_service",
                     "timestamp": time.time(),
                 })
+                for t in trades:
+                    await bus.publish("congress.trade", {
+                        "symbol": symbol,
+                        "politician": t.get("member", ""),
+                        "transaction_type": t.get("transaction_type", ""),
+                        "amount_range": t.get("amount", ""),
+                        "disclosure_delay_days": None,
+                        "source": "capitol_trades",
+                    })
         except Exception:
             pass
     return trades
