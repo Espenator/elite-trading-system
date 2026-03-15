@@ -1,6 +1,6 @@
-# Production Readiness Plan — Embodier Trader v5.0.0
+# Production Readiness Plan — Embodier Trader v5.1.0
 # Goal: Autonomous 24/7 profit-generating trading consciousness
-# Generated: March 11, 2026 | Updated: March 11, 2026 (deep audit)
+# Generated: March 11, 2026 | Updated: March 15, 2026 (performance & stability hardening)
 
 ---
 
@@ -330,6 +330,37 @@ Final hardening for 24/7 autonomous operation.
 
 ---
 
+### Performance & Stability Hardening
+**Priority: P0 | STATUS: COMPLETE (March 13-15, 2026)**
+
+Post-phase hardening to ensure stable 24/7 operation.
+
+#### WebSocket Stability — DONE
+- Fixed port mismatch (backend on 8000, WS client connecting to 8001)
+- Added subscribe acknowledgment messages for client-side confirmation
+- Improved connection logging with `[WS]` prefix tags for debugging
+- Auto-reconnect with exponential backoff (2s → 30s max)
+
+#### Performance Optimizations — DONE
+- **uvicorn**: uvloop + httptools workers, keep-alive 60s, backlog 2048 (`run_server.py`)
+- **DuckDB**: Async batch write queue — 50K capacity, 100-row batches, 0.5s flush interval (`core/db_writer.py`)
+- **Endpoints**: In-memory TTL cache for signals, consensus, sentiment, performance endpoints (`core/endpoint_cache.py`)
+- **CPU**: ProcessPoolExecutor + `asyncio.to_thread()` offload for CPU-bound signal/feature handlers
+- **Scanning**: Session-aware intervals — 60s market, 120s pre-market, 300s overnight, 600s weekend (`services/data_swarm/session_clock.py`)
+
+#### Startup & Tooling — DONE
+- Removed 7 stale duplicate startup scripts (scripts/start-all.ps1, scripts/start-embodier.ps1, etc.)
+- Standardized ports: backend 8000, frontend 5173, health checks → /healthz
+- `nuke-and-restart.ps1`: Kill all processes, clean stale state (.embodier-ports.json, PID files), restart
+- `scripts/fix-pc2-cuda.ps1`: Restore PyTorch CUDA on RTX 4080 after driver updates
+- Router graceful degradation: stopped secondary modules (brain, cluster, awareness) return empty responses, not 500s
+- Frontend Vite proxy timeout increased to 60s
+
+#### Test Growth — DONE
+- Test count grew from 981+ to 1,639 (91 test files) through expanded coverage
+
+---
+
 ### Phase F: TRADING ASSISTANT & TRADINGVIEW INTEGRATION
 **Priority: P1 | Estimated: 2-3 sessions | STATUS: IN PROGRESS (March 12, 2026)**
 
@@ -380,19 +411,21 @@ Dual-system trading architecture: Embodier Trader (AI signals) + TradingView (ch
 ## Execution Order
 
 ```
-Phase A (Stop the Bleeding)      ← COMPLETE (2-3 sessions, March 11)
+Phase A (Stop the Bleeding)       ← COMPLETE (2-3 sessions, March 11)
   ↓
-Phase B (Unlock Alpha)           ← COMPLETE (3-4 sessions, March 12)
-Phase C (Sharpen the Brain)      ← COMPLETE (3-4 sessions, March 12)
+Phase B (Unlock Alpha)            ← COMPLETE (3-4 sessions, March 12)
+Phase C (Sharpen the Brain)       ← COMPLETE (3-4 sessions, March 12)
   ↓
 Phase D (Continuous Intelligence) ← COMPLETE (3-4 sessions, March 12)
   ↓
 Phase E (Production Hardening)    ← COMPLETE (2-3 sessions)
   ↓
+Performance Hardening             ← COMPLETE (March 13-15 — WS stability, uvloop, batch writer, TTL cache)
+  ↓
 Phase F (Trading Assistant)       ← IN PROGRESS (2-3 sessions, March 12+)
 ```
 
-**Total estimated effort: 15-21 focused sessions. Phases A-E completed March 11-12, 2026. Phase F in progress.**
+**Total estimated effort: 15-21 focused sessions. Phases A-E completed March 11-12, 2026. Performance hardening March 13-15, 2026. Phase F in progress.**
 
 ---
 
@@ -426,8 +459,12 @@ Phase F (Trading Assistant)       ← IN PROGRESS (2-3 sessions, March 12+)
 7. HITL gate implemented and ready
 8. Health monitoring endpoints are comprehensive
 9. Graceful degradation for optional services
-10. 981+ tests passing (52 test files), CI GREEN
+10. 1,639 tests passing (91 test files), CI GREEN
 11. Kelly criterion implementation is mathematically sound
 12. Bracket order support with ATR-based stop/TP
 13. Shadow vs auto mode separation
-14. WebSocket real-time updates to frontend
+14. WebSocket real-time updates to frontend (stable, auto-reconnect, connection logging)
+15. DuckDB async batch writer (50K queue, 100-row batches)
+16. In-memory TTL endpoint cache for high-traffic endpoints
+17. Session-aware scan intervals (adapts to market hours)
+18. uvloop + httptools for optimized uvicorn performance

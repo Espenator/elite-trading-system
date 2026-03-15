@@ -1,35 +1,36 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 5.0.0** | Last Updated: March 12, 2026
+**Version 5.1.0** | Last Updated: March 15, 2026
 
-> **Version**: v5.0.0 | **Status**: Production-Ready (~95%) | **CI**: 981+ tests GREEN
+> **Version**: v5.1.0 | **Status**: Production-Ready (~97%) | **CI**: 1,639 tests GREEN
 >
 > The system IS profit. A conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 
 ---
 
-React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0-P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
+React + FastAPI full-stack trading application with 18-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0-P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
-## Current State (March 12, 2026) — v5.0.0 Production-Ready
+## Current State (March 15, 2026) — v5.1.0 Production-Ready
 
 | Area | Count | Status |
 |------|-------|--------|
-| Frontend pages | 14 (all sidebar routes) | **ALL COMPLETE** -- pixel-matched to mockups, no mock data |
+| Frontend pages | 18 routes (14 main + 4 utility) | **ALL COMPLETE** -- pixel-matched to mockups, no mock data |
 | Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
-| Backend API routes | **43** files in api/v1/ | All mounted in main.py (including brain, triage, ingestion firehose, awareness) |
-| Backend services | **72+** (incl. subdirs) | llm_clients, data_sources, scanning, trading, scrapers, etc. |
+| Backend API routes | **46** files in api/v1/ | All mounted in main.py (including brain, triage, ingestion firehose, awareness) |
+| Backend services | **87+** top-level (160+ incl. subdirs) | llm_clients, data_sources, scanning, trading, scrapers, channels, data_swarm, broker |
 | Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0-P4) + 6 Supplemental + 3 Debate + 3 others |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
-| Tests | **981+ passing** | Backend pytest + frontend build |
+| Tests | **1,639 passing** (91 test files) | Backend pytest + frontend build |
 | LLM Intelligence | 3-tier router | Ollama -> Perplexity -> Claude; Claude reserved for 6 deep-reasoning tasks |
 | Brain service | gRPC + Ollama | **WIRED** -- hypothesis_agent calls brain gRPC |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT -- council-controlled trading |
-| Database | DuckDB (WAL mode, pooling) | BUILT |
+| Database | DuckDB (WAL mode, pooling, batch writer) | BUILT + OPTIMIZED |
 | Authentication | Bearer token | **Fail-closed** -- live trading endpoints protected |
-| WebSocket | 5 pages wired | **ACTIVE** -- bridges for signals, orders, council, market data |
+| WebSocket | 5 pages wired | **STABLE** -- auto-reconnect, connection logging, subscribe ack |
 | Electron desktop app | `desktop/` | **BUILD-READY** -- See [build plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) |
-| Production readiness | ~95% (All phases A+B+C+D+E complete) | All critical gaps resolved, system production-ready |
+| Performance | uvloop + httptools + TTL cache + batch writer | **OPTIMIZED** -- endpoint caching, async DuckDB, session-aware scanning |
+| Production readiness | ~97% (All phases A+B+C+D+E complete + perf hardening) | All critical gaps resolved, system production-ready |
 
 ### Deep Audit Summary (March 11, 2026)
 
@@ -128,7 +129,7 @@ The council is the profit-critical decision engine. Every trade signal passes th
 | arbiter.py | 6.4 KB | Deterministic BUY/SELL/HOLD with Bayesian weights |
 | agent_config.py | 5.4 KB | Settings-driven thresholds for all 35 agents |
 
-## Trade Pipeline (v5.0.0 -- Council-Controlled)
+## Trade Pipeline (v5.1.0 -- Council-Controlled)
 
 ```
 AlpacaStreamService
@@ -190,6 +191,30 @@ brain_service (gRPC + Ollama) is wired; the router directs traffic by task type.
 
 ## What Was Recently Done
 
+### v5.1.0 (March 13-15, 2026) -- Performance & Stability Hardening
+
+**WebSocket stability fixes:**
+- Fixed port mismatch (backend on 8000, WS connecting to 8001)
+- Added subscribe acknowledgment messages and connection logging
+- Auto-reconnect with exponential backoff
+
+**Performance optimizations:**
+- uvloop + httptools for uvicorn (faster event loop and HTTP parsing)
+- DuckDB async batch write queue (50K capacity, 100-row batches, 0.5s flush) via `core/db_writer.py`
+- In-memory TTL endpoint cache for high-traffic endpoints via `core/endpoint_cache.py`
+- ProcessPoolExecutor + thread offload for CPU-bound signal/feature computation
+- Session-aware scan intervals (60s market, 120s pre-market, 300s overnight, 600s weekend)
+
+**Startup & tooling:**
+- Removed 7 stale duplicate startup scripts
+- Standardized ports: backend 8000, frontend 5173, health checks → /healthz
+- New `nuke-and-restart.ps1` — single command to kill all processes, clean state, restart
+- New `scripts/fix-pc2-cuda.ps1` — restore PyTorch CUDA on RTX 4080
+- Router graceful degradation for stopped secondary modules
+- Frontend Vite proxy timeout increased to 60s
+
+**Test count**: 1,639 tests passing (up from 981+)
+
 ### v3.5.1 (March 9, 2026) -- P0/P1 Fixes Complete
 
 **All critical startup blockers resolved:**
@@ -245,7 +270,7 @@ Complete pixel-fidelity rebuild of ALL frontend pages to match `docs/mockups-v3/
 elite-trading-system/
 ├── backend/                    # FastAPI backend (Python 3.11)
 │   ├── app/
-│   │   ├── api/v1/             # 43 route files (agents, council, market, risk, etc.)
+│   │   ├── api/v1/             # 46 route files (agents, council, market, risk, etc.)
 │   │   ├── council/            # 35-agent DAG (runner, arbiter, agents/, schemas)
 │   │   │   ├── runner.py       # Orchestrates 7-stage council DAG via asyncio
 │   │   │   ├── arbiter.py      # Deterministic weighted vote + Bayesian weights
@@ -254,8 +279,10 @@ elite-trading-system/
 │   │   │   ├── weight_learner.py # Bayesian Beta(α,β) weight updater per agent
 │   │   │   └── agents/         # 35 agent files
 │   │   ├── core/
-│   │   │   ├── message_bus.py  # Pub/sub event bus
+│   │   │   ├── message_bus.py  # Pub/sub event bus (10K queue, DLQ, Redis fallback)
 │   │   │   ├── config.py       # Settings (pydantic BaseSettings)
+│   │   │   ├── endpoint_cache.py # In-memory TTL cache for high-traffic endpoints
+│   │   │   ├── db_writer.py    # Async DuckDB batch writer (50K queue, 100-row batches)
 │   │   │   └── alignment/      # Profit Being alignment module
 │   │   ├── features/
 │   │   │   └── feature_aggregator.py  # Auto-computes feature vector for council
@@ -267,7 +294,7 @@ elite-trading-system/
 │   │   ├── modules/
 │   │   │   ├── openclaw/       # OpenClaw bridge (regime, scan, whale flow)
 │   │   │   └── ml_engine/      # XGBoost trainer, drift detector, model registry
-│   │   └── services/           # 68+ service files
+│   │   └── services/           # 87+ top-level service files (160+ incl. subdirs)
 │   │       ├── alpaca_service.py
 │   │       ├── alpaca_stream_service.py  # 24/7 WS + snapshot fallback
 │   │       ├── finviz_service.py
@@ -275,7 +302,7 @@ elite-trading-system/
 │   │       ├── unusual_whales_service.py
 │   │       ├── sec_edgar_service.py
 │   │       └── signal_engine.py
-│   ├── tests/                  # 981+ pytest tests (CI GREEN)
+│   ├── tests/                  # 1,639 pytest tests (91 files, CI GREEN)
 │   └── requirements.txt
 ├── brain_service/              # gRPC LLM inference server (PC2 / RTX GPU)
 │   ├── server.py               # gRPC server
@@ -314,7 +341,8 @@ elite-trading-system/
 │   ├── mockups-v3/images/      # 23 UI mockup images (source of truth)
 │   ├── MOCKUP-FIDELITY-AUDIT.md
 │   └── STATUS-AND-TODO-2026-03-09.md
-├── scripts/                    # Utility scripts
+├── nuke-and-restart.ps1        # Kill all, clean state, restart (nuclear option)
+├── scripts/                    # Utility scripts (fix-pc2-cuda.ps1, create-desktop-shortcut.ps1, etc.)
 ├── .env.example                # Required environment variables
 ├── project_state.md            # 🔴 READ THIS FIRST in every AI session
 ├── REPO-MAP.md                 # Detailed file inventory
@@ -771,7 +799,7 @@ AgentVote(
 | Brain Service | gRPC + Ollama on RTX GPU (PC2) |
 | LLM Router | Ollama (routine) → Perplexity → Claude (6 deep tasks) |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions, 981+ tests, pytest |
+| CI/CD | GitHub Actions, 1,639 tests, pytest |
 | Auth | Bearer token, fail-closed for live trading |
 | Desktop | Electron (desktop/) — BUILD-READY |
 | Infra | Docker, docker-compose.yml |
@@ -797,7 +825,7 @@ AgentVote(
 | `/settings` | Settings.jsx | 🟢 COMPLETE |
 | `/trades` | Trades.jsx | 🟢 COMPLETE |
 
-All 14 pages rebuilt to V3 mockup pixel fidelity (March 6, 2026). Full audit: `docs/MOCKUP-FIDELITY-AUDIT.md`
+All 14 main pages rebuilt to V3 mockup pixel fidelity (March 6, 2026). 4 utility pages added (health, startup, symbol detail, TradingView bridge). Full audit: `docs/MOCKUP-FIDELITY-AUDIT.md`
 
 ---
 
@@ -867,6 +895,7 @@ async def evaluate(features: dict, context: dict = None) -> AgentVote:
 - **Phase C: Sharpen the Brain** ✅ — Weight learner fix, Brier calibration, debate wiring, regime-adaptive thresholds
 - **Phase D: Continuous Intelligence** ✅ — Backfill orchestrator, rate limiter registry, DLQ resilience, session scanner
 - **Phase E: Production Hardening** ✅ — E2E test, emergency flatten, desktop packaging, metrics, auth
+- **Performance Hardening** ✅ (March 13-15) — uvloop/httptools, DuckDB batch writer, TTL endpoint cache, WS stability, startup cleanup
 - **Phase F: Trading Assistant** 🔄 — TradingView + TradersPost integration, morning briefing, dual-webhook bridge
 
 See `PLAN.md` for details on all phases.
@@ -898,4 +927,4 @@ See `PLAN.md` for details on all phases.
 7. ✅ New agents do NOT get veto power
 8. ✅ CouncilGate is the ONLY path to order execution
 9. ✅ Read `project_state.md` before every coding session
-10. ✅ CI must stay GREEN (981+ tests)
+10. ✅ CI must stay GREEN (1,639 tests)

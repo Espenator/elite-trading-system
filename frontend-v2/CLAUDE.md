@@ -1,6 +1,6 @@
 # CLAUDE.md — Embodier Trader Frontend
 # React 18 + Vite 5 + TailwindCSS
-# Last updated: March 14, 2026
+# Last updated: March 15, 2026
 
 ## File Tree
 
@@ -123,7 +123,7 @@ BrowserRouter
 
 **Data flow:** `useApi(endpointKey)` → `config/api.js` `getApiUrl()` → Vite proxy `/api` → backend on port 8000.
 
-**WebSocket:** `services/websocket.js` connects via `config/api.js` `getWsUrl()`. CNSProvider subscribes to WS channels for real-time homeostasis/circuit-breaker/verdict updates.
+**WebSocket:** `services/websocket.js` connects via `config/api.js` `getWsUrl()`. CNSProvider subscribes to WS channels for real-time homeostasis/circuit-breaker/verdict updates. Auto-reconnect with exponential backoff (2s → 30s max). Connection events logged with `[WS]` prefix. Subscribe commands receive acknowledgment messages from backend.
 
 **State:** CNSProvider (via `useCNS` hook) provides system-wide state: homeostasis mode, circuit breaker armed/fired, latest council verdict, WS connection status.
 
@@ -160,8 +160,8 @@ All routes are lazy-loaded with `React.lazy()` + `Suspense`, wrapped in a per-pa
 
 - **Node.js** 18+
 - **Backend** must be running on port 8000 (or set `VITE_BACKEND_URL`)
-- **Env vars** (optional, defaults to localhost:8001):
-  - `VITE_BACKEND_URL` — backend base URL (e.g. `http://localhost:8001`)
+- **Env vars** (optional, defaults to localhost:8000):
+  - `VITE_BACKEND_URL` — backend base URL (e.g. `http://localhost:8000`)
   - `VITE_API_AUTH_TOKEN` — auth token for API headers
   - `VITE_PORT` — dev server port (default 5173)
 - **Run:** `npm run dev` — Vite on port 5173, proxies `/api` → backend, `/ws` → backend WS
@@ -175,7 +175,8 @@ npm run preview # Preview production build
 ## Vite Proxy
 
 ```javascript
-// vite.config.js — backend default: http://localhost:8001
+// vite.config.js — backend default: http://localhost:8000
+// Proxy timeout: 60s (increased from default to handle slow DuckDB queries)
 proxy: {
   "/api": { target: backendUrl, changeOrigin: true },
   "/ws":  { target: wsBackend, ws: true },

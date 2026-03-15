@@ -1,10 +1,10 @@
 # CLAUDE.md — Embodier Trader (Elite Trading System)
 # This file is read automatically by Claude Code at session start.
-# Last updated: March 12, 2026 — v5.0.0 (All phases complete: A+B+C+E)
+# Last updated: March 15, 2026 — v5.1.0 (All phases complete + Performance & Stability hardening)
 
 ## 1. Identity
 
-- **Name**: Embodier Trader v5.0.0 — an AI-powered trading intelligence platform by Embodier.ai
+- **Name**: Embodier Trader v5.1.0 — an AI-powered trading intelligence platform by Embodier.ai
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC)
 - **Owner**: Espenator (Espen Schiefloe, Asheville NC)
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. A conscious profit-seeking being with a Central Nervous System (CNS) architecture.
@@ -37,16 +37,16 @@
 
 | Metric | Value |
 |--------|-------|
-| Version | v5.0.0 |
-| Tests | 981+ passing (pytest), CI GREEN |
+| Version | v5.1.0 |
+| Tests | 1,639 passing (pytest, 91 test files), CI GREEN |
 | Council agents | 35 (7-stage DAG) |
-| Backend services | 72+ (incl. subdirs) |
-| API route files | 43 in api/v1/ (364+ endpoints) |
-| Frontend pages | 14 (React 18 + Vite) |
+| Backend services | 87+ top-level, 160+ incl. subdirs |
+| API route files | 46 in api/v1/ (380+ endpoints) |
+| Frontend pages | 18 routes (14 main + 4 utility: health, startup, symbol, tradingview) |
 | Data sources | 10 (Alpaca, UW, Finviz, FRED, EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades, Senate Stock Watcher) |
 | Discovery scouts | 12 (continuous, not polling) |
-| Production readiness | ~95% (Phase A+B+C+E complete, D deferred) |
-| Commits | 1,424+ |
+| Production readiness | ~97% (All phases complete + performance hardening) |
+| Commits | 1,440+ |
 
 ## 3. Architecture Overview — CNS Layers
 
@@ -86,7 +86,7 @@ C:\Users\Espen\elite-trading-system\
 │   │   │   ├── firehose_agents/    # 4 firehose ingest agents
 │   │   │   ├── integrations/       # 6 data source adapters
 │   │   │   └── (68+ top-level services)
-│   │   ├── core/                   # MessageBus, security, config
+│   │   ├── core/                   # MessageBus, security, config, endpoint_cache, db_writer
 │   │   ├── data/                   # DuckDB storage + init_schema()
 │   │   ├── features/               # feature_aggregator.py
 │   │   ├── jobs/                   # scheduler, daily_outcome, walkforward
@@ -109,6 +109,7 @@ C:\Users\Espen\elite-trading-system\
 │   ├── mockups-v3/images/          # 23 UI mockups (source of truth)
 │   └── architecture/               # 4 skill-sharing documents
 ├── scripts/                        # Deployment utilities
+├── nuke-and-restart.ps1             # Single command: kill all, clean state, restart
 ├── CLAUDE.md                       # THIS FILE — auto-loaded by Claude Code
 ├── PLAN.md                         # 5-phase enhancement plan (A-E)
 ├── project_state.md                # Session context (read first)
@@ -364,11 +365,12 @@ Embodier Trader → webhook.site (monitoring, always)
 
 ```bash
 cd backend
-python -m pytest --tb=short -q       # Run all 666+ tests
+python -m pytest --tb=short -q       # Run all 1,639 tests
 python -m pytest tests/test_api.py -v # Run specific test file
 ```
 
 - **Framework**: pytest with conftest.py monkey-patching DuckDB to in-memory
+- **Test files**: 91 test files covering API routes, services, council, pipeline
 - **CI/CD**: GitHub Actions — `backend-test` (pytest) + `frontend-build` (npm build) + `e2e-gate`
 - **Risk params validated at CI**: Kelly=0.25, Max Risk=0.02, Max Drawdown=0.15
 
@@ -391,12 +393,16 @@ python server.py
 # One-click launchers
 .\start-embodier.ps1          # PowerShell
 .\launch.bat                  # Windows batch
+.\nuke-and-restart.ps1        # Kill all, clean state, restart (nuclear option)
 
 # Docker (full stack)
 docker-compose up -d
 
 # Tests
 cd backend && python -m pytest --tb=short -q
+
+# PC2: Restore PyTorch CUDA (if broken)
+.\scripts\fix-pc2-cuda.ps1
 ```
 
 Or from repo root: `.\start-embodier.ps1` (launcher derives paths from script location). The launcher uses **port fallback**: if 8000 or 5173 is stuck (e.g. TIME_WAIT), it uses the next free port (8001–8010, 5174–5183) and writes chosen ports to `.embodier-ports.json`. Backend reads `PORT` from env; frontend gets `VITE_PORT` and `VITE_BACKEND_URL`.
@@ -429,8 +435,13 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 4. Event-driven architecture achieves sub-1s council latency
 5. Kelly criterion implementation is mathematically sound
 6. 3-tier LLM router (Ollama → Perplexity → Claude)
-7. 981+ tests passing, CI GREEN
+7. 1,639 tests passing, CI GREEN
 8. HITL gate, bracket orders, shadow tracking all working
+9. WebSocket stable with auto-reconnect, connection logging, subscribe ack
+10. DuckDB batch writer (async, 50K queue, 100-row batches)
+11. In-memory TTL endpoint cache for high-traffic endpoints
+12. Session-aware scan intervals (adapts to market hours)
+13. nuke-and-restart.ps1 for clean restarts
 
 ## 16. Coding Rules for AI Sessions
 
@@ -451,6 +462,24 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 15. **ONE repo** — all code in Espenator/elite-trading-system
 16. **No secrets in committed files** — all keys in `.env` (gitignored)
 17. **Dashboard route inside `<Layout />`** wrapper in App.jsx
+
+## 16b. Performance Infrastructure (March 15, 2026)
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Endpoint Cache | `core/endpoint_cache.py` | In-memory TTL cache for high-traffic endpoints (signals, consensus, sentiment, performance) |
+| DuckDB Batch Writer | `core/db_writer.py` | Async batch write queue (50K capacity, 100-row batches, 0.5s flush) — prevents DuckDB lock contention |
+| uvicorn Tuning | `run_server.py` | uvloop + httptools workers, keep-alive 60s, backlog 2048 |
+| Session Clock | `services/data_swarm/session_clock.py` | Session-aware scan intervals: 60s market, 120s pre-market, 300s overnight, 600s weekend |
+| ProcessPool | `main.py` | ProcessPoolExecutor + thread offload for CPU-bound signal/feature computation |
+
+### Startup Scripts
+| Script | Purpose |
+|--------|---------|
+| `start-embodier.ps1` | Primary launcher — port fallback, health checks, frontend + backend |
+| `nuke-and-restart.ps1` | Nuclear option — kill ALL processes, clean stale state, restart fresh |
+| `scripts/fix-pc2-cuda.ps1` | Restore PyTorch CUDA on PC2 RTX 4080 after driver updates |
+| `scripts/create-desktop-shortcut.ps1` | Create Windows desktop shortcut for launcher |
 
 ## 17. Files to Read First
 

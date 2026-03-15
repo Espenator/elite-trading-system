@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 12, 2026 (v5.0.0 — Phases A+B+C+E complete)
+> Last updated: March 15, 2026 (v5.1.0 — All phases complete + Performance & Stability hardening)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -8,10 +8,10 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: v5.0.0 — Phases A+B+C+E complete. Production-ready.
+- **Status**: v5.1.0 — All phases complete + performance & stability hardening. Production-ready.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 981+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
-- **Latest Session (March 12, 2026)**: TradingView + TradersPost integration planned. TradersPost account created (paper, $100K, Alpaca connected). Dual-webhook bridge designed (webhook.site monitoring + TradersPost execution with safety gate). Morning trade briefing scheduled task created (9 AM ET weekdays). Trading assistant plan, research doc, and Cursor implementation prompt written. Previous: Slack notification bridges wired, device-config.js fix, weight learner test fix. All phases (A+B+C+D+E) complete.
+- **Current Focus**: Council runs 35-agent DAG; 46 API route files (380+ endpoints); 87+ top-level services (160+ incl. subdirs); 1,639 tests; Bearer auth fail-closed; WebSocket stable (25 channels, auto-reconnect, connection logging); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
+- **Latest Session (March 13-15, 2026)**: WebSocket stability analysis & fix (port mismatch, subscribe ack, connection logging). Performance hardening: uvloop/httptools for uvicorn, DuckDB async batch writer, in-memory TTL endpoint cache, ProcessPoolExecutor for CPU-bound handlers, session-aware scan intervals. Startup script cleanup: removed 7 stale duplicates, standardized ports (8000/5173), health→/healthz. New tools: `nuke-and-restart.ps1` (single command full restart), `fix-pc2-cuda.ps1` (RTX 4080 PyTorch restore). Router graceful degradation for stopped modules. Frontend Vite proxy timeout 60s. Previous: TradingView + TradersPost integration planned, all phases (A+B+C+D+E) complete.
 
 ## Two-PC Development Setup
 
@@ -83,19 +83,21 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 Slack tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env`.
 
-## LATEST STATE (March 12, 2026) — v5.0.0 (All Phases Complete: A+B+C+D+E)
+## LATEST STATE (March 15, 2026) — v5.1.0 (All Phases Complete + Performance Hardening)
 
 ### Current Architecture Snapshot
-- **Council**: 35-agent DAG in 7 stages. All agents are real implementations (not stubs). CouncilGate invokes full council on every signal (score >= 65).
-- **Backend**: 43 API route files in api/v1/ (364+ endpoints); 72+ services (incl. subdirs: scouts, llm_clients, channel_agents, firehose_agents, integrations). brain_service wired (hypothesis_agent → gRPC).
-- **Tests**: 981+ passing (backend pytest, 52 test files). CI GREEN.
+- **Council**: 35-agent DAG in 7 stages. All agents are real implementations (not stubs). CouncilGate invokes full council on every signal (score >= regime-adaptive threshold).
+- **Backend**: 46 API route files in api/v1/ (380+ endpoints); 87+ top-level services (160+ incl. subdirs: scouts, llm_clients, channel_agents, firehose_agents, integrations, data_swarm, broker). brain_service wired (hypothesis_agent → gRPC).
+- **Tests**: 1,639 passing (backend pytest, 91 test files). CI GREEN.
 - **Auth**: Bearer token auth, fail-closed for live trading.
-- **WebSocket**: Active; 25 channels with token auth, heartbeat (30s/60s). 5 pages wired.
+- **WebSocket**: Stable; 25 channels with token auth, heartbeat (30s/60s), auto-reconnect with exponential backoff, connection logging. 5 pages wired.
 - **Desktop**: Electron app in `desktop/` — BUILD-READY.
 - **LLM Intelligence**: 3-tier router — Ollama (routine) → Perplexity (sonar-pro) → Claude. Claude reserved for 6 deep-reasoning tasks.
 - **Data Sources**: 10 active (Alpaca, UW, Finviz, FRED, EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades, Senate Stock Watcher).
 - **Scouts**: 12 continuous discovery scouts (Phase A1 fixed 5 crashes).
-- **Production Readiness**: ~95%. All 5 phases complete. Ready for live paper trading.
+- **Production Readiness**: ~97%. All 5 phases complete + performance hardening. Ready for live paper trading.
+- **Performance**: uvloop + httptools for uvicorn, DuckDB async batch writer, in-memory TTL endpoint cache, ProcessPoolExecutor for CPU-bound handlers, session-aware scan intervals.
+- **Startup**: Standardized ports (8000/5173), /healthz probes, `nuke-and-restart.ps1` for clean restarts, stale file cleanup.
 - **CLAUDE.md files**: Root + frontend-v2 + backend + council + brain_service (comprehensive audit March 12).
 
 ### Deep Audit Results (March 11, 2026)
@@ -109,9 +111,23 @@ A line-by-line audit of the entire codebase found 40 specific issues in 4 catego
 
 **See `PLAN.md` for the complete 5-phase enhancement plan (Phases A-E, 13-18 sessions).**
 
+### March 13-15 Session: Performance & Stability Hardening
+- **WebSocket Stability**: Fixed port mismatch (backend on 8000, WS connecting to 8001), added subscribe acknowledgment messages, improved connection logging with `[WS]` prefix tags
+- **Performance — uvicorn**: Added uvloop + httptools workers, keep-alive 60s, backlog 2048
+- **Performance — DuckDB**: Async batch write queue (50K capacity, 100-row batches, 0.5s flush intervals) via `core/db_writer.py`
+- **Performance — Endpoints**: In-memory TTL cache for signal/consensus/sentiment/performance endpoints via `core/endpoint_cache.py`
+- **Performance — CPU**: ProcessPoolExecutor + thread offload for CPU-bound handlers
+- **Performance — Scanning**: Session-aware scan intervals (600s weekend, 300s overnight, 120s pre-market, 60s market hours)
+- **Startup Cleanup**: Removed 7 stale duplicate startup scripts, standardized ports to 8000/5173, health checks → /healthz
+- **New Tool**: `nuke-and-restart.ps1` — single command to kill all processes, clean state, and restart cleanly
+- **New Tool**: `scripts/fix-pc2-cuda.ps1` — restore PyTorch CUDA on RTX 4080
+- **Router Resilience**: Graceful degradation for stopped secondary modules (brain, cluster, awareness return empty responses instead of 500s)
+- **Frontend**: Vite proxy timeout increased to 60s, default backend port fixed to 8000
+- **MessageBus**: Enhanced with batch persistence, additional subscriber wiring
+
 ### Resolved Blockers (no longer blocking)
 - Backend startup (uvicorn) — resolved.
-- WebSocket connectivity — resolved; bridges active.
+- WebSocket connectivity — resolved; stable with auto-reconnect and connection logging.
 - Auth for live trading — Bearer token, fail-closed.
 - Frontend-backend wiring — all 14 pages audited and fixed.
 - Mock data — all removed, replaced with real data sources.
@@ -317,22 +333,24 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (March 12, 2026 — v5.0.0, All Phases Complete)
-- CI: 981+ tests passing (backend pytest, 52 test files), GREEN
-- Version: v5.0.0. All 5 phases (A+B+C+D+E) complete. Production readiness audit passed.
-- Production Readiness: ~95%. Ready for live paper trading, approaching live capital deployment.
-- Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks, 156+ buttons verified
-- Backend: 43 API route files (364+ endpoints), 72+ service files, all mounted and responding
+## Current State (March 15, 2026 — v5.1.0, All Phases Complete + Performance Hardening)
+- CI: 1,639 tests passing (backend pytest, 91 test files), GREEN
+- Version: v5.1.0. All 5 phases (A+B+C+D+E) complete + performance/stability hardening.
+- Production Readiness: ~97%. Ready for live paper trading, approaching live capital deployment.
+- Frontend: 18 route pages (14 main + 4 utility), all pixel-matched to mockups, wired to real API hooks, 156+ buttons verified
+- Backend: 46 API route files (380+ endpoints), 87+ top-level service files (160+ incl. subdirs), all mounted and responding
 - Council: 35-agent DAG — all agents are real implementations (not stubs). Sub-1s latency.
 - All Phases Complete: Regime enforcement, circuit breakers, regime-adaptive signals, limit/TWAP orders, weight learner fix, Brier calibration, backfill orchestrator, rate limiting, E2E test, emergency flatten, desktop packaging
-- **TradingView Integration**: Dual-system architecture planned (Embodier signals + TradingView charting). TradersPost connected (paper, $100K, Alpaca). Dual-webhook bridge designed. Morning briefing scheduled task active (9 AM ET weekdays). Cursor implementation prompt ready for 7 new files (briefing_service, tradingview_bridge, 2 API routes, frontend page, tests).
+- **Performance Hardening (March 13-15)**: uvloop/httptools, DuckDB batch writer, TTL endpoint cache, ProcessPoolExecutor, session-aware scanning, WS stability fixes, nuke-and-restart tooling
+- **TradingView Integration**: Dual-system architecture planned (Embodier signals + TradingView charting). TradersPost connected (paper, $100K, Alpaca). Dual-webhook bridge designed. Morning briefing scheduled task active (9 AM ET weekdays).
 - Remaining (Phase F): TradingView bridge implementation, replace frontend FALLBACK_* with skeleton loaders, add CodeQL/Dependabot, frontend unit tests, accessibility audit, Slack token auto-refresh, Docker staging
 - LLM: 3-tier router (Ollama → Perplexity → Claude); Claude for 6 deep-reasoning tasks only
 - Auth: Bearer token, fail-closed for live trading
 - Kelly Sizing: Real DuckDB stats; Mock Guard active; R-multiple with actual stop_price
-- Infrastructure: Two-PC LAN, all API keys configured, health endpoints active
+- Infrastructure: Two-PC LAN, all API keys configured, health endpoints active, nuke-and-restart.ps1 for clean restarts
 - Next Steps: Phase F (Polish & Deploy) — see docs/PRODUCTION-READINESS-AUDIT-2026-03-12.md
 - Full plan: See PLAN.md (all 40 issues resolved across 5 phases)
+- Commits: 1,440+
 
 ## UI MOCKUP FIDELITY AUDIT (Mar 6, 2026)
 
