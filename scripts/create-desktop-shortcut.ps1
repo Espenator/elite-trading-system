@@ -28,7 +28,7 @@ $startName = "Start Embodier Trader"
 $startLnk = Join-Path $DesktopPath "$startName.lnk"
 
 if ($DevMode) {
-    $targetScript = Join-Path $Root "scripts\start-embodier.ps1"
+    $targetScript = Join-Path $Root "start-embodier.ps1"
 } else {
     $targetScript = Join-Path $Root "scripts\run_full_stack_24_7.ps1"
 }
