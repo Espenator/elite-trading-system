@@ -181,7 +181,15 @@ class BaseScout(ABC):
             except Exception as exc:
                 self._stats["errors"] += 1
                 logger.warning("Scout %s error: %s", self.name, exc)
-            await asyncio.sleep(self._get_effective_interval())
+            # Use session-aware interval: max(scout.interval, session_interval)
+            # so scouts never run faster than the session allows
+            try:
+                from app.services.data_swarm.session_clock import get_scan_interval
+                session_interval = get_scan_interval()
+                effective = max(self.interval, session_interval)
+            except Exception:
+                effective = self.interval
+            await asyncio.sleep(effective)
 
     async def _heartbeat_loop(self) -> None:
         while self._running:

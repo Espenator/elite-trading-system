@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Dict
+from typing import Dict, List
 
 try:
     from zoneinfo import ZoneInfo
@@ -37,6 +37,48 @@ class TradingSession(str, Enum):
     REGULAR = "regular"           # 9:30 AM - 4:00 PM ET
     AFTER_HOURS = "after_hours"   # 4:00 PM - 8:00 PM ET
     WEEKEND = "weekend"           # Saturday 8 PM - Sunday 8 PM ET
+
+
+# ── Scan intervals by session (seconds) ────────────────────────────────────
+# Controls how often TurboScanner + scouts run per cycle.
+SCAN_INTERVALS: Dict[TradingSession, int] = {
+    TradingSession.REGULAR: 30,       # 30s — full speed, live bars flowing
+    TradingSession.PRE_MARKET: 60,    # 60s — gap scan, thinner data
+    TradingSession.AFTER_HOURS: 120,  # 2min — earnings digestion
+    TradingSession.OVERNIGHT: 300,    # 5min — crypto/macro/social only
+    TradingSession.WEEKEND: 600,      # 10min — social scan only
+}
+
+# ── Active symbol universes by session ─────────────────────────────────────
+# Weekend: only 24/7 assets (crypto proxies, commodities, currency)
+WEEKEND_SYMBOLS = ["BTCUSD", "ETHUSD", "SOLUSD", "GLD", "SLV", "UUP"]
+
+# Overnight: crypto + safe havens + mega-caps (futures-correlated)
+OVERNIGHT_SYMBOLS = [
+    "BTCUSD", "ETHUSD", "GLD", "TLT", "UUP",
+    "SPY", "QQQ", "AAPL", "NVDA", "MSFT",
+    "TSLA", "AMZN", "META", "GOOGL", "AMD",
+]
+
+
+def get_scan_interval() -> int:
+    """Return scan interval in seconds for the current trading session."""
+    session = get_session_clock().get_current_session()
+    return SCAN_INTERVALS.get(session, 60)
+
+
+def get_active_symbols(full_universe: List[str]) -> List[str]:
+    """Return the symbol universe appropriate for the current session.
+
+    During weekends and overnight, scans a reduced set of symbols
+    to avoid wasting CPU on assets with no live data.
+    """
+    session = get_session_clock().get_current_session()
+    if session == TradingSession.WEEKEND:
+        return WEEKEND_SYMBOLS
+    if session == TradingSession.OVERNIGHT:
+        return OVERNIGHT_SYMBOLS
+    return full_universe  # full universe during pre/regular/after
 
 
 class SourceAvailability:
