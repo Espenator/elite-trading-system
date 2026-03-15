@@ -289,7 +289,7 @@ if ($Watch) {
     $backendProc = Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $backendScript, "-Port", $chosenBackend.ToString() -WorkingDirectory $Root -PassThru
     Write-Host "  [Watch] Waiting for backend health (max 90s)..." -ForegroundColor Gray
     $waited = 0
-    $healthUrl = "http://127.0.0.1:$chosenBackend/health"
+    $healthUrl = "http://127.0.0.1:$chosenBackend/healthz"
     while ($waited -lt 90) {
         Start-Sleep -Seconds 3
         $waited += 3
@@ -340,7 +340,7 @@ Write-Host "  [6/6] Starting backend on :$chosenBackend..." -ForegroundColor Yel
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host "    Backend:   http://localhost:$chosenBackend/docs" -ForegroundColor White
-Write-Host "    Health:    http://localhost:$chosenBackend/health" -ForegroundColor White
+Write-Host "    Health:    http://localhost:$chosenBackend/healthz" -ForegroundColor White
 Write-Host "    Dashboard: http://localhost:$chosenFrontend/dashboard" -ForegroundColor White
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host ""
