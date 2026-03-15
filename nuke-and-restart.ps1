@@ -1,23 +1,46 @@
 # nuke-and-restart.ps1 — One command to rule them all
 # Stops EVERYTHING, clears ports, clears DuckDB locks, restarts fresh.
+# Works from ANY directory — desktop shortcut safe.
 # Usage: .\nuke-and-restart.ps1
+#        powershell -ExecutionPolicy Bypass -File "C:\Users\Espen\elite-trading-system\nuke-and-restart.ps1"
 
 $ErrorActionPreference = "SilentlyContinue"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not $Root) { $Root = Get-Location }
+
+# ── Resolve repo root (works from shortcut, from any CWD, from script dir) ──
+$Root = $null
+if ($MyInvocation.MyCommand.Path) {
+    $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if (-not $Root -or -not (Test-Path (Join-Path $Root "backend"))) {
+    # Hardcoded fallback — guarantees it works from desktop shortcut
+    $Root = "C:\Users\Espen\elite-trading-system"
+}
+if (-not (Test-Path (Join-Path $Root "backend"))) {
+    Write-Host "  ERROR: Cannot find repo at $Root" -ForegroundColor Red
+    Write-Host "  Edit the `$Root path in nuke-and-restart.ps1 to match your repo location." -ForegroundColor Yellow
+    Read-Host "  Press Enter to close"
+    exit 1
+}
+
 $BackendDir = Join-Path $Root "backend"
+
+# Change to repo root so all relative paths work
+Set-Location $Root
 
 Write-Host ""
 Write-Host "  ================================================" -ForegroundColor Red
 Write-Host "    EMBODIER NUKE & RESTART — Full Clean Restart" -ForegroundColor Red
 Write-Host "  ================================================" -ForegroundColor Red
+Write-Host "  Repo: $Root" -ForegroundColor DarkGray
 Write-Host ""
 
 # ── Step 1: Kill ALL supervisors (they respawn things) ──
 Write-Host "  [1/5] Killing supervisors..." -ForegroundColor Yellow
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | ForEach-Object {
     $cmd = if ($_.CommandLine) { $_.CommandLine } else { "" }
-    if ($cmd -match "run_backend_autorestart|run_full_stack_24_7|run_all_autorestart|start-embodier|start_embodier|watchdog") {
+    # Don't kill ourselves
+    if ($_.ProcessId -eq $PID) { return }
+    if ($cmd -match "run_backend_autorestart|run_full_stack_24_7|run_all_autorestart|start-embodier|start_embodier|watchdog|nuke-and-restart") {
         Write-Host "    Killed supervisor PID $($_.ProcessId)" -ForegroundColor Gray
         Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
     }
@@ -103,4 +126,6 @@ if (Test-Path $launcher) {
     & $launcher
 } else {
     Write-Host "  ERROR: start-embodier.ps1 not found at $launcher" -ForegroundColor Red
+    Read-Host "  Press Enter to close"
+    exit 1
 }
