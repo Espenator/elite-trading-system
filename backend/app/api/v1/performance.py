@@ -105,23 +105,12 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
     Dashboard-friendly combined performance: summary metrics + equity curve.
     GET /api/v1/performance returns this. Frontend expects portfolioValue, winRate, equityCurve, etc.
     """
-    try:
-        summary = performance_summary(limit_trades=limit_trades)
-        equity_res = performance_equity(limit_trades=limit_trades)
-    except Exception as e:
-        logger.warning("[performance] Engine unavailable: %s", e)
-        return {
-            "status": "unavailable",
-            "reason": str(e),
-            "hasData": False,
-            "portfolioValue": 0,
-            "totalValue": 0,
-            "winRate": 0,
-            "equityCurve": [],
-            "equity": [],
-            "kpi": {},
-            "message": "Performance engine starting — check back in 60s",
-        }
+    from app.core.endpoint_cache import get_cached, set_cache
+    cached = get_cached("performance:root", ttl=10.0)
+    if cached is not None:
+        return cached
+    summary = performance_summary(limit_trades=limit_trades)
+    equity_res = performance_equity(limit_trades=limit_trades)
 
     metrics = summary.get("metrics") or {}
     points = equity_res.get("points") or []
@@ -151,7 +140,7 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
         "netPnl": metrics.get("netPnl"),
     }
 
-    return {
+    result = {
         "hasData": summary.get("hasData", False),
         "message": summary.get("message", ""),
         "portfolioValue": last_equity,
@@ -177,6 +166,8 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
         "rrExpectancy": [],
         "strategy": {},
     }
+    set_cache("performance:root", result)
+    return result
 
 
 def _iso_date_only(s: Any) -> Optional[str]:
