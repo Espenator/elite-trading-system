@@ -1,6 +1,13 @@
-"""Risk Agent — Kelly/Van Tharp constraints with VETO power."""
+"""Risk Agent — Kelly/Van Tharp constraints with VETO power.
+
+GPU Channel 3: Integrates Monte Carlo VaR (10K-path GPU simulation) to
+provide real portfolio risk assessment alongside existing guardrails.
+"""
+import asyncio
 import logging
 from typing import Any, Dict
+
+import numpy as np
 
 from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
@@ -20,6 +27,7 @@ async def evaluate(
     - Single position limit
     - Drawdown status
     - Volatility regime
+    - GPU Channel 3: Monte Carlo VaR (10K-path portfolio risk)
     """
     cfg = get_agent_thresholds()
     f = features.get("features", features)
@@ -68,11 +76,31 @@ async def evaluate(
     else:
         reasons.append(f"Vol={vol:.0%} normal")
 
+    # GPU Channel 3: Monte Carlo VaR — 10K-path portfolio risk simulation
+    var_data = {}
+    try:
+        var_data = await asyncio.to_thread(_compute_portfolio_var, symbol)
+        if var_data.get("var_95"):
+            var_95 = var_data["var_95"]
+            reasons.append(f"VaR95={var_95:.2%}")
+            # Veto if daily VaR exceeds 5% of portfolio
+            if abs(var_95) > 0.05:
+                veto = True
+                veto_reason = f"Monte Carlo VaR too high ({var_95:.2%} > 5%)"
+    except Exception:
+        pass  # VaR is supplementary — never blocks the agent
+
     risk_limits = {
         "max_portfolio_heat": cfg["max_portfolio_heat"],
         "max_single_position": cfg["max_single_position"],
         "current_volatility": vol,
+        "monte_carlo_var": var_data,
     }
+
+    # Write VaR to blackboard for downstream agents
+    blackboard = context.get("blackboard")
+    if blackboard and var_data:
+        blackboard.metadata["monte_carlo_var"] = var_data
 
     if veto:
         return AgentVote(
@@ -94,3 +122,33 @@ async def evaluate(
         weight=cfg["weight_risk"],
         metadata={"risk_limits": risk_limits},
     )
+
+
+def _compute_portfolio_var(symbol: str) -> Dict[str, Any]:
+    """Compute Monte Carlo VaR for current portfolio positions.
+
+    GPU Channel 3: Uses CuPy on GPU for 10K-path simulation (~20ms)
+    or falls back to NumPy on CPU (~200ms).
+    """
+    try:
+        from app.modules.ml_engine.monte_carlo_var import compute_single_position_var
+        from app.data.duckdb_storage import duckdb_store
+
+        conn = duckdb_store.get_thread_cursor()
+        rows = conn.execute(
+            "SELECT close FROM daily_ohlcv WHERE symbol = ? ORDER BY date DESC LIMIT 60",
+            [symbol.upper()],
+        ).fetchall()
+
+        if not rows or len(rows) < 20:
+            return {}
+
+        closes = np.array([float(r[0]) for r in reversed(rows) if r[0]])
+        if len(closes) < 20:
+            return {}
+
+        returns = np.diff(np.log(closes))
+        return compute_single_position_var(returns, n_paths=10_000)
+    except Exception as e:
+        logger.debug("Monte Carlo VaR computation failed for %s: %s", symbol, e)
+        return {}

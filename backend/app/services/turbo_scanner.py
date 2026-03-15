@@ -367,7 +367,11 @@ class TurboScanner:
     # ──────────────────────────────────────────────────────────────────────
 
     def _scan_duckdb_technicals_sync(self) -> List[ScanSignal]:
-        """Find breakout setups: price above key SMAs + strong ADX."""
+        """Find breakout setups: price above key SMAs + strong ADX.
+
+        GPU Channel 4: When cuDF is available, vectorized filtering eliminates
+        iterating over 8000+ rows — only matched rows enter the Python loop.
+        """
         try:
             from app.data.duckdb_storage import duckdb_store
             conn = duckdb_store.get_thread_cursor()
@@ -386,6 +390,50 @@ class TurboScanner:
             self._stats["symbols_scanned"] = max(self._stats["symbols_scanned"], len(df))
             signals = []
 
+            # GPU Channel 4: Vectorized pre-filter via cuDF (skips 8000+ row iteration)
+            if GPU_SCANNER and cudf_gpu is not None and len(df) > 100:
+                try:
+                    gdf = cudf_gpu.DataFrame.from_pandas(df.fillna(0))
+                    bullish = gdf[
+                        (gdf["close"] > gdf["sma_20"])
+                        & (gdf["sma_20"] > gdf["sma_50"])
+                        & (gdf["sma_50"] > gdf["sma_200"])
+                        & (gdf["adx_14"] > 25)
+                        & (gdf["rsi_14"] > 40)
+                        & (gdf["rsi_14"] < 70)
+                    ].to_pandas()
+                    bearish = gdf[
+                        (gdf["close"] < gdf["sma_20"])
+                        & (gdf["sma_20"] < gdf["sma_50"])
+                        & (gdf["sma_50"] < gdf["sma_200"])
+                        & (gdf["adx_14"] > 25)
+                        & (gdf["rsi_14"] < 40)
+                    ].to_pandas()
+                    for _, row in bullish.iterrows():
+                        adx, rsi, ret_1d = float(row["adx_14"]), float(row["rsi_14"]), float(row["ret_1d"])
+                        score = 0.3 + min(0.3, adx / 100) + min(0.2, ret_1d * 5) + (0.1 if rsi < 60 else 0)
+                        signals.append(ScanSignal(
+                            symbol=row["symbol"], signal_type="technical_breakout",
+                            direction="bullish", score=min(1.0, score),
+                            reasoning=f"Bullish alignment: ADX={adx:.0f}, RSI={rsi:.0f} [GPU]",
+                            data={"adx": adx, "rsi": rsi, "sma_stack": "bullish",
+                                  "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
+                        ))
+                    for _, row in bearish.iterrows():
+                        adx, rsi, ret_1d = float(row["adx_14"]), float(row["rsi_14"]), float(row["ret_1d"])
+                        score = 0.3 + min(0.3, adx / 100) + min(0.2, abs(ret_1d) * 5)
+                        signals.append(ScanSignal(
+                            symbol=row["symbol"], signal_type="technical_breakout",
+                            direction="bearish", score=min(1.0, score),
+                            reasoning=f"Bearish alignment: ADX={adx:.0f}, RSI={rsi:.0f} [GPU]",
+                            data={"adx": adx, "rsi": rsi, "sma_stack": "bearish",
+                                  "sector": get_sector_or_none(row["symbol"]) or "Unknown"},
+                        ))
+                    return signals
+                except Exception as gpu_err:
+                    logger.debug("cuDF technical scan fallback to CPU: %s", gpu_err)
+
+            # CPU path: row-by-row iteration
             for _, row in df.iterrows():
                 symbol = row["symbol"]
                 close = row.get("close", 0) or 0

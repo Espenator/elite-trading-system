@@ -459,6 +459,13 @@ class AlpacaStreamService:
                 "source": "alpaca_websocket",
             }
 
+            # GPU Channel 5: Feed bars to GPU bar aggregator for streaming indicators
+            try:
+                from app.modules.ml_engine.gpu_bar_aggregator import get_bar_aggregator
+                get_bar_aggregator().ingest(bar_data)
+            except Exception:
+                pass  # Never break bar processing
+
             await self.message_bus.publish("market_data.bar", bar_data)
 
             if self._bars_received % 100 == 0:

@@ -2058,6 +2058,34 @@ async def lifespan(app: FastAPI):
     else:
         log.info("Agent auto-start disabled (AGENT_AUTO_RESTART=false)")
 
+    # GPU Channel 11: Auto-train ML models on startup if no champion exists
+    if os.getenv("ML_AUTO_TRAIN_ON_STARTUP", "false").lower() == "true":
+        async def _auto_train_ml():
+            """Background task: trigger first XGBoost training if no champion model exists."""
+            await asyncio.sleep(120)  # Wait for data pipeline to stabilize
+            try:
+                from app.modules.ml_engine.config import ARTIFACTS_DIR
+                model_path = ARTIFACTS_DIR / "xgboost_best.json"
+                if model_path.exists():
+                    log.info("[ML_AUTO_TRAIN] Champion model exists at %s — skipping", model_path)
+                    return
+                log.info("[ML_AUTO_TRAIN] No champion model found — starting first training run...")
+                from app.modules.ml_engine.xgboost_trainer import train_xgboost_v2
+                symbols = ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA", "AMD", "META", "AMZN",
+                           "SPY", "QQQ", "JPM", "GS", "XOM", "UNH", "HD"]
+                result = await asyncio.to_thread(train_xgboost_v2, symbols)
+                if result:
+                    log.info(
+                        "[ML_AUTO_TRAIN] First training complete: val_accuracy=%.4f, features=%d",
+                        result.get("val_accuracy", 0), len(result.get("metadata", {}).get("feature_cols", [])),
+                    )
+                else:
+                    log.warning("[ML_AUTO_TRAIN] Training returned None — insufficient data?")
+            except Exception as e:
+                log.warning("[ML_AUTO_TRAIN] Auto-train failed (non-fatal): %s", e)
+        asyncio.create_task(_auto_train_ml())
+        log.info("[STARTUP] ML_AUTO_TRAIN_ON_STARTUP=true — training will start in ~120s if no champion exists")
+
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
     _port = settings.effective_port; log.info("  API: http://localhost:%s/docs", _port)
