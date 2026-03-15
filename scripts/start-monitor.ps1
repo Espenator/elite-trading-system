@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Start the health monitor as a background job.
-    This watches backend (8001) and frontend (3000), restarting if they crash.
+    This watches backend (8000) and frontend (5173), restarting if they crash.
 #>
 $REPO = "C:\Users\Espen\elite-trading-system"
 $SCRIPT = Join-Path $REPO "scripts\start-all.ps1"
@@ -26,5 +26,5 @@ $proc = Start-Process -FilePath "powershell.exe" `
     -PassThru
 
 Write-Host "  [OK] Health monitor started (PID: $($proc.Id))"
-Write-Host "       Watching backend:8001 + frontend:3000"
+Write-Host "       Watching backend:8000 + frontend:5173"
 Write-Host "       Auto-restarts on crash, checks every 15s"

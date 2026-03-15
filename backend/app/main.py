@@ -17,6 +17,14 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# uvloop: 2-4x faster event loop (Linux/macOS only, no-op on Windows)
+try:
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    logging.getLogger(__name__).info("uvloop event loop policy installed")
+except ImportError:
+    pass  # Windows or uvloop not installed — use default event loop
+
 # Windows ProactorEventLoop fix: suppress ConnectionResetError in
 # _call_connection_lost which floods the event loop and blocks all
 # HTTP responses. This is a known Python 3.11 + Windows issue.
@@ -746,13 +754,12 @@ async def _start_event_driven_pipeline():
                 def _batch_insert():
                     conn = duckdb_store._get_conn()
                     with duckdb_store._lock:
-                        for row in deduped:
-                            conn.execute(
-                                "INSERT OR REPLACE INTO daily_ohlcv "
-                                "(symbol, date, open, high, low, close, volume, source) "
-                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                list(row),
-                            )
+                        conn.executemany(
+                            "INSERT OR REPLACE INTO daily_ohlcv "
+                            "(symbol, date, open, high, low, close, volume, source) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            [list(row) for row in deduped],
+                        )
 
                 await asyncio.to_thread(_batch_insert)
                 log.debug("Flushed %d bars to DuckDB (%d unique)", len(batch), len(deduped))
@@ -816,11 +823,24 @@ async def _start_event_driven_pipeline():
         ]
         symbols = list(set(tracked or default_symbols))
         _stream_manager = AlpacaStreamManager(_message_bus, symbols)
-        _alpaca_stream_task = asyncio.create_task(_stream_manager.start())
+        # Delay WS connect to let previous Alpaca connections close after restart
+        _alpaca_ws_delay = int(os.getenv("ALPACA_WS_CONNECT_DELAY", "30"))
+
+        async def _delayed_alpaca_start():
+            if _alpaca_ws_delay > 0:
+                log.info(
+                    "Delaying Alpaca WS connect by %ds (ALPACA_WS_CONNECT_DELAY) "
+                    "to avoid 'connection limit exceeded' after restart",
+                    _alpaca_ws_delay,
+                )
+                await asyncio.sleep(_alpaca_ws_delay)
+            await _stream_manager.start()
+
+        _alpaca_stream_task = asyncio.create_task(_delayed_alpaca_start())
         _alpaca_stream_task.add_done_callback(_log_task_exception)  # TIER 3c
         # Keep _alpaca_stream reference for backward compat in health checks
         _alpaca_stream = _stream_manager
-        log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
+        log.info("\u2705 AlpacaStreamManager launched for %d symbols (WS delay %ds)", len(symbols), _alpaca_ws_delay)
 
     # -- WS bridges for swarm/macro (register immediately, services start deferred) --
     async def _bridge_swarm_to_ws(result_data):
@@ -1665,32 +1685,52 @@ async def lifespan(app: FastAPI):
         log.warning("ML singletons init failed: %s", e)
     log.info("[STARTUP] Phase 2: ML singletons done (%.1fs)", _elapsed())
 
-    # 3. Event-driven pipeline (council-controlled)
-    # TIER 3a: Surface pipeline failures instead of silently continuing.
-    # Set a degraded flag so health checks and dashboard reflect the real state.
-    app.state.pipeline_healthy = False
-    try:
-        await _start_event_driven_pipeline()
-        app.state.pipeline_healthy = True
-    except Exception:
-        log.exception(
-            "\U0001F6A8 CRITICAL: Event-driven pipeline failed to start! "
-            "Trading is DISABLED. The app will serve HTTP but no signals, "
-            "council verdicts, or orders will execute. Check logs above for root cause."
-        )
-        # Alert via Slack if possible
-        try:
-            from app.services.slack_notification_service import get_slack_service
-            slack = get_slack_service()
-            await slack.send_alert(
-                "CRITICAL: Event-driven pipeline failed to start. Trading is DISABLED. "
-                "Manual restart required.",
-                level="critical",
-            )
-        except Exception:
-            pass
+    # Pre-init MessageBus so subscribers below can wire up immediately.
+    # The pipeline function also calls get_message_bus() but gets the same singleton.
+    global _message_bus
+    from app.core.message_bus import get_message_bus
+    _message_bus = get_message_bus()
+    await _message_bus.start()
+    log.info("[STARTUP] MessageBus started (%.1fs)", _elapsed())
 
-    log.info("[STARTUP] Phase 3: Event-driven pipeline done (%.1fs)", _elapsed())
+    # 3. Event-driven pipeline (council-controlled)
+    # STABILITY FIX: Run in background so /healthz and /ws are available immediately.
+    # The pipeline involves 40+ service imports/inits (scouts, Alpaca WS, council,
+    # knowledge layer, etc.) that can take 30-120s on Windows. Running it as a
+    # background task lets the HTTP server accept health checks and WebSocket
+    # connections within seconds of startup, preventing watchdog kills.
+    app.state.pipeline_healthy = False
+    app.state.startup_complete = False
+
+    async def _start_pipeline_and_services():
+        """Start event-driven pipeline + all heavy services in background."""
+        try:
+            await _start_event_driven_pipeline()
+            app.state.pipeline_healthy = True
+            log.info("[STARTUP] Phase 3: Event-driven pipeline done (%.1fs)", _elapsed())
+        except Exception:
+            log.exception(
+                "\U0001F6A8 CRITICAL: Event-driven pipeline failed to start! "
+                "Trading is DISABLED. Check logs above for root cause."
+            )
+            # Alert via Slack if possible
+            try:
+                from app.services.slack_notification_service import get_slack_service
+                slack = get_slack_service()
+                await slack.send_alert(
+                    "CRITICAL: Event-driven pipeline failed to start. Trading is DISABLED. "
+                    "Manual restart required.",
+                    level="critical",
+                )
+            except Exception:
+                pass
+        app.state.startup_complete = True
+        log.info("[STARTUP] Heavy services ready — system fully operational (%.1fs)", _elapsed())
+
+    asyncio.create_task(_start_pipeline_and_services())
+    log.info("[STARTUP] Phase 3: Pipeline starting in background (%.1fs)", _elapsed())
+    log.info("  /healthz and /ws available now. Services initializing in background...")
+
     # 3a-issue76. Cancel stale unfilled orders older than 24h (Issue #76)
     try:
         from app.services.stale_order_cleanup import cancel_stale_orders
@@ -2049,10 +2089,10 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         await _stop_event_driven_pipeline()
-        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task, sentiment_tick_task]:
             if task is not None:
                 task.cancel()
-        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task, sentiment_tick_task]:
             if task is not None:
                 try:
                     await task
@@ -2103,10 +2143,10 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-        # Shutdown CPU process pool (GIL escape hatch)
+        # Shut down MessageBus executor pools (ProcessPool + ThreadPool)
         try:
-            from app.core.message_bus import shutdown_cpu_pool
-            shutdown_cpu_pool()
+            from app.core.message_bus import shutdown_pools
+            shutdown_pools()
         except Exception:
             pass
 

@@ -13,6 +13,6 @@
   "errors": [
     "bayesian_weights_update: 'BayesianAgentWeights' object has no attribute 'update'",
     "bayesian_save_load_duckdb: 'BayesianAgentWeights' object has no attribute 'update'",
-    "postmortem_insert_query: Constraint Error: Duplicate key \"id: audit-pm-1\" violates primary key constraint. If this is an unexpected constraint violation please double check with the known index limitations section in our documentation (https://duckdb.org/docs/sql/indexes)."
+    "postmortem_insert_query: IO Error: Could not set lock on file \"/home/user/elite-trading-system/backend/data/analytics.duckdb\": Conflicting lock is held in /usr/bin/python3.11 (PID 8375). See also https://duckdb.org/docs/connect/concurrency"
   ]
 }

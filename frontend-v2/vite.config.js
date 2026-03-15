@@ -25,6 +25,11 @@ export default defineConfig(({ mode }) => {
           ws: true,
           timeout: 120000,
         },
+        "/healthz": {
+          target: backendUrl,
+          changeOrigin: true,
+          timeout: 60000,
+        },
       },
     },
     build: {

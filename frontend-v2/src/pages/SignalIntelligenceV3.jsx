@@ -208,7 +208,7 @@ const Panel = ({
         </h3>
       </div>
       {headerAction && (
-        <div className="flex items-center gap-1">{headerAction}</div>
+        <div className="flex items-center gap-1 shrink-0 ml-2">{headerAction}</div>
       )}
     </div>
     <div className="p-2 flex-1 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">

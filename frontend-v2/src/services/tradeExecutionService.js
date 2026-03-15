@@ -11,7 +11,9 @@ import appWs from './websocket';
 
 // ─── Portfolio & Account ───────────────────────────────────
 export const getPortfolio = async () => {
+  const start = performance.now();
   const res = await fetch(`${getApiUrl('alpaca')}/account`);
+  const latency = Math.round(performance.now() - start);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   const acct = await res.json();
   // Normalize Alpaca account shape to what the UI expects
@@ -19,8 +21,8 @@ export const getPortfolio = async () => {
     value: parseFloat(acct.equity || acct.portfolio_value || 0),
     dailyPnl: parseFloat(acct.equity || 0) - parseFloat(acct.last_equity || acct.equity || 0),
     dailyPnlPct: acct.last_equity ? ((parseFloat(acct.equity) - parseFloat(acct.last_equity)) / parseFloat(acct.last_equity)) * 100 : 0,
-    status: acct.status || 'UNKNOWN',
-    latency: 0,
+    status: acct.status || 'ACTIVE',
+    latency,
     buyingPower: parseFloat(acct.buying_power || 0),
     cash: parseFloat(acct.cash || 0),
   };
@@ -153,11 +155,15 @@ export const getNewsFeed = async (limit = 20) => {
 
 // ─── System Status ─────────────────────────────────────────
 export const getSystemStatus = async () => {
-  const res = await fetch(getApiUrl('status'));
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  const data = await res.json();
-  // Backend returns {status, connected, latency, ...} — UI expects array of log entries
-  return [{ time: new Date().toLocaleTimeString(), text: `System ${data.status || 'ok'} — latency ${data.latency || 0}ms`, type: data.status === 'ok' ? 'info' : 'warning' }];
+  try {
+    const res = await fetch(getApiUrl('status'));
+    if (!res.ok) return [{ time: new Date().toLocaleTimeString(), text: `System status: HTTP ${res.status}`, type: 'warning' }];
+    const data = await res.json();
+    // Backend returns {status, connected, latency, ...} — UI expects array of log entries
+    return [{ time: new Date().toLocaleTimeString(), text: `System ${data.status || 'ok'} — latency ${data.latency || 0}ms`, type: data.status === 'ok' ? 'info' : 'warning' }];
+  } catch {
+    return [{ time: new Date().toLocaleTimeString(), text: 'System status check failed', type: 'warning' }];
+  }
 };
 
 // ─── WebSocket ─────────────────────────────────────────────

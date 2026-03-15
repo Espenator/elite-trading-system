@@ -21,7 +21,7 @@ function IsUp($url) {
 function RestartBackend {
     Log "Restarting backend..."
     # Kill port
-    Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
+    Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
         Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
     }
     Start-Sleep -Seconds 2
@@ -36,7 +36,7 @@ function RestartBackend {
     # Wait for health
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Seconds 1
-        if (IsUp "http://localhost:8001/healthz") { Log "Backend recovered!"; return }
+        if (IsUp "http://localhost:8000/healthz") { Log "Backend recovered!"; return }
     }
     Log "Backend failed to recover"
 }
@@ -55,7 +55,7 @@ function RestartFrontend {
         -NoNewWindow
     for ($i = 0; $i -lt 30; $i++) {
         Start-Sleep -Seconds 1
-        if (IsUp "http://localhost:3000") { Log "Frontend recovered!"; return }
+        if (IsUp "http://localhost:5173") { Log "Frontend recovered!"; return }
     }
     Log "Frontend failed to recover"
 }
@@ -67,13 +67,13 @@ $frontendFails = 0
 while ($true) {
     Start-Sleep -Seconds 20
 
-    if (-not (IsUp "http://localhost:8001/healthz")) {
+    if (-not (IsUp "http://localhost:8000/healthz")) {
         $backendFails++
         if ($backendFails -ge 2) { RestartBackend; $backendFails = 0 }
         else { Log "Backend check failed ($backendFails/2)" }
     } else { $backendFails = 0 }
 
-    if (-not (IsUp "http://localhost:3000")) {
+    if (-not (IsUp "http://localhost:5173")) {
         $frontendFails++
         if ($frontendFails -ge 2) { RestartFrontend; $frontendFails = 0 }
         else { Log "Frontend check failed ($frontendFails/2)" }

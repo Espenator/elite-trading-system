@@ -32,37 +32,59 @@ import logging
 import os
 import time
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 EventHandler = Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]
 
-# ── ProcessPoolExecutor for CPU-bound event handlers ──────────────────────
-# Breaks the GIL bottleneck: each process has its own GIL, enabling true
-# parallel computation on multi-core CPUs (i7-13700 E-cores 16-23).
-# Handlers marked with handler._cpu_bound = True are routed here.
-_CPU_POOL_SIZE = int(os.environ.get("MSGBUS_CPU_POOL_SIZE", "8"))
+# CPU-bound work goes here — 8 workers for true parallelism (bypasses GIL)
+# Targets E-cores 16-23 on Intel hybrid CPUs.
+_CPU_POOL_WORKERS = int(os.getenv("MSGBUS_CPU_POOL_WORKERS", "8"))
 _cpu_pool: Optional[ProcessPoolExecutor] = None
+_thread_pool: Optional[ThreadPoolExecutor] = None
 
 
 def _get_cpu_pool() -> ProcessPoolExecutor:
-    """Lazy-init the CPU pool (avoid fork issues at import time)."""
+    """Lazy-init ProcessPoolExecutor for CPU-bound handlers."""
     global _cpu_pool
     if _cpu_pool is None:
-        _cpu_pool = ProcessPoolExecutor(max_workers=_CPU_POOL_SIZE)
-        logger.info("MessageBus CPU pool started (%d workers)", _CPU_POOL_SIZE)
+        _cpu_pool = ProcessPoolExecutor(max_workers=_CPU_POOL_WORKERS)
+        logger.info("MessageBus: ProcessPoolExecutor started (%d workers)", _CPU_POOL_WORKERS)
     return _cpu_pool
 
 
-def shutdown_cpu_pool():
-    """Graceful shutdown — call from app shutdown handler."""
-    global _cpu_pool
+def _get_thread_pool() -> ThreadPoolExecutor:
+    """Lazy-init ThreadPoolExecutor for sync I/O-bound handlers."""
+    global _thread_pool
+    if _thread_pool is None:
+        _thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="msgbus-io")
+    return _thread_pool
+
+
+def shutdown_pools():
+    """Gracefully shut down executor pools (call on app shutdown)."""
+    global _cpu_pool, _thread_pool
     if _cpu_pool is not None:
         _cpu_pool.shutdown(wait=False)
         _cpu_pool = None
-        logger.info("MessageBus CPU pool shut down")
+        logger.info("MessageBus: CPU pool shut down")
+    if _thread_pool is not None:
+        _thread_pool.shutdown(wait=False)
+        _thread_pool = None
+
+
+def _run_sync_in_process(func_module: str, func_name: str, data: dict) -> Any:
+    """Wrapper for ProcessPoolExecutor: import and call a sync function.
+
+    We pass module+name strings instead of the function object because
+    ProcessPoolExecutor workers need picklable arguments.
+    """
+    import importlib
+    mod = importlib.import_module(func_module)
+    fn = getattr(mod, func_name)
+    return fn(data)
 
 
 class MessageBus:
@@ -553,21 +575,36 @@ class MessageBus:
         Per-handler timeout prevents one slow handler from blocking all
         event processing. Failed events go to the dead-letter queue.
 
-        CPU-bound handlers (marked with handler._cpu_bound = True) are
-        dispatched to a ProcessPoolExecutor for true GIL-free parallelism.
+        CPU-bound handlers (marked with _cpu_bound=True and _cpu_module/_cpu_name)
+        are dispatched to the ProcessPoolExecutor for true GIL-free parallelism.
+        Sync handlers without _cpu_bound go to the thread pool.
         """
         handler_name = handler.__qualname__ if hasattr(handler, '__qualname__') else str(handler)
         try:
+            # Route CPU-bound sync handlers to ProcessPoolExecutor (GIL escape)
             if getattr(handler, '_cpu_bound', False):
-                # True parallel execution — bypasses GIL on separate process
+                func_module = getattr(handler, '_cpu_module', None)
+                func_name = getattr(handler, '_cpu_name', None)
+                if func_module and func_name:
+                    loop = asyncio.get_event_loop()
+                    await asyncio.wait_for(
+                        loop.run_in_executor(
+                            _get_cpu_pool(),
+                            _run_sync_in_process, func_module, func_name, data,
+                        ),
+                        timeout=self._handler_timeout,
+                    )
+                    return
+                # Fallback: run in thread pool if module/name not set
                 loop = asyncio.get_event_loop()
-                pool = _get_cpu_pool()
                 await asyncio.wait_for(
-                    loop.run_in_executor(pool, handler, data),
+                    loop.run_in_executor(_get_thread_pool(), handler, data),
                     timeout=self._handler_timeout,
                 )
-            else:
-                await asyncio.wait_for(handler(data), timeout=self._handler_timeout)
+                return
+
+            # Standard async handler path
+            await asyncio.wait_for(handler(data), timeout=self._handler_timeout)
         except asyncio.TimeoutError:
             self._error_count += 1
             logger.warning(

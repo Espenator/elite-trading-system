@@ -4,8 +4,8 @@
     Stop all Embodier Trader services (backend + frontend).
 #>
 
-$BACKEND_PORT = 8001
-$FRONTEND_PORT = 3000
+$BACKEND_PORT = 8000
+$FRONTEND_PORT = 5173
 
 function Stop-PortProcess {
     param([int]$Port, [string]$Name)

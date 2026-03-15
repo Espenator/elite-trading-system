@@ -599,7 +599,8 @@ class EventDrivenSignalEngine:
             for bar in history
         ]
 
-        ta_score, label = _compute_composite_score(quote_rows)
+        # Offload CPU-bound scoring to thread pool to avoid blocking the event loop
+        ta_score, label = await asyncio.to_thread(_compute_composite_score, quote_rows)
 
         # Blend with OpenClaw 5-pillar score if available
         claw_data = self._claw_scores.get(symbol)
@@ -659,7 +660,9 @@ class EventDrivenSignalEngine:
                 )
 
         # SHORT signal: independent bearish scoring (B2 fix — replaces naive 100-blended inversion)
-        short_score_raw, short_label = _compute_short_composite_score(history)
+        short_score_raw, short_label = await asyncio.to_thread(
+            _compute_short_composite_score, list(history)
+        )
         bear_score = max(0.0, min(100.0, short_score_raw * self._bear_regime_mult))
         if bear_score >= self.SIGNAL_THRESHOLD:
             self._signals_generated += 1

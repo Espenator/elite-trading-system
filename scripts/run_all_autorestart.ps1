@@ -119,7 +119,7 @@ if (-not (Test-Path $FrontendAutorestart)) {
     exit 1
 }
 
-$HealthUrl = "http://127.0.0.1:${BackendPort}/health"
+$HealthUrl = "http://127.0.0.1:${BackendPort}/healthz"
 
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor DarkCyan

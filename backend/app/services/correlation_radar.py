@@ -644,6 +644,25 @@ class CorrelationRadar:
     def get_reversion_signals(self, limit: int = 20) -> List[Dict]:
         return [r.to_dict() for r in list(self._reversion_history)[-limit:]]
 
+    async def get_correlation_breaks(self, threshold: float = 0.75, limit: int = 20) -> List[Dict]:
+        """Return recent correlation breaks from cached history (used by CorrelationBreakScout)."""
+        results = []
+        for brk in list(self._break_history)[-limit:]:
+            d = brk.to_dict()
+            if abs(d.get("correlation", 1.0)) < threshold or d.get("delta", 0) > (1 - threshold):
+                results.append(d)
+        return results
+
+    async def get_sector_divergences(self, symbols: List[str] = None, limit: int = 20) -> List[Dict]:
+        """Return recent sector rotation signals from cached history (used by SectorRotationScout)."""
+        results = []
+        for rot in list(self._rotation_history)[-limit:]:
+            d = rot.to_dict()
+            if symbols and d.get("symbol") not in symbols:
+                continue
+            results.append(d)
+        return results
+
 
 # Module-level singleton
 _radar: Optional[CorrelationRadar] = None

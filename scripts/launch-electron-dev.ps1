@@ -4,9 +4,9 @@
 
 .DESCRIPTION
     Starts all three processes for local development:
-      1. Backend (uvicorn via run_server.py on port 8001)
-      2. Frontend (Vite dev server on port 3000)
-      3. Electron shell (connects to localhost:3000)
+      1. Backend (uvicorn via run_server.py on port 8000)
+      2. Frontend (Vite dev server on port 5173)
+      3. Electron shell (connects to localhost:5173)
 
     Role-aware: detects ESPENMAIN vs Profit Trader from hostname.
     Also generates the .bat launcher for Task Scheduler integration.
@@ -46,8 +46,8 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Hostname: $HOSTNAME"
 Write-Host "  Role:     $ROLE"
-Write-Host "  Backend:  http://localhost:8001"
-Write-Host "  Frontend: http://localhost:3000"
+Write-Host "  Backend:  http://localhost:8000"
+Write-Host "  Frontend: http://localhost:5173"
 Write-Host ""
 
 # ── Generate .bat launcher (for Task Scheduler) ─────────────────────────────
@@ -112,7 +112,7 @@ $ready = $false
 for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 2
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:8001/healthz" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        $response = Invoke-WebRequest -Uri "http://localhost:8000/healthz" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($response.StatusCode -eq 200) {
             $ready = $true
             break
@@ -137,7 +137,7 @@ Write-Host "  Frontend PID: $($frontendJob.Id)" -ForegroundColor Green
 
 if ($NoElectron) {
     Write-Host ""
-    Write-Host "  No-Electron mode. Open http://localhost:3000 in your browser." -ForegroundColor Cyan
+    Write-Host "  No-Electron mode. Open http://localhost:5173 in your browser." -ForegroundColor Cyan
     Write-Host "  Press Ctrl+C to stop all processes." -ForegroundColor Cyan
     Write-Host ""
     try {
@@ -166,8 +166,8 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host "  All services running!" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Backend:  http://localhost:8001 (PID $($backendJob.Id))"
-Write-Host "  Frontend: http://localhost:3000 (PID $($frontendJob.Id))"
+Write-Host "  Backend:  http://localhost:8000 (PID $($backendJob.Id))"
+Write-Host "  Frontend: http://localhost:5173 (PID $($frontendJob.Id))"
 Write-Host "  Electron: PID $($electronJob.Id)"
 Write-Host ""
 Write-Host "  Close the Electron window or press Ctrl+C to stop all."

@@ -70,13 +70,16 @@ class ScoutRegistry:
             CorrelationBreakScout,
         ]
 
-        for cls in scout_classes:
-            scout = cls(message_bus=message_bus)
+        # Stagger startup: each scout gets an initial delay to avoid thundering herd.
+        # 2-second spacing means all 12 scouts fire their first cycle within ~24s.
+        _stagger_seconds = float(__import__("os").getenv("SCOUT_STAGGER_DELAY", "2.0"))
+        for idx, cls in enumerate(scout_classes):
+            scout = cls(message_bus=message_bus, initial_delay=idx * _stagger_seconds)
             self._scouts.append(scout)
             await scout.start()
 
         self._started = True
-        logger.info("ScoutRegistry started %d scouts", len(self._scouts))
+        logger.info("ScoutRegistry started %d scouts (stagger=%.1fs)", len(self._scouts), _stagger_seconds)
 
     async def stop(self) -> None:
         for scout in self._scouts:

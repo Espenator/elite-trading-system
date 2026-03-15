@@ -3,7 +3,7 @@
     Test auto-recovery: kill backend, restart, verify health.
 #>
 
-$BACKEND_PORT = 8001
+$BACKEND_PORT = 8000
 $REPO = "C:\Users\Espen\elite-trading-system"
 
 # Use .NET HttpClient instead of Invoke-WebRequest (more reliable)
