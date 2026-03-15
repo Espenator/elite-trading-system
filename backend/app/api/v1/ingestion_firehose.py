@@ -1,10 +1,14 @@
 """Ingestion Firehose API: status and metrics for channel agents."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+import logging
+
+from fastapi import APIRouter
 
 from app.core.message_bus import get_message_bus
 from app.services.channels.orchestrator import get_channels_orchestrator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/ingestion", tags=["ingestion"])
 
@@ -16,7 +20,8 @@ async def ingestion_status():
         orch = get_channels_orchestrator(get_message_bus())
         return orch.get_status()
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Ingestion status unavailable: {exc}")
+        logger.warning("Ingestion status unavailable: %s", exc)
+        return {"status": "unavailable", "reason": str(exc), "agents": []}
 
 
 @router.get("/metrics")
@@ -26,4 +31,5 @@ async def ingestion_metrics():
         orch = get_channels_orchestrator(get_message_bus())
         return orch.get_metrics()
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Ingestion metrics unavailable: {exc}")
+        logger.warning("Ingestion metrics unavailable: %s", exc)
+        return {"status": "unavailable", "reason": str(exc), "metrics": {}}
