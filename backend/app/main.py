@@ -17,6 +17,14 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# uvloop: 2-4x faster event loop (Linux/macOS only, no-op on Windows)
+try:
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    logging.getLogger(__name__).info("uvloop event loop policy installed")
+except ImportError:
+    pass  # Windows or uvloop not installed — use default event loop
+
 # Windows ProactorEventLoop fix: suppress ConnectionResetError in
 # _call_connection_lost which floods the event loop and blocks all
 # HTTP responses. This is a known Python 3.11 + Windows issue.
