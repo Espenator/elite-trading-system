@@ -17,10 +17,13 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: backendUrl,
           changeOrigin: true,
+          timeout: 120000,       // 2 min — backend can be slow during heavy scans
+          proxyTimeout: 120000,
         },
         "/ws": {
           target: wsBackend,
           ws: true,
+          timeout: 120000,
         },
       },
     },

@@ -7,6 +7,7 @@ Each scout:
   - Is stateless between runs (idempotent)
   - Handles its own errors without crashing the task loop
   - Applies backpressure when the MessageBus queue is congested (B-fix)
+  - Session-aware: runs 3x slower on weekends/overnight to free resources
 """
 import asyncio
 import logging
@@ -126,6 +127,19 @@ class BaseScout(ABC):
     # Internal loops
     # ──────────────────────────────────────────────────────────────────────
 
+    def _get_effective_interval(self) -> float:
+        """Return session-aware interval: 3x slower on weekends/overnight."""
+        try:
+            from app.services.session_manager import get_current_session, WEEKEND, OVERNIGHT
+            session = get_current_session()
+            if session == WEEKEND:
+                return max(self.interval * 3, 300)  # At least 5 min on weekends
+            if session == OVERNIGHT:
+                return max(self.interval * 2, 120)  # At least 2 min overnight
+        except Exception:
+            pass
+        return self.interval
+
     async def _run_loop(self) -> None:
         while self._running:
             try:
@@ -162,7 +176,7 @@ class BaseScout(ABC):
             except Exception as exc:
                 self._stats["errors"] += 1
                 logger.warning("Scout %s error: %s", self.name, exc)
-            await asyncio.sleep(self.interval)
+            await asyncio.sleep(self._get_effective_interval())
 
     async def _heartbeat_loop(self) -> None:
         while self._running:

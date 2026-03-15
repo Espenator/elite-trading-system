@@ -105,8 +105,23 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
     Dashboard-friendly combined performance: summary metrics + equity curve.
     GET /api/v1/performance returns this. Frontend expects portfolioValue, winRate, equityCurve, etc.
     """
-    summary = performance_summary(limit_trades=limit_trades)
-    equity_res = performance_equity(limit_trades=limit_trades)
+    try:
+        summary = performance_summary(limit_trades=limit_trades)
+        equity_res = performance_equity(limit_trades=limit_trades)
+    except Exception as e:
+        logger.warning("[performance] Engine unavailable: %s", e)
+        return {
+            "status": "unavailable",
+            "reason": str(e),
+            "hasData": False,
+            "portfolioValue": 0,
+            "totalValue": 0,
+            "winRate": 0,
+            "equityCurve": [],
+            "equity": [],
+            "kpi": {},
+            "message": "Performance engine starting — check back in 60s",
+        }
 
     metrics = summary.get("metrics") or {}
     points = equity_res.get("points") or []

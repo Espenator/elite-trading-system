@@ -89,6 +89,13 @@ async def system_status():
     if _status_cache["data"] and (now - _status_cache["timestamp"]) < _status_cache["ttl"]:
         return _status_cache["data"]
 
+    def _safe_status(fn, name):
+        try:
+            return fn()
+        except Exception as e:
+            log.debug("[system/status] %s unavailable: %s", name, e)
+            return {"status": "unavailable", "reason": str(e)}
+
     result = {
         "trading_mode": get_trading_mode(),
         "modules": {
@@ -96,10 +103,10 @@ async def system_status():
                 "status": "ready",
                 "description": "Stock/symbol database and watchlists",
             },
-            "social_news_engine": social_news_status(),
-            "chart_patterns": chart_patterns_status(),
-            "ml_engine": ml_engine_status(),
-            "execution_engine": execution_status(),
+            "social_news_engine": _safe_status(social_news_status, "social_news"),
+            "chart_patterns": _safe_status(chart_patterns_status, "chart_patterns"),
+            "ml_engine": _safe_status(ml_engine_status, "ml_engine"),
+            "execution_engine": _safe_status(execution_status, "execution"),
         },
     }
     _status_cache["data"] = result

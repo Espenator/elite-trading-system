@@ -25,6 +25,23 @@ def main():
     port = int(os.getenv("PORT", "8000"))
     workers = int(os.getenv("UVICORN_WORKERS", "1"))
 
+    # Auto-detect uvloop (Linux only — 2-4x faster event loop)
+    loop_impl = "asyncio"
+    if sys.platform != "win32":
+        try:
+            import uvloop  # noqa: F401
+            loop_impl = "uvloop"
+        except ImportError:
+            pass
+
+    # Auto-detect httptools (C extension — 2-4x faster HTTP parsing)
+    http_impl = "auto"
+    try:
+        import httptools  # noqa: F401
+        http_impl = "httptools"
+    except ImportError:
+        pass
+
     # Multi-worker: Set UVICORN_WORKERS=4 in .env to use i7 cores on PC1.
     # NOTE: workers>1 spawns separate processes (no shared in-memory state).
     # DuckDB WAL mode handles concurrent reads safely; writes are serialized
@@ -36,7 +53,10 @@ def main():
         workers=workers,
         log_level="info",
         access_log=False,
-        loop="asyncio",  # uvloop causes CPU spin with many concurrent tasks
+        loop=loop_impl,
+        http=http_impl,
+        timeout_keep_alive=60,  # Keep connections warm for dashboard polling
+        backlog=2048,         # Handle burst connections during heavy scans
     )
 
 

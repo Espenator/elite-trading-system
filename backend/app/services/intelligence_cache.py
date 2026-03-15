@@ -30,6 +30,8 @@ DEFAULT_REFRESH_INTERVAL = 60.0  # Refresh intelligence every 60s
 DEFAULT_TTL = 120.0  # Cache entries valid for 120s
 MAX_STALE_AGE = 300.0  # After 5 min, mark as stale (agents should lower confidence)
 MARKET_REFRESH_INTERVAL = 300.0  # Market-wide intel refreshed every 5 min
+WEEKEND_REFRESH_INTERVAL = 300.0  # Weekend: 5 min between refreshes (conserve resources)
+WEEKEND_MARKET_REFRESH_INTERVAL = 900.0  # Weekend: 15 min for market-wide intel
 MAX_SYMBOL_CACHE_SIZE = 200  # Prevent unbounded cache growth
 
 # Latency budgets (hard limits)
@@ -153,18 +155,32 @@ class IntelligenceCache:
         else:
             await self._refresh_all()
 
+    def _get_intervals(self) -> tuple:
+        """Return (refresh_interval, market_interval) based on session."""
+        try:
+            from app.services.session_manager import get_current_session, WEEKEND, OVERNIGHT
+            session = get_current_session()
+            if session == WEEKEND:
+                return WEEKEND_REFRESH_INTERVAL, WEEKEND_MARKET_REFRESH_INTERVAL
+            if session == OVERNIGHT:
+                return DEFAULT_REFRESH_INTERVAL * 2, MARKET_REFRESH_INTERVAL * 2
+        except Exception:
+            pass
+        return self._refresh_interval, MARKET_REFRESH_INTERVAL
+
     async def _refresh_loop(self):
         """Background loop: refresh intelligence on interval."""
         market_last_refresh = 0.0
         while self._running:
             try:
                 t0 = time.time()
+                refresh_interval, market_interval = self._get_intervals()
 
                 # Refresh per-symbol intelligence
                 await self._refresh_all()
 
                 # Refresh market-wide intelligence less frequently
-                if time.time() - market_last_refresh > MARKET_REFRESH_INTERVAL:
+                if time.time() - market_last_refresh > market_interval:
                     await self._refresh_market()
                     market_last_refresh = time.time()
 
@@ -176,7 +192,7 @@ class IntelligenceCache:
                 )
 
                 # Sleep for remaining interval
-                sleep_time = max(1.0, self._refresh_interval - elapsed / 1000)
+                sleep_time = max(1.0, refresh_interval - elapsed / 1000)
                 await asyncio.sleep(sleep_time)
 
             except asyncio.CancelledError:

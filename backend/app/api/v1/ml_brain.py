@@ -89,10 +89,15 @@ async def get_ml_performance():
     Reads from timescaleDB mlmodels table.
     Frontend charts: XGBoost accuracy %, RF accuracy % over 252 days.
     """
-    data = _get_ml_data("ml_brain_performance", [])
-    if not data:
-        return []
-    return data
+    try:
+        data = _get_ml_data("ml_brain_performance", [])
+        if not data:
+            return []
+        return data
+    except Exception as e:
+        logger.warning("[ml_brain/performance] unavailable: %s", e)
+        return {"status": "unavailable", "reason": str(e), "data": [],
+                "message": "ML engine starting — check back in 60s"}
 
 
 @router.get("/signals/staged")

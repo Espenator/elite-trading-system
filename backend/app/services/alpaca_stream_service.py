@@ -49,6 +49,7 @@ class AlpacaStreamService:
     INITIAL_RECONNECT_DELAY = 2  # seconds
     SNAPSHOT_POLL_INTERVAL = 30  # seconds between snapshot polls (pre/post market)
     OVERNIGHT_POLL_INTERVAL = 60  # seconds between snapshot polls (overnight 24/5)
+    WEEKEND_POLL_INTERVAL = 300   # seconds between snapshot polls (weekend — data is stale)
     SNAPSHOT_BATCH_SIZE = 50  # symbols per snapshot API call
     # When Alpaca returns "connection limit exceeded", fall back after this many failures
     CONNECTION_LIMIT_FALLBACK_AFTER = int(
@@ -272,12 +273,20 @@ class AlpacaStreamService:
             import asyncio
             from app.services.alpaca_service import alpaca_service
 
+            # Session-aware symbol reduction: weekend=6 crypto/metals,
+            # overnight=15 liquid names, market hours=full universe
+            try:
+                from app.core.market_clock import get_active_symbols
+                active_symbols = get_active_symbols(self.symbols)
+            except Exception:
+                active_symbols = self.symbols
+
             # Build all snapshot batches, then fetch in parallel.
             # With Algo Trader Plus (10K req/min, 50 concurrent), we can safely
             # fire all batches simultaneously instead of sequentially.
             batches = [
-                self.symbols[i:i + self.SNAPSHOT_BATCH_SIZE]
-                for i in range(0, len(self.symbols), self.SNAPSHOT_BATCH_SIZE)
+                active_symbols[i:i + self.SNAPSHOT_BATCH_SIZE]
+                for i in range(0, len(active_symbols), self.SNAPSHOT_BATCH_SIZE)
             ]
 
             # Fetch all batches concurrently
@@ -303,8 +312,8 @@ class AlpacaStreamService:
 
             if self._snapshots_fetched > 0:
                 logger.info(
-                    "Snapshot seed: %d symbols priced (session=%s)",
-                    self._snapshots_fetched, self._session,
+                    "Snapshot seed: %d symbols priced of %d active (session=%s)",
+                    self._snapshots_fetched, len(active_symbols), self._session,
                 )
 
         except Exception:
@@ -367,10 +376,12 @@ class AlpacaStreamService:
     def _get_poll_interval(self) -> int:
         """Return session-appropriate snapshot polling interval.
 
-        Overnight uses a longer interval (60s) to conserve API rate limits
-        while still maintaining fresh data for 24/5 trading.
-        Weekend polls at the default rate (data is stale anyway).
+        Market hours: 30s (real-time tracking)
+        Overnight: 60s (conserve rate limits, still fresh)
+        Weekend: 300s (5 min — data is stale, just monitor for news-driven moves)
         """
+        if self._session == "weekend":
+            return self.WEEKEND_POLL_INTERVAL
         if self._session == "overnight":
             return self.OVERNIGHT_POLL_INTERVAL
         return self.SNAPSHOT_POLL_INTERVAL

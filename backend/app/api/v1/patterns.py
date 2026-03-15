@@ -60,7 +60,11 @@ async def get_pattern_feed():
     Return recent pattern detection feed entries (reverse chronological).
     Derives feed from detected patterns — each detection is a feed event.
     """
-    patterns = _get_patterns()
+    try:
+        patterns = _get_patterns()
+    except Exception as e:
+        logger.warning("[patterns/feed] unavailable: %s", e)
+        return {"status": "unavailable", "feed": [], "count": 0, "message": str(e)}
     feed = []
     for p in reversed(patterns[-50:]):
         feed.append({
@@ -107,7 +111,11 @@ async def get_patterns():
     Patterns are populated by detection agents, not hardcoded.
     Returns empty list if no patterns have been detected yet.
     """
-    patterns = _get_patterns()
+    try:
+        patterns = _get_patterns()
+    except Exception as e:
+        logger.warning("[patterns] unavailable: %s", e)
+        return {"status": "unavailable", "patterns": [], "count": 0, "message": str(e)}
     return {"patterns": patterns, "count": len(patterns)}
 
 

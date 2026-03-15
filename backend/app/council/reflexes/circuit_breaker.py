@@ -270,27 +270,25 @@ class CircuitBreaker:
         return None
 
     async def market_hours_check(self, blackboard: BlackboardState) -> Optional[str]:
-        """Check if we're in an active 24/5 trading session.
+        """Check if we're in an active trading session.
 
-        24/5 aware: only blocks WEEKEND (Sat 8 PM - Sun 8 PM ET).
-        All other sessions (OVERNIGHT, PRE_MARKET, REGULAR, AFTER_HOURS) are active
-        for Alpaca's 24/5 overnight trading.
+        24/7 mode: no session blocks trading. Orders submitted on weekends
+        will queue at Alpaca until Monday market open.
+        All sessions are active for intelligence and order submission.
         """
-        from app.services.data_swarm.session_clock import get_session_clock, TradingSession
-        session = get_session_clock().get_current_session()
-        if session == TradingSession.WEEKEND:
-            return "Market closed: weekend (Sat 8 PM - Sun 8 PM ET)"
+        # 24/7 mode — never block. Weekend orders queue at broker.
         return None
 
     def get_session_position_limit(self) -> float:
         """Return session-aware position sizing limit as fraction of max.
 
-        Reduces position sizes outside regular hours to manage liquidity risk:
+        24/7 mode: all sessions allow trading. Weekend orders queue
+        at Alpaca until next market open.
           REGULAR:     1.0  (100% of normal position size)
           PRE_MARKET:  0.75 (75% — thinner liquidity)
           AFTER_HOURS: 0.75 (75% — thinner liquidity)
           OVERNIGHT:   0.50 (50% — minimal liquidity)
-          WEEKEND:     0.0  (no trading)
+          WEEKEND:     0.50 (50% — orders queue until Monday open)
         """
         from app.services.data_swarm.session_clock import get_session_clock, TradingSession
         session = get_session_clock().get_current_session()
@@ -299,7 +297,7 @@ class CircuitBreaker:
             TradingSession.PRE_MARKET: 0.75,
             TradingSession.AFTER_HOURS: 0.75,
             TradingSession.OVERNIGHT: 0.50,
-            TradingSession.WEEKEND: 0.0,
+            TradingSession.WEEKEND: 0.50,
         }
         return _limits.get(session, 0.5)
 

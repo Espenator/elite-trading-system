@@ -87,15 +87,16 @@ class SessionScanner:
     def _detect_session(self) -> str:
         """Detect which scanning session we're in.
 
-        Returns: 'premarket', 'afterhours', 'market', 'closed'
+        Returns: 'premarket', 'afterhours', 'market', 'weekend', 'closed'
+        Intelligence runs 24/7 — weekends return 'weekend' (not 'closed').
         """
         now = self._now_et()
         hour = now.hour
         minute = now.minute
         weekday = now.weekday()  # 0=Mon, 6=Sun
 
-        if weekday >= 5:  # Weekend
-            return "closed"
+        if weekday >= 5:  # Weekend — intelligence still active
+            return "weekend"
         if 4 <= hour < 9 or (hour == 9 and minute < 25):
             return "premarket"
         if (hour == 16 and minute >= 5) or (17 <= hour < 18):

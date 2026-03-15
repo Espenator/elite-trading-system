@@ -1,7 +1,9 @@
 """Signals API: ML predictions for buy/sell timing (research doc)."""
 
 import asyncio
+import json
 import logging
+import time
 from datetime import date
 from pathlib import Path
 from typing import Dict, Optional
@@ -15,6 +17,80 @@ from app.websocket_manager import broadcast_ws
 from app.services.kelly_position_sizer import KellyPositionSizer
 
 _kelly_sizer = KellyPositionSizer(max_allocation=0.10)
+
+# ── Two-tier signal cache (L1: in-memory, L2: Redis) ─────────────────────
+# L1 serves last-known-good signals while a scan is in progress.
+# L2 (Redis) survives restarts and is shared across workers.
+# TTL matches current scan interval so cache is always fresh.
+_signal_cache: Dict[str, dict] = {}      # key -> {"data": ..., "ts": float}
+_SIGNAL_CACHE_DEFAULT_TTL = 60           # fallback TTL (overridden by market_clock)
+
+
+def _get_ttl() -> int:
+    try:
+        from app.core.market_clock import get_scan_interval
+        return get_scan_interval()
+    except Exception:
+        return _SIGNAL_CACHE_DEFAULT_TTL
+
+
+def _redis_get(key: str) -> Optional[str]:
+    """Try to get from Redis (sync, non-blocking fail)."""
+    try:
+        import redis as _redis
+        from app.core.config import settings
+        url = getattr(settings, "REDIS_URL", None)
+        if not url:
+            return None
+        r = _redis.from_url(url, socket_connect_timeout=1, socket_timeout=1)
+        return r.get(f"embodier:{key}")
+    except Exception:
+        return None
+
+
+def _redis_set(key: str, data: str, ttl: int):
+    """Try to set in Redis (sync, non-blocking fail)."""
+    try:
+        import redis as _redis
+        from app.core.config import settings
+        url = getattr(settings, "REDIS_URL", None)
+        if not url:
+            return
+        r = _redis.from_url(url, socket_connect_timeout=1, socket_timeout=1)
+        r.setex(f"embodier:{key}", ttl, data)
+    except Exception:
+        pass
+
+
+def _cache_get(key: str) -> Optional[dict]:
+    """Return cached data if fresh (L1 in-memory, then L2 Redis)."""
+    # L1: in-memory
+    entry = _signal_cache.get(key)
+    ttl = _get_ttl()
+    if entry and time.time() - entry["ts"] <= ttl:
+        return entry["data"]
+
+    # L2: Redis fallback
+    redis_data = _redis_get(key)
+    if redis_data:
+        try:
+            data = json.loads(redis_data)
+            _signal_cache[key] = {"data": data, "ts": time.time()}
+            return data
+        except Exception:
+            pass
+    return None
+
+
+def _cache_set(key: str, data):
+    """Cache data in L1 (memory) and L2 (Redis)."""
+    _signal_cache[key] = {"data": data, "ts": time.time()}
+    ttl = _get_ttl()
+    try:
+        serialized = json.dumps(data, default=str)
+        _redis_set(key, serialized, ttl)
+    except Exception:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -204,9 +280,18 @@ async def get_signals(as_of: date | None = None):
 
     Returns signals formatted for Dashboard consumption with score, direction,
     entry/target/stop, scores breakdown, kelly sizing, etc.
+
+    Uses an in-memory cache keyed by date+timeframe. TTL matches the current
+    scan interval so signals never flicker between partial scan states.
     """
     if as_of is None:
         as_of = date.today()
+
+    # Check cache first — return last-known-good to prevent flicker
+    cache_key = f"signals:{as_of}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     # Try ML model signals first (run sync DB query in thread)
     raw_signals, _ = await asyncio.to_thread(_get_raw_signals_and_feats, as_of)
@@ -231,6 +316,8 @@ async def get_signals(as_of: date | None = None):
             "count": len(signals),
             "as_of": str(as_of),
         })
+        # Cache ML signals
+        _cache_set(cache_key, response)
         return response
 
     # Fall back to TurboScanner real-time signals (real market data, not mock)
@@ -349,6 +436,8 @@ async def get_signals(as_of: date | None = None):
             "count": len(dashboard_signals),
             "as_of": str(as_of),
         })
+    # Cache scanner signals — prevents flicker on next poll
+    _cache_set(cache_key, result)
     return result
 
 

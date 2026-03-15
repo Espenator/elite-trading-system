@@ -1,29 +1,70 @@
 # ============================================================
-#  Embodier Trader — Bulletproof Dev Launcher (ProfitTrader PC2)
+#  Embodier Trader - Bulletproof Dev Launcher
 #  Resolves port conflicts, verifies deps, waits for health.
 #  Usage: powershell -ExecutionPolicy Bypass -File start-embodier.ps1
+#  Flags: -NoElectron  -SkipFrontend  -Stop
 # ============================================================
 
 param(
     [int]$BackendPort  = 8000,
     [int]$FrontendPort = 5173,
     [switch]$NoElectron,
-    [switch]$SkipFrontend
+    [switch]$SkipFrontend,
+    [switch]$Stop
 )
 
-# Use Continue so non-critical failures don't halt the script.
-# Critical failures (missing python, missing .env) exit explicitly.
 $ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $BackendDir  = Join-Path $Root "backend"
 $FrontendDir = Join-Path $Root "frontend-v2"
 $DesktopDir  = Join-Path $Root "desktop"
 
-# ── Helpers ──────────────────────────────────────────────────
+# ---- Stop mode ---------------------------------------------
+
+if ($Stop) {
+    Write-Host ""
+    Write-Host "  Stopping Embodier Trader services..." -ForegroundColor Yellow
+
+    foreach ($port in @($BackendPort, $FrontendPort)) {
+        try {
+            $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+            foreach ($c in $conns) {
+                if ($c.OwningProcess -gt 0) {
+                    $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+                    if ($proc) { $pname = $proc.ProcessName } else { $pname = "PID $($c.OwningProcess)" }
+                    Write-Host "    Killing $pname on port $port" -ForegroundColor DarkGray
+                    Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+                }
+            }
+        } catch {}
+    }
+
+    # Kill by window title (fallback)
+    $titles = @("Embodier Backend*", "Embodier Frontend*", "Embodier Electron*", "EmbodierBackend", "EmbodierFrontend")
+    foreach ($t in $titles) {
+        Get-Process | Where-Object { $_.MainWindowTitle -like $t } | ForEach-Object {
+            Write-Host "    Killing $($_.ProcessName)" -ForegroundColor DarkGray
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Write-Host "  All services stopped." -ForegroundColor Green
+    exit 0
+}
+
+# ---- Auto-detect: skip Electron if desktop/ missing --------
+
+if (-not $NoElectron) {
+    if (-not (Test-Path $DesktopDir)) {
+        $NoElectron = $true
+    }
+}
+
+# ---- Helpers ------------------------------------------------
 
 function Write-Step($num, $total, $msg) {
-    Write-Host "`n  [$num/$total] " -NoNewline -ForegroundColor Cyan
-    Write-Host $msg -ForegroundColor White
+    Write-Host ""
+    Write-Host "  [$num/$total] $msg" -ForegroundColor Cyan
 }
 
 function Write-Ok($msg) {
@@ -39,8 +80,6 @@ function Write-Fail($msg) {
 }
 
 function Get-PortPid($port) {
-    # Returns PID(s) listening on a given port, or empty array
-    # Uses Get-NetTCPConnection (reliable) with netstat fallback
     $procIds = [System.Collections.ArrayList]@()
     try {
         $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
@@ -50,14 +89,13 @@ function Get-PortPid($port) {
             }
         }
     } catch {
-        # Fallback: parse netstat text output
         try {
-            $lines = (netstat -ano | Out-String) -split "`n"
+            $lines = (netstat -ano | Out-String) -split [Environment]::NewLine
             foreach ($line in $lines) {
                 if ($line -match ":$port\s" -and $line -match "LISTENING") {
                     $parts = $line.Trim() -split '\s+'
-                    $procId = [int]$parts[-1]
-                    if ($procId -gt 0 -and $procIds -notcontains $procId) { [void]$procIds.Add($procId) }
+                    $pid2 = [int]$parts[-1]
+                    if ($pid2 -gt 0 -and $procIds -notcontains $pid2) { [void]$procIds.Add($pid2) }
                 }
             }
         } catch { }
@@ -72,18 +110,17 @@ function Free-Port($port, $serviceName) {
         return $true
     }
 
-    foreach ($procId in $procIds) {
+    foreach ($pid2 in $procIds) {
         try {
-            $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
-            $procName = if ($proc) { $proc.ProcessName } else { "unknown" }
-            Write-Warn "Port $port in use by $procName (PID $procId) — killing..."
-            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+            $proc = Get-Process -Id $pid2 -ErrorAction SilentlyContinue
+            if ($proc) { $pn = $proc.ProcessName } else { $pn = "unknown" }
+            Write-Warn "Port $port in use by $pn (PID $pid2) - killing..."
+            Stop-Process -Id $pid2 -Force -ErrorAction SilentlyContinue
         } catch {
-            Write-Warn "Could not kill PID $procId (may already be gone)"
+            Write-Warn "Could not kill PID $pid2 (may already be gone)"
         }
     }
 
-    # Wait for port to be released
     $maxWait = 10
     for ($i = 0; $i -lt $maxWait; $i++) {
         Start-Sleep -Milliseconds 500
@@ -94,53 +131,56 @@ function Free-Port($port, $serviceName) {
         }
     }
 
-    Write-Fail "Could not free port $port after ${maxWait}s"
+    Write-Fail ("Could not free port $port after " + $maxWait + "s")
     return $false
 }
 
 function Wait-ForUrl($url, $timeoutSec, $label) {
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     $startTime = Get-Date
-    $dots = ""
+    $dotCount = 0
     while ((Get-Date) -lt $deadline) {
         try {
-            $resp = Invoke-WebRequest -Uri $url -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
-            if ($resp.StatusCode -eq 200) {
+            $resp = Invoke-WebRequest -Uri $url -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+            if ($resp -and $resp.StatusCode -eq 200) {
                 $elapsed = [math]::Round(((Get-Date) - $startTime).TotalSeconds, 0)
                 Write-Host ""
-                Write-Ok "$label is ready (HTTP 200, ${elapsed}s)"
+                Write-Ok ("$label is ready (HTTP 200, " + $elapsed + "s)")
                 return $true
             }
-        } catch { }
-        $dots += "."
-        if ($dots.Length -gt 40) { $dots = "." }
+        } catch {
+            # Connection refused / timeout — expected during startup, keep retrying
+        }
+        $dotCount++
+        if ($dotCount -gt 40) { $dotCount = 1 }
+        $dots = "." * $dotCount
         $elapsed = [math]::Round(((Get-Date) - $startTime).TotalSeconds, 0)
-        Write-Host "`r    Waiting${dots} (${elapsed}s)   " -NoNewline -ForegroundColor DarkGray
+        $msg = "    Waiting" + $dots + " (" + $elapsed + "s)"
+        Write-Host ("`r" + $msg + "   ") -NoNewline -ForegroundColor DarkGray
         Start-Sleep -Seconds 2
     }
     Write-Host ""
-    Write-Fail "$label did not respond within ${timeoutSec}s"
+    Write-Fail ("$label did not respond within " + $timeoutSec + "s")
     return $false
 }
 
-# ── Banner ───────────────────────────────────────────────────
+# ---- Banner ------------------------------------------------
 
 $totalSteps = 5
 if ($SkipFrontend) { $totalSteps = 3 }
-if ($NoElectron)   { $totalSteps-- }
+if ($NoElectron)   { $totalSteps = $totalSteps - 1 }
 
-Clear-Host
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Magenta
 Write-Host "    EMBODIER TRADER v5.0.0" -ForegroundColor Magenta
 Write-Host "    Embodied Intelligence" -ForegroundColor Magenta
-Write-Host "    Backend: :$BackendPort  Frontend: :$FrontendPort" -ForegroundColor DarkGray
+Write-Host ("    Backend: :" + $BackendPort + "  Frontend: :" + $FrontendPort) -ForegroundColor DarkGray
 Write-Host "  ============================================" -ForegroundColor Magenta
 Write-Host ""
 
 $stepNum = 0
 
-# ── Step 1: Verify Dependencies ──────────────────────────────
+# ---- Step 1: Verify Dependencies ---------------------------
 
 $stepNum++
 Write-Step $stepNum $totalSteps "Verifying dependencies..."
@@ -156,10 +196,10 @@ if (Test-Path $venvPython) {
     try {
         $pyVer = & python --version 2>&1
         $pythonExe = "python"
-        Write-Warn "No venv found — using system Python: $pyVer"
+        Write-Warn "No venv found - using system Python: $pyVer"
     } catch {
         Write-Fail "Python not found! Install Python 3.11+ or create venv in backend/"
-        Write-Host "    Run: cd backend && python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt" -ForegroundColor DarkGray
+        Write-Host '    Run: cd backend; python -m venv venv; venv\Scripts\activate; pip install -r requirements.txt' -ForegroundColor DarkGray
         pause
         exit 1
     }
@@ -170,7 +210,7 @@ $envFile = Join-Path $BackendDir ".env"
 if (Test-Path $envFile) {
     Write-Ok "Backend .env found"
 } else {
-    Write-Fail "Missing backend/.env — copy from .env.example and configure API keys"
+    Write-Fail "Missing backend/.env - copy from .env.example and configure API keys"
     pause
     exit 1
 }
@@ -191,7 +231,7 @@ if (-not $SkipFrontend) {
     if (Test-Path $frontendModules) {
         Write-Ok "Frontend node_modules present"
     } else {
-        Write-Warn "node_modules missing — running npm install..."
+        Write-Warn "node_modules missing - running npm install..."
         Push-Location $FrontendDir
         & npm install 2>&1 | Out-Null
         Pop-Location
@@ -210,28 +250,28 @@ if (-not $SkipFrontend) {
         if (Test-Path $electronModules) {
             Write-Ok "Electron node_modules present"
         } else {
-            Write-Warn "Electron node_modules missing — running npm install..."
+            Write-Warn "Electron node_modules missing - running npm install..."
             Push-Location $DesktopDir
             & npm install 2>&1 | Out-Null
             Pop-Location
             if (Test-Path $electronModules) {
                 Write-Ok "npm install completed"
             } else {
-                Write-Warn "Electron npm install failed — will skip Electron"
+                Write-Warn "Electron npm install failed - will skip Electron"
                 $NoElectron = $true
             }
         }
     }
 }
 
-# ── Step 2: Resolve Port Conflicts ───────────────────────────
+# ---- Step 2: Resolve Port Conflicts ------------------------
 
 $stepNum++
 Write-Step $stepNum $totalSteps "Resolving port conflicts..."
 
 $backendOk = Free-Port $BackendPort "Backend"
 if (-not $backendOk) {
-    Write-Fail "Cannot start — port $BackendPort stuck. Check Task Manager for stale python.exe"
+    Write-Fail "Cannot start - port $BackendPort stuck. Check Task Manager for stale python.exe"
     pause
     exit 1
 }
@@ -239,11 +279,11 @@ if (-not $backendOk) {
 if (-not $SkipFrontend) {
     $frontendOk = Free-Port $FrontendPort "Frontend"
     if (-not $frontendOk) {
-        Write-Warn "Port $FrontendPort stuck — Vite will try next available port"
+        Write-Warn "Port $FrontendPort stuck - Vite will try next available port"
     }
 }
 
-# ── Step 3: Start Backend ────────────────────────────────────
+# ---- Step 3: Start Backend ---------------------------------
 
 $stepNum++
 Write-Step $stepNum $totalSteps "Starting backend on port $BackendPort..."
@@ -276,9 +316,9 @@ if (Test-Path $pidFile) {
 
 # Write .embodier-ports.json for Electron and other tools
 $portsFile = Join-Path $Root ".embodier-ports.json"
-@{ backendPort = $BackendPort; frontendPort = $FrontendPort; updated = (Get-Date).ToString("o") } |
-    ConvertTo-Json | Set-Content -Path $portsFile -Encoding utf8 -Force
-Write-Ok "Ports saved to .embodier-ports.json (backend:$BackendPort, frontend:$FrontendPort)"
+$portsObj = @{ backendPort = $BackendPort; frontendPort = $FrontendPort; updated = (Get-Date).ToString("o") }
+$portsObj | ConvertTo-Json | Set-Content -Path $portsFile -Encoding utf8 -Force
+Write-Ok "Ports saved to .embodier-ports.json"
 
 # Activate venv and start (PORT must match BackendPort for frontend/API alignment)
 if (Test-Path $venvPython) {
@@ -296,23 +336,26 @@ if (Test-Path $venvPython) {
 }
 
 # Wait for backend health (backend loads 20+ services, typically takes 30-60s)
-$healthy = Wait-ForUrl "http://localhost:$BackendPort/healthz" 120 "Backend"
+$healthUrl = "http://localhost:$BackendPort/api/v1/system/health-check"
+$healthy = Wait-ForUrl $healthUrl 120 "Backend"
 if (-not $healthy) {
-    # Double-check: maybe /healthz is slow but API works
+    # Fallback: try /healthz (bare liveness probe)
     try {
-        $fallback = Invoke-WebRequest -Uri "http://localhost:$BackendPort/healthz" -TimeoutSec 5 -UseBasicParsing -ErrorAction SilentlyContinue
-        if ($fallback.StatusCode -eq 200) {
-            Write-Ok "Backend responding on /api/v1/health (startup still completing)"
+        $fallbackUrl = "http://localhost:$BackendPort/healthz"
+        $fb = Invoke-WebRequest -Uri $fallbackUrl -TimeoutSec 5 -UseBasicParsing -ErrorAction SilentlyContinue
+        if ($fb.StatusCode -eq 200) {
+            Write-Ok "Backend responding on /healthz (full startup still completing)"
             $healthy = $true
         }
     } catch { }
     if (-not $healthy) {
-        Write-Warn "Backend may still be starting — check the backend terminal for errors"
+        Write-Warn "Backend may still be starting - check the backend terminal for errors"
     }
 }
 
 if ($SkipFrontend) {
-    Write-Host "`n  ============================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  ============================================" -ForegroundColor Green
     Write-Host "    Backend started on http://localhost:$BackendPort" -ForegroundColor Green
     Write-Host "  ============================================" -ForegroundColor Green
     Write-Host ""
@@ -320,7 +363,7 @@ if ($SkipFrontend) {
     exit 0
 }
 
-# ── Step 4: Start Frontend ───────────────────────────────────
+# ---- Step 4: Start Frontend --------------------------------
 
 $stepNum++
 Write-Step $stepNum $totalSteps "Starting frontend on port $FrontendPort..."
@@ -330,32 +373,46 @@ Start-Process cmd -ArgumentList "/k", "title Embodier Frontend :$FrontendPort &&
 # Wait for Vite dev server
 $viteReady = Wait-ForUrl "http://localhost:$FrontendPort" 30 "Frontend (Vite)"
 if (-not $viteReady) {
-    Write-Warn "Vite may still be bundling — continuing..."
+    Write-Warn "Vite may still be bundling - continuing..."
 }
 
-# ── Step 5: Start Electron ───────────────────────────────────
+# ---- Step 5: Start Electron --------------------------------
 
 if (-not $NoElectron) {
     $stepNum++
     Write-Step $stepNum $totalSteps "Starting Electron desktop app..."
 
     $env:NODE_ENV = "development"
-    Start-Process cmd -ArgumentList "/k", "title Embodier Electron && cd /d `"$DesktopDir`" && set NODE_ENV=development && npx electron ." -WindowStyle Normal
+    $elArgs = "/k title Embodier Electron & cd /d `"$DesktopDir`" & set NODE_ENV=development & npx electron ."
+    Start-Process cmd -ArgumentList $elArgs -WindowStyle Normal
 
     Start-Sleep -Seconds 2
     Write-Ok "Electron launched"
 }
 
-# ── Done ─────────────────────────────────────────────────────
+# ---- Open browser -------------------------------------------
+
+Start-Sleep -Seconds 2
+$dashUrl = "http://localhost:$FrontendPort/dashboard"
+try {
+    Start-Process $dashUrl
+    Write-Ok "Browser opened to $dashUrl"
+} catch {
+    Write-Warn "Could not open browser - navigate to $dashUrl manually"
+}
+
+# ---- Done ---------------------------------------------------
 
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host "    All services launched!" -ForegroundColor Green
 Write-Host "    Backend:  http://localhost:$BackendPort" -ForegroundColor Green
 Write-Host "    Frontend: http://localhost:$FrontendPort" -ForegroundColor Green
-Write-Host "    API Health: http://localhost:$BackendPort/api/v1/health" -ForegroundColor DarkGray
+Write-Host ("    API Docs:  http://localhost:" + $BackendPort + "/docs") -ForegroundColor DarkGray
+Write-Host ("    Health:    http://localhost:" + $BackendPort + "/api/v1/system/health-check") -ForegroundColor DarkGray
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Press any key to close this launcher window..." -ForegroundColor DarkGray
 Write-Host "  (Services keep running independently)" -ForegroundColor DarkGray
+Write-Host "  To stop: powershell -File start-embodier.ps1 -Stop" -ForegroundColor DarkGray
 pause

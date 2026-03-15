@@ -88,14 +88,14 @@ class SourceAvailability:
             "finviz_futures": True,
         },
         TradingSession.WEEKEND: {
-            "alpaca_stream": False,
-            "alpaca_rest": False,
-            "alpaca_futures": False,
-            "uw_websocket": False,
-            "uw_rest": True,            # historical data still available
-            "uw_flow": False,
-            "finviz_screener": False,
-            "finviz_futures": False,
+            "alpaca_stream": False,     # No WebSocket on weekends
+            "alpaca_rest": True,        # REST snapshots still available (last prices)
+            "alpaca_futures": False,    # Futures closed
+            "uw_websocket": False,      # No live feed
+            "uw_rest": True,            # Historical data still available
+            "uw_flow": False,           # Options closed
+            "finviz_screener": True,    # Screener data cached/available for analysis
+            "finviz_futures": True,     # Futures data cached/available for analysis
         },
     }
 

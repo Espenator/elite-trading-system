@@ -43,20 +43,22 @@ def is_market_hours() -> bool:
 
 
 def is_trading_session() -> bool:
-    """Return True if we're in any active 24/5 trading session.
+    """Return True always — 24/7 mode active.
 
-    Active sessions (Sun 8 PM ET through Fri 8 PM ET):
-      OVERNIGHT, PRE_MARKET, REGULAR, AFTER_HOURS
-
-    Inactive:
-      WEEKEND (Sat 8 PM - Sun 8 PM ET)
-
-    Used by the scanning/trading pipeline to decide whether to
-    process signals and submit orders.
+    All sessions are active for both intelligence and order execution.
+    Weekend orders submitted to Alpaca queue until Monday market open.
     """
-    from app.services.data_swarm.session_clock import get_session_clock, TradingSession
-    session = get_session_clock().get_current_session()
-    return session != TradingSession.WEEKEND
+    return True
+
+
+def is_intelligence_active() -> bool:
+    """Return True always — intelligence never sleeps.
+
+    Signal generation, scanning, news analysis, sentiment, scouts,
+    and council deliberation run 24/7 including weekends.
+    Only order execution is gated by is_trading_session().
+    """
+    return True
 
 
 # Session-specific cycle intervals (seconds)
@@ -65,7 +67,7 @@ _SESSION_CYCLE_INTERVALS = {
     "pre_market": 30 * 60,    # 30 min — thinner liquidity
     "after_hours": 30 * 60,   # 30 min — thinner liquidity
     "overnight": 60 * 60,     # 60 min — minimal liquidity, conserve resources
-    "weekend": 0,             # No trading
+    "weekend": 120 * 60,      # 2 hours — intelligence cycles (no execution)
 }
 
 
@@ -229,6 +231,7 @@ def start_scheduler() -> Optional[object]:
     _scheduler = AsyncIOScheduler(event_loop=event_loop)
 
     # AFTERHOURS: Daily at 4:30 PM ET — outcome resolution, weight learner batch
+    # Mon-Fri only: outcomes resolve against live market closes
     _scheduler.add_job(
         _run_daily_outcome,
         CronTrigger(hour=16, minute=30, day_of_week="mon-fri", timezone="America/New_York"),
@@ -256,36 +259,40 @@ def start_scheduler() -> Optional[object]:
     )
 
     # D1: Daily at 09:30 UTC (4:30 AM ET) — incremental data backfill
+    # 7 days: weekend backfill catches up on any missed data
     _scheduler.add_job(
         _run_daily_backfill,
-        CronTrigger(hour=9, minute=30, timezone="UTC", day_of_week="mon-fri"),
+        CronTrigger(hour=9, minute=30, timezone="UTC"),
         id="daily_backfill",
         name="Daily Incremental Backfill",
         replace_existing=True,
     )
 
     # OVERNIGHT: Daily at 10:00 PM ET — FRED/SEC refresh, drift check
+    # 7 days: macro data and SEC filings can drop anytime
     _scheduler.add_job(
         _run_overnight_refresh,
-        CronTrigger(hour=22, minute=0, day_of_week="mon-fri", timezone="America/New_York"),
+        CronTrigger(hour=22, minute=0, timezone="America/New_York"),
         id="overnight_refresh",
         name="Overnight FRED/SEC Refresh",
         replace_existing=True,
     )
 
-    # 9 AM ET weekdays — morning briefing + TradingView webhook push
+    # 9 AM ET daily — morning briefing + TradingView webhook push
+    # 7 days: weekend briefings prep for Monday open
     _scheduler.add_job(
         _run_morning_briefing,
-        CronTrigger(hour=9, minute=0, day_of_week="mon-fri", timezone="America/New_York"),
+        CronTrigger(hour=9, minute=0, timezone="America/New_York"),
         id="morning_briefing",
         name="Morning Briefing (9 AM ET)",
         replace_existing=True,
     )
 
-    # Hourly weekdays — retroactive signal resolution to bootstrap flywheel
+    # Hourly — retroactive signal resolution to bootstrap flywheel
+    # 7 days: historical analysis doesn't need live market
     _scheduler.add_job(
         _run_historical_signal_resolution,
-        CronTrigger(minute=30, day_of_week="mon-fri", timezone="UTC"),
+        CronTrigger(minute=30, timezone="UTC"),
         id="historical_signal_resolution",
         name="Historical Signal Resolution (hourly)",
         replace_existing=True,

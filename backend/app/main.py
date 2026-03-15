@@ -773,10 +773,24 @@ async def _start_event_driven_pipeline():
     # Without this, the frontend Dashboard gets NO real-time price updates through
     # WebSocket — only through REST polling every 5-30s. This bridge pushes every
     # bar/snapshot to all clients subscribed to the "market" channel.
+    # PERF FIX: Throttle WS broadcasts — batch bars and send at most once per second
+    # to avoid flooding the event loop with 800+ individual broadcasts per snapshot cycle.
+    _ws_bar_batch: list = []
+    _ws_bar_last_flush = [0.0]  # mutable ref for closure
+
     async def _bridge_market_data_to_ws(bar_data):
+        now = time.monotonic()
+        _ws_bar_batch.append(bar_data)
+        # Flush at most once per second (or when batch hits 50)
+        if now - _ws_bar_last_flush[0] < 1.0 and len(_ws_bar_batch) < 50:
+            return
         try:
             from app.websocket_manager import broadcast_ws
-            await broadcast_ws("market", {"type": "price_update", "bar": bar_data})
+            batch = list(_ws_bar_batch)
+            _ws_bar_batch.clear()
+            _ws_bar_last_flush[0] = now
+            # Send a single batched message instead of 800+ individual ones
+            await broadcast_ws("market", {"type": "price_batch", "bars": batch})
         except Exception as e:
             log.debug("WS market broadcast failed: %s", e)
 
@@ -1952,6 +1966,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("HealthMonitor failed to start: %s", e)
 
+    # Start DuckDB async batch writer
+    try:
+        from app.core.db_writer import start_batch_writer
+        asyncio.create_task(start_batch_writer())
+        log.info("\u2705 DuckDB batch writer started (50K queue, 100-row batches)")
+    except Exception as e:
+        log.warning("DuckDB batch writer failed to start: %s", e)
+
     log.info("[STARTUP] Phase 6: All subscribers + watchdog wired (%.1fs)", _elapsed())
     # ── Issue #77: Agent Auto-Start Sequence ──
     # If ALL 5 core agents are paused (from a previous "Kill All"), auto-restart them.
@@ -2062,6 +2084,20 @@ async def lifespan(app: FastAPI):
         try:
             from app.data.duckdb_storage import duckdb_store
             duckdb_store.close()
+        except Exception:
+            pass
+
+        # Stop DuckDB batch writer
+        try:
+            from app.core.db_writer import stop_batch_writer
+            stop_batch_writer()
+        except Exception:
+            pass
+
+        # Shutdown CPU process pool (GIL escape hatch)
+        try:
+            from app.core.message_bus import shutdown_cpu_pool
+            shutdown_cpu_pool()
         except Exception:
             pass
 

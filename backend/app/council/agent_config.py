@@ -192,7 +192,7 @@ _SESSION_THRESHOLD_ADJUSTMENTS = {
     "pre_market": 5,    # +5 points — thinner book
     "after_hours": 5,   # +5 points — thinner book
     "overnight": 10,    # +10 points — minimal liquidity, require strong conviction
-    "weekend": 100,     # Effectively blocks trading (added to 80 = 180, unreachable)
+    "weekend": 10,      # +10 points — same as overnight, 24/7 mode active
 }
 
 
@@ -221,7 +221,7 @@ _SESSION_STALENESS_THRESHOLDS = {
     "pre_market": 300,    # 5 min — snapshot polling every 30s
     "after_hours": 300,   # 5 min — snapshot polling every 30s
     "overnight": 600,     # 10 min — snapshot polling every 60s
-    "weekend": 3600,      # 1 hour — no live data expected
+    "weekend": 7200,      # 2 hours — REST snapshots + news, relaxed but still monitored
 }
 
 

@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 SCAN_INTERVAL_NORMAL = 60       # Seconds between scans (normal market)
 SCAN_INTERVAL_VOLATILE = 30     # During high VIX / active events
 SCAN_INTERVAL_PREMARKET = 120   # Pre/post market
+SCAN_INTERVAL_WEEKEND = 300     # Weekend — data stale, conserve resources
 BATCH_SIZE_ALPACA = 50          # Symbols per Alpaca bars request (max efficient batch)
 BATCH_SIZE_SCREEN = 200         # Symbols per DuckDB screen batch
 MAX_SIGNALS_PER_SCAN = 50       # Cap signals to prevent swarm flooding
@@ -163,16 +164,13 @@ class TurboScanner:
 
     @staticmethod
     def _is_scanning_active() -> bool:
-        """Return True during any active 24/5 trading session.
+        """Return True always — intelligence scanning never sleeps.
 
-        Active: OVERNIGHT, PRE_MARKET, REGULAR, AFTER_HOURS
-        Inactive: WEEKEND
-
-        Replaces _is_market_hours() for council signal gating to enable
-        24/5 overnight trading via Alpaca.
+        The scanner generates signals 24/7 including weekends.
+        Order execution is separately gated by the circuit breaker.
+        Weekend signals build conviction for Monday open.
         """
-        from app.jobs.scheduler import is_trading_session
-        return is_trading_session()
+        return True
 
     async def start(self):
         if self._running:
@@ -198,6 +196,43 @@ class TurboScanner:
     # ──────────────────────────────────────────────────────────────────────
     # Main Scan Loop
     # ──────────────────────────────────────────────────────────────────────
+    def _get_scan_interval(self) -> float:
+        """Return session-aware scan interval via market_clock.
+
+        Weekend: 600s (10 min)
+        Overnight: 300s (5 min)
+        Pre/post market: 120s (2 min)
+        Market open: 30-60s depending on volatile mode
+        """
+        try:
+            from app.core.market_clock import get_scan_interval
+            interval = get_scan_interval()
+            # During volatile mode in market hours, go faster
+            if self._volatile_mode and interval <= 60:
+                return SCAN_INTERVAL_VOLATILE
+            return interval
+        except Exception:
+            pass
+        if self._volatile_mode:
+            return SCAN_INTERVAL_VOLATILE
+        return SCAN_INTERVAL_NORMAL
+
+    def _get_active_universe(self) -> tuple:
+        """Return session-appropriate symbol tiers."""
+        try:
+            from app.core.market_clock import get_active_symbols, get_session, MarketSession
+            session = get_session()
+            if session == MarketSession.WEEKEND:
+                # Weekend: only crypto/metals — no equity data changing
+                active = get_active_symbols([])
+                return active, []  # No tier2 on weekends
+            if session == MarketSession.OVERNIGHT:
+                active = get_active_symbols([])
+                return active, []
+        except Exception:
+            pass
+        return list(UNIVERSE_TIER_1), list(UNIVERSE_TIER_2)
+
     async def _scan_loop(self):
         _startup_delay = int(os.environ.get("TURBO_SCANNER_STARTUP_DELAY", "60"))
         logger.info("TurboScanner waiting %ds for startup stabilization...", _startup_delay)
@@ -231,19 +266,20 @@ class TurboScanner:
                     await asyncio.sleep(0)
 
                 # deque(maxlen=500) handles history trimming automatically
-
+                interval = self._get_scan_interval()
                 logger.info(
-                    "TurboScan #%d: %d raw signals, %d actionable, %.0fms",
+                    "TurboScan #%d: %d raw signals, %d actionable, %.0fms (next in %.0fs)",
                     self._stats["total_scans"], len(signals),
-                    len(actionable), elapsed,
+                    len(actionable), elapsed, interval,
                 )
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.warning("TurboScanner scan error: %s", e)
+                interval = self._get_scan_interval()
 
-            await asyncio.sleep(self._scan_interval)
+            await asyncio.sleep(interval)
 
     async def _run_all_scans(self) -> List[ScanSignal]:
         """Run ALL scan sources off the event loop (DuckDB is blocking I/O).

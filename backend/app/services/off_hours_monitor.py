@@ -134,12 +134,14 @@ class OffHoursMonitor:
         )
 
     async def _staleness_check_loop(self):
-        """Periodically check for stale data during active market hours."""
+        """Periodically check for stale data — intelligence runs 24/7."""
         while self._running:
-            await asyncio.sleep(60)  # Check every minute
             session = self._detect_session()
-            if session in ("closed", "weekend"):
-                continue  # Don't alert during off-hours
+            # Weekend: check less frequently (every 10 min vs every 1 min)
+            interval = 600 if session == "weekend" else 60
+            await asyncio.sleep(interval)
+            if session == "closed":
+                continue  # Only skip overnight closed, not weekend
 
             now = time.time()
             newly_stale = []

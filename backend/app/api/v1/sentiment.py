@@ -149,14 +149,26 @@ def _detect_divergences(items: list) -> list:
 @router.get("")
 async def get_sentiment(time_range: str = Query("24h", alias="timeRange")):
     """Return sentiment items from DB and a global score for Dashboard header."""
-    items = _get_sentiment_data()
-    mood = _compute_market_mood(items)
-    return {
-        "items": items,
-        "timeRange": time_range,
-        "count": len(items),
-        "sentiment": {"score": mood["value"]},
-    }
+    try:
+        items = _get_sentiment_data()
+        mood = _compute_market_mood(items)
+        return {
+            "items": items,
+            "timeRange": time_range,
+            "count": len(items),
+            "sentiment": {"score": mood["value"]},
+        }
+    except Exception as e:
+        logger.warning("[sentiment] Engine unavailable: %s", e)
+        return {
+            "status": "unavailable",
+            "reason": str(e),
+            "items": [],
+            "timeRange": time_range,
+            "count": 0,
+            "sentiment": {"score": 0},
+            "message": "Sentiment engine starting — check back in 60s",
+        }
 
 
 @router.get("/summary")
@@ -165,10 +177,24 @@ async def get_sentiment_summary():
     Aggregated summary: market mood, source health, divergences, stats.
     Main endpoint the Sentiment Intelligence page calls.
     """
-    items = _get_sentiment_data()
-    source_health = _get_source_health()
-    mood = _compute_market_mood(items)
-    divergences = _detect_divergences(items)
+    try:
+        items = _get_sentiment_data()
+        source_health = _get_source_health()
+        mood = _compute_market_mood(items)
+        divergences = _detect_divergences(items)
+    except Exception as e:
+        logger.warning("[sentiment/summary] Engine unavailable: %s", e)
+        return {
+            "status": "unavailable",
+            "reason": str(e),
+            "mood": {"label": "Unknown", "value": 0, "emoji": "⏳"},
+            "sourceHealth": [],
+            "divergences": [],
+            "heatmap": [],
+            "signals": [],
+            "stats": {"totalTickers": 0, "bullish": 0, "bearish": 0, "neutral": 0},
+            "message": "Sentiment engine starting — check back in 60s",
+        }
 
     sorted_items = sorted(items, key=lambda x: abs(x.get("overallScore", 0)), reverse=True)
     heatmap = [

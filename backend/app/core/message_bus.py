@@ -32,11 +32,37 @@ import logging
 import os
 import time
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 EventHandler = Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]
+
+# ── ProcessPoolExecutor for CPU-bound event handlers ──────────────────────
+# Breaks the GIL bottleneck: each process has its own GIL, enabling true
+# parallel computation on multi-core CPUs (i7-13700 E-cores 16-23).
+# Handlers marked with handler._cpu_bound = True are routed here.
+_CPU_POOL_SIZE = int(os.environ.get("MSGBUS_CPU_POOL_SIZE", "8"))
+_cpu_pool: Optional[ProcessPoolExecutor] = None
+
+
+def _get_cpu_pool() -> ProcessPoolExecutor:
+    """Lazy-init the CPU pool (avoid fork issues at import time)."""
+    global _cpu_pool
+    if _cpu_pool is None:
+        _cpu_pool = ProcessPoolExecutor(max_workers=_CPU_POOL_SIZE)
+        logger.info("MessageBus CPU pool started (%d workers)", _CPU_POOL_SIZE)
+    return _cpu_pool
+
+
+def shutdown_cpu_pool():
+    """Graceful shutdown — call from app shutdown handler."""
+    global _cpu_pool
+    if _cpu_pool is not None:
+        _cpu_pool.shutdown(wait=False)
+        _cpu_pool = None
+        logger.info("MessageBus CPU pool shut down")
 
 
 class MessageBus:
@@ -492,9 +518,11 @@ class MessageBus:
             self._metrics[topic] += 1
             self._queue.task_done()
 
-            # Yield to event loop every 20 events so HTTP requests get served
+            # Yield to event loop every 5 events so HTTP requests get served.
+            # With 800+ bar events per snapshot cycle, yielding every 20 was too
+            # infrequent — HTTP requests were starved for 10-30s during bursts.
             _batch_counter += 1
-            if _batch_counter >= 20:
+            if _batch_counter >= 5:
                 _batch_counter = 0
                 await asyncio.sleep(0)
 
@@ -505,10 +533,22 @@ class MessageBus:
 
         Per-handler timeout prevents one slow handler from blocking all
         event processing. Failed events go to the dead-letter queue.
+
+        CPU-bound handlers (marked with handler._cpu_bound = True) are
+        dispatched to a ProcessPoolExecutor for true GIL-free parallelism.
         """
         handler_name = handler.__qualname__ if hasattr(handler, '__qualname__') else str(handler)
         try:
-            await asyncio.wait_for(handler(data), timeout=self._handler_timeout)
+            if getattr(handler, '_cpu_bound', False):
+                # True parallel execution — bypasses GIL on separate process
+                loop = asyncio.get_event_loop()
+                pool = _get_cpu_pool()
+                await asyncio.wait_for(
+                    loop.run_in_executor(pool, handler, data),
+                    timeout=self._handler_timeout,
+                )
+            else:
+                await asyncio.wait_for(handler(data), timeout=self._handler_timeout)
         except asyncio.TimeoutError:
             self._error_count += 1
             logger.warning(
