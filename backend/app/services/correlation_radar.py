@@ -223,13 +223,17 @@ class CorrelationRadar:
 
         indicators = await self._load_indicator_data()
 
+        # Run CPU-bound pandas operations off the event loop to prevent
+        # blocking /healthz and other HTTP handlers (fixes supervisor restarts)
+        breaks, rotations, reversions = await asyncio.to_thread(
+            self._compute_all_signals, prices, indicators
+        )
+
         # 1. Correlation breaks
-        breaks = self._detect_correlation_breaks(prices)
         for brk in breaks:
             self._break_history.append(brk)
             self._stats["correlation_breaks"] += 1
             await self._trigger_swarm_from_break(brk)
-            # Firehose v5: publish to market.correlation_break for intermarket_agent
             if self._bus:
                 await self._bus.publish("market.correlation_break", {
                     "symbol_a": brk.pair[0],
@@ -245,12 +249,10 @@ class CorrelationRadar:
                 })
 
         # 2. Sector rotation
-        rotations = self._detect_sector_rotation(prices)
         for rot in rotations:
             self._rotation_history.append(rot)
             self._stats["rotation_signals"] += 1
             await self._trigger_swarm_from_rotation(rot)
-            # Firehose v5: rotation signals to correlation_break topic
             if self._bus:
                 await self._bus.publish("market.correlation_break", {
                     "symbol_a": rot.from_sector,
@@ -262,12 +264,10 @@ class CorrelationRadar:
                 })
 
         # 3. Mean reversion
-        reversions = self._detect_mean_reversion(prices, indicators)
         for rev in reversions:
             self._reversion_history.append(rev)
             self._stats["reversion_signals"] += 1
             await self._trigger_swarm_from_reversion(rev)
-            # Firehose v5: mean reversion scores
             if self._bus:
                 await self._bus.publish("market.correlation_break", {
                     "symbol_a": rev.symbol,
@@ -279,6 +279,13 @@ class CorrelationRadar:
                 })
 
         # deque(maxlen=100) handles history trimming automatically
+
+    def _compute_all_signals(self, prices, indicators):
+        """CPU-bound pandas work — runs in a thread to keep event loop free."""
+        breaks = self._detect_correlation_breaks(prices)
+        rotations = self._detect_sector_rotation(prices)
+        reversions = self._detect_mean_reversion(prices, indicators)
+        return breaks, rotations, reversions
 
     # ──────────────────────────────────────────────────────────────────────
     # Data Loading

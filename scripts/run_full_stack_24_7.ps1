@@ -241,14 +241,14 @@ if ($Supervisor) {
         $elapsed = ((Get-Date) - $supervisorStartTime).TotalSeconds
         if ((-not $restarted) -and ($supervisorCheckCount % $healthCheckEveryN -eq 0) -and ($elapsed -gt 120) -and ($backendProc -and -not $backendProc.HasExited)) {
             try {
-                $r = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                $r = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
                 if ($r.StatusCode -eq 200) {
                     $supervisorHealthFailCount = 0
                 }
             } catch {
                 $supervisorHealthFailCount++
-                Write-Host "  [$(Get-Date -Format 'HH:mm:ss')] Supervisor health check failed ($supervisorHealthFailCount/3)" -ForegroundColor DarkYellow
-                if ($supervisorHealthFailCount -ge 3) {
+                Write-Host "  [$(Get-Date -Format 'HH:mm:ss')] Supervisor health check failed ($supervisorHealthFailCount/5)" -ForegroundColor DarkYellow
+                if ($supervisorHealthFailCount -ge 5) {
                     Write-Host "  [$(Get-Date -Format 'HH:mm:ss')] Backend hung (process alive but API unresponsive). Killing autorestart window..." -ForegroundColor Red
                     try { Stop-Process -Id $backendProc.Id -Force -ErrorAction SilentlyContinue } catch {}
                     Start-Sleep -Seconds 3
