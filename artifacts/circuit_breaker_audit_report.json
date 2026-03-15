@@ -1,15 +1,15 @@
 {
   "agent": "circuit_breakers",
-  "normal_conditions_pass": false,
+  "normal_conditions_pass": true,
   "flash_crash_halts": true,
   "vix_spike_halts": true,
   "daily_drawdown_halts": true,
   "position_limit_halts": true,
-  "market_hours_halts": true,
+  "market_hours_halts": false,
   "runner_skips_council_on_halt": true,
-  "execution_time_ms": 32,
+  "execution_time_ms": 35,
   "thresholds_from_directives": true,
   "errors": [
-    "normal_conditions_pass: Expected None (safe), got 'Market closed: weekend (Sat 8 PM - Sun 8 PM ET)'\nassert 'Market closed: weekend (Sat 8 PM - Sun 8 PM ET)' is None"
+    "market_hours_halts: Expected halt reason for off-hours\nassert None is not None"
   ]
 }
