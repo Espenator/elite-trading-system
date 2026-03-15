@@ -4,7 +4,7 @@
 #
 # Keeps API + WebSocket (/ws) up 24/7:
 # - Restarts when uvicorn process exits (crash).
-# - Watchdog: pings GET /api/v1/health every HealthCheckIntervalSeconds;
+# - Watchdog: pings GET /healthz every HealthCheckIntervalSeconds;
 #   if UnhealthyCountMax consecutive failures, kills the process and restarts (handles hang).
 # - StartupGraceSeconds: no failure count during initial startup (avoids false restarts).
 # - Circuit breaker: stops restarting after MaxCrashesInWindow crashes in CrashWindowMinutes.
@@ -49,12 +49,12 @@ Write-Host "  Circuit breaker: max $MaxCrashesInWindow crashes in ${CrashWindowM
 Write-Host ""
 
 function Test-BackendHealth {
-    # Try /healthz first (lightweight liveness probe, <50ms)
+    # Try /healthz first (lightweight liveness endpoint)
     try {
         $r = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
         if ($r.StatusCode -eq 200) { return $true }
     } catch { }
-    # Fallback to /readyz
+    # Fallback to /health
     try {
         $r = Invoke-WebRequest -Uri $HealthUrlFallback -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
         return $r.StatusCode -eq 200

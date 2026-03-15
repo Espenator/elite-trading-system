@@ -6,7 +6,7 @@
 
 .DESCRIPTION
     - Guard mode: if services already healthy, skips startup and enters health monitor
-    - Kills any stale processes on ports 8001 (backend) and 3000 (frontend)
+    - Kills any stale processes on ports 8000 (backend) and 3000 (frontend)
     - Starts backend Python server with auto-restart on crash
     - Starts frontend Vite dev server with auto-restart on crash
     - Health-checks backend every 15 seconds, frontend every 30 seconds
@@ -25,8 +25,8 @@ $BACKEND_DIR = Join-Path $REPO_ROOT "backend"
 $FRONTEND_DIR = Join-Path $REPO_ROOT "frontend-v2"
 $LOG_DIR = Join-Path $REPO_ROOT "logs"
 $PID_FILE = Join-Path $REPO_ROOT "logs\services.pid"
-$BACKEND_PORT = 8001
-$FRONTEND_PORT = 3000
+$BACKEND_PORT = 8000
+$FRONTEND_PORT = 5173
 $BRAIN_PORT = 50051
 $BRAIN_DIR = Join-Path $REPO_ROOT "brain_service"
 $MAX_RESTARTS = 10
